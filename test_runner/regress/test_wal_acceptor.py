@@ -24,9 +24,9 @@ import requests
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
 from fixtures.metrics import parse_metrics
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnvBuilder,
+    SerenDBEnvBuilder,
     PgBin,
     PgProtocol,
     Safekeeper,
@@ -85,16 +85,16 @@ class TimelineMetrics:
 
 # Run page server and multiple acceptors, and multiple compute nodes running
 # against different timelines.
-def test_many_timelines(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_many_timelines(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     n_timelines = 3
 
     branch_names = [f"test_safekeepers_many_timelines_{tlin}" for tlin in range(n_timelines)]
     # pageserver, safekeeper operate timelines via their ids (can be represented in hex as 'ad50847381e248feaac9876cc71ae418')
-    # that's not really human readable, so the branch names are introduced in Neon CLI.
-    # Neon CLI stores its branch <-> timeline mapping in its internals,
+    # that's not really human readable, so the branch names are introduced in SerenDB CLI.
+    # SerenDB CLI stores its branch <-> timeline mapping in its internals,
     # but we need this to collect metrics from other servers, related to the timeline.
     branch_names_to_timeline_ids = {}
 
@@ -147,13 +147,13 @@ def test_many_timelines(neon_env_builder: NeonEnvBuilder):
             # has confirmed the transaction. We assume majority consensus here.
             assert (
                 2 * sum(m.last_record_lsn <= lsn for lsn in m.flush_lsns)
-                > neon_env_builder.num_safekeepers
+                > serendb_env_builder.num_safekeepers
             ), (
                 f"timeline_id={timeline_id}, timeline_detail={timeline_detail}, sk_metrics={sk_metrics}"
             )
             assert (
                 2 * sum(m.last_record_lsn <= lsn for lsn in m.commit_lsns)
-                > neon_env_builder.num_safekeepers
+                > serendb_env_builder.num_safekeepers
             ), (
                 f"timeline_id={timeline_id}, timeline_detail={timeline_detail}, sk_metrics={sk_metrics}"
             )
@@ -235,13 +235,13 @@ def test_many_timelines(neon_env_builder: NeonEnvBuilder):
 # Check that dead minority doesn't prevent the commits: execute insert n_inserts
 # times, with fault_probability chance of getting a wal acceptor down or up
 # along the way. 2 of 3 are always alive, so the work keeps going.
-def test_restarts(neon_env_builder: NeonEnvBuilder):
+def test_restarts(serendb_env_builder: SerenDBEnvBuilder):
     fault_probability = 0.01
     n_inserts = 1000
     n_acceptors = 3
 
-    neon_env_builder.num_safekeepers = n_acceptors
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = n_acceptors
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_safekeepers_restarts")
     endpoint = env.endpoints.create_start("test_safekeepers_restarts")
@@ -267,10 +267,10 @@ def test_restarts(neon_env_builder: NeonEnvBuilder):
 
 
 # Test that safekeepers push their info to the broker and learn peer status from it
-def test_broker(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+def test_broker(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_broker", ancestor_branch_name="main")
@@ -325,12 +325,12 @@ def test_broker(neon_env_builder: NeonEnvBuilder):
 
 # Test that old WAL consumed by peers and pageserver is removed from safekeepers.
 @pytest.mark.parametrize("auth_enabled", [False, True])
-def test_wal_removal(neon_env_builder: NeonEnvBuilder, auth_enabled: bool):
-    neon_env_builder.num_safekeepers = 2
+def test_wal_removal(serendb_env_builder: SerenDBEnvBuilder, auth_enabled: bool):
+    serendb_env_builder.num_safekeepers = 2
     # to advance remote_consistent_lsn
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    neon_env_builder.auth_enabled = auth_enabled
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.auth_enabled = auth_enabled
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_safekeepers_wal_removal")
@@ -422,12 +422,12 @@ def wait(f, desc, timeout=30, wait_f=None):
             wait_f()
 
 
-def test_wal_backup(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
+def test_wal_backup(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # These are expected after timeline deletion on safekeepers.
     env.pageserver.allowed_errors.extend(
@@ -481,24 +481,24 @@ def test_wal_backup(neon_env_builder: NeonEnvBuilder):
 
     # Test that after timeline deletion remote objects are gone.
     prefix = "/".join([str(tenant_id), str(timeline_id)])
-    assert_prefix_not_empty(neon_env_builder.safekeepers_remote_storage, prefix)
+    assert_prefix_not_empty(serendb_env_builder.safekeepers_remote_storage, prefix)
 
     for sk in env.safekeepers:
         sk_http = sk.http_client()
         sk_http.timeline_delete(tenant_id, timeline_id)
-    assert_prefix_empty(neon_env_builder.safekeepers_remote_storage, prefix)
+    assert_prefix_empty(serendb_env_builder.safekeepers_remote_storage, prefix)
 
 
 # This test is flaky, probably because PUTs of local fs storage are not atomic.
 # Let's keep both remote storage kinds for a while to see if this is the case.
 # https://github.com/neondatabase/neon/issues/10761
 @pytest.mark.parametrize("remote_storage_kind", [s3_storage(), RemoteStorageKind.LOCAL_FS])
-def test_s3_wal_replay(neon_env_builder: NeonEnvBuilder, remote_storage_kind: RemoteStorageKind):
-    neon_env_builder.num_safekeepers = 3
+def test_s3_wal_replay(serendb_env_builder: SerenDBEnvBuilder, remote_storage_kind: RemoteStorageKind):
+    serendb_env_builder.num_safekeepers = 3
 
-    neon_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_s3_wal_replay")
 
@@ -647,7 +647,7 @@ def test_s3_wal_replay(neon_env_builder: NeonEnvBuilder, remote_storage_kind: Re
 
 
 class ProposerPostgres(PgProtocol):
-    """Object for running postgres without NeonEnv"""
+    """Object for running postgres without SerenDBEnv"""
 
     def __init__(
         self,
@@ -682,11 +682,11 @@ class ProposerPostgres(PgProtocol):
         with open(self.config_file_path(), "w") as f:
             cfg = [
                 "synchronous_standby_names = 'walproposer'\n",
-                "shared_preload_libraries = 'neon'\n",
-                f"neon.timeline_id = '{self.timeline_id}'\n",
-                f"neon.tenant_id = '{self.tenant_id}'\n",
-                "neon.pageserver_connstring = ''\n",
-                f"neon.safekeepers = '{safekeepers}'\n",
+                "shared_preload_libraries = 'serendb'\n",
+                f"serendb.timeline_id = '{self.timeline_id}'\n",
+                f"serendb.tenant_id = '{self.tenant_id}'\n",
+                "serendb.pageserver_connstring = ''\n",
+                f"serendb.safekeepers = '{safekeepers}'\n",
                 f"listen_addresses = '{self.listen_addr}'\n",
                 f"port = '{self.port}'\n",
             ]
@@ -735,9 +735,9 @@ class ProposerPostgres(PgProtocol):
 
 
 @pytest.mark.parametrize("auth_enabled", [False, True])
-def test_timeline_status(neon_env_builder: NeonEnvBuilder, auth_enabled: bool):
-    neon_env_builder.auth_enabled = auth_enabled
-    env = neon_env_builder.init_start()
+def test_timeline_status(serendb_env_builder: SerenDBEnvBuilder, auth_enabled: bool):
+    serendb_env_builder.auth_enabled = auth_enabled
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -830,13 +830,13 @@ class DummyConsumer:
         pass
 
 
-def test_start_replication_term(neon_env_builder: NeonEnvBuilder):
+def test_start_replication_term(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test START_REPLICATION of uncommitted part specifying leader term. It must
     error if safekeeper switched to different term.
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_start_replication_term")
@@ -866,9 +866,9 @@ def test_start_replication_term(neon_env_builder: NeonEnvBuilder):
 
 
 # Test auth on all ports: WAL service (postgres protocol), WAL service tenant only and http.
-def test_sk_auth(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_sk_auth(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_sk_auth")
@@ -898,7 +898,7 @@ def test_sk_auth(neon_env_builder: NeonEnvBuilder):
 
     # Now test that auth on http/pg can be enabled separately.
 
-    # By default, neon_local enables auth on all services if auth is configured,
+    # By default, serendb_local enables auth on all services if auth is configured,
     # so http must require the token.
     sk_http_cli_noauth = sk.http_client(gen_sk_wide_token=False)
     sk_http_cli_auth = sk.http_client(auth_token=env.auth_keys.generate_tenant_token(tenant_id))
@@ -927,10 +927,10 @@ def test_sk_auth(neon_env_builder: NeonEnvBuilder):
 
 
 # Try restarting endpoint with enabled auth.
-def test_restart_endpoint(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_restart_endpoint(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_sk_auth_restart_endpoint")
     endpoint = env.endpoints.create_start("test_sk_auth_restart_endpoint")
@@ -957,8 +957,8 @@ def test_restart_endpoint(neon_env_builder: NeonEnvBuilder):
 
 # Try restarting endpoint immediately after xlog switch.
 # https://github.com/neondatabase/neon/issues/8911
-def test_restart_endpoint_after_switch_wal(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_restart_endpoint_after_switch_wal(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     timeline_id = env.initial_timeline
 
     endpoint = env.endpoints.create_start("main")
@@ -975,8 +975,8 @@ def test_restart_endpoint_after_switch_wal(neon_env_builder: NeonEnvBuilder):
 
 
 # Test restarting compute at WAL page boundary.
-def test_restart_endpoint_wal_page_boundary(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_restart_endpoint_wal_page_boundary(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     ep = env.endpoints.create_start("main")
     ep.safe_psql("create table t (i int)")
@@ -990,7 +990,7 @@ def test_restart_endpoint_wal_page_boundary(neon_env_builder: NeonEnvBuilder):
             # Non-transactional logical message doesn't write WAL, only XLogInsert's
             # it, so use transactional. Which is a bit problematic as transactional
             # necessitates commit record. Alternatively we can do smth like
-            #   select neon_xlogflush(pg_current_wal_insert_lsn());
+            #   select serendb_xlogflush(pg_current_wal_insert_lsn());
             # but isn't much better + that particular call complains on 'xlog flush
             # request 0/282C018 is not satisfied' as pg_current_wal_insert_lsn skips
             # page headers.
@@ -1064,9 +1064,9 @@ class WalChangeLogger:
 # later when some data already had been written. It is strictly weaker than
 # test_lagging_sk, but also is the simplest test to trigger WAL sk -> compute
 # download (recovery) and as such useful for development/testing.
-def test_late_init(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_late_init(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     sk1 = env.safekeepers[0]
     sk1.stop()
@@ -1187,21 +1187,21 @@ def wait_flush_lsn_align_by_ep(env, branch, tenant_id, timeline_id, ep, sks):
 
 
 # Test behaviour with one safekeeper down and missing a lot of WAL, exercising
-# neon_walreader and checking that pg_wal never bloats. Namely, ensures that
+# serendb_walreader and checking that pg_wal never bloats. Namely, ensures that
 # compute doesn't keep many WAL for lagging sk, but still can recover it with
-# neon_walreader, in two scenarious: a) WAL never existed on compute (it started
+# serendb_walreader, in two scenarious: a) WAL never existed on compute (it started
 # on basebackup LSN later than lagging sk position) though segment file exists
 # b) WAL had been recycled on it and segment file doesn't exist.
 #
 # Also checks along the way that whenever there are two sks alive, compute
 # should be able to commit.
-def test_lagging_sk(neon_env_builder: NeonEnvBuilder):
+def test_lagging_sk(serendb_env_builder: SerenDBEnvBuilder):
     # inserts ~20MB of WAL, a bit more than a segment.
     def fill_segment(ep):
         ep.safe_psql("insert into t select generate_series(1, 180000), 'payload'")
 
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     (sk1, sk2, sk3) = env.safekeepers
 
@@ -1220,7 +1220,7 @@ def test_lagging_sk(neon_env_builder: NeonEnvBuilder):
     sk2.stop()
     sk1.start()
 
-    # Start new ep and insert some more. neon_walreader should download WAL for
+    # Start new ep and insert some more. serendb_walreader should download WAL for
     # sk1 because it should be filled since the horizon (initial LSN) which is
     # earlier than basebackup LSN.
     ep = env.endpoints.create_start("test_lagging_sk")
@@ -1290,15 +1290,15 @@ def test_lagging_sk(neon_env_builder: NeonEnvBuilder):
 
 # Smaller version of test_one_sk_down testing peer recovery in isolation: that
 # it works without compute at all.
-def test_peer_recovery(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
+def test_peer_recovery(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
 
     # timelines should be created the old way
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": False,
     }
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_peer_recovery")
@@ -1369,9 +1369,9 @@ def test_peer_recovery(neon_env_builder: NeonEnvBuilder):
 # allowed to run and self terminate after shutdown checkpoint is written, so it
 # commits it to safekeepers before exiting. This not required for correctness,
 # but needed for tests using check_restored_datadir_content.
-def test_wp_graceful_shutdown(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start()
+def test_wp_graceful_shutdown(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_wp_graceful_shutdown")
@@ -1401,7 +1401,7 @@ class SafekeeperEnv:
         repo_dir: Path,
         port_distributor: PortDistributor,
         pg_bin: PgBin,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         num_safekeepers: int = 1,
     ):
         self.repo_dir = repo_dir
@@ -1409,7 +1409,7 @@ class SafekeeperEnv:
         self.fake_broker_endpoint = f"http://127.0.0.1:{port_distributor.get_port()}"
         self.pg_bin = pg_bin
         self.num_safekeepers = num_safekeepers
-        self.bin_safekeeper = str(neon_binpath / "safekeeper")
+        self.bin_safekeeper = str(serendb_binpath / "safekeeper")
         self.safekeepers: list[subprocess.CompletedProcess[Any]] | None = None
         self.postgres: ProposerPostgres | None = None
         self.tenant_id: TenantId | None = None
@@ -1515,7 +1515,7 @@ def test_safekeeper_without_pageserver(
     test_output_dir: str,
     port_distributor: PortDistributor,
     pg_bin: PgBin,
-    neon_binpath: Path,
+    serendb_binpath: Path,
 ):
     # Create the environment in the test-specific output dir
     repo_dir = Path(os.path.join(test_output_dir, "repo"))
@@ -1524,7 +1524,7 @@ def test_safekeeper_without_pageserver(
         repo_dir,
         port_distributor,
         pg_bin,
-        neon_binpath,
+        serendb_binpath,
     )
 
     with env:
@@ -1537,9 +1537,9 @@ def test_safekeeper_without_pageserver(
         assert res == 5050
 
 
-def test_replace_safekeeper(neon_env_builder: NeonEnvBuilder):
+def test_replace_safekeeper(serendb_env_builder: SerenDBEnvBuilder):
     # timelines should be created the old way manually until we have migration support
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": False,
     }
 
@@ -1565,8 +1565,8 @@ def test_replace_safekeeper(neon_env_builder: NeonEnvBuilder):
             except Exception as e:
                 log.info(f"Safekeeper {sk.id} status error: {e}")
 
-    neon_env_builder.num_safekeepers = 4
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 4
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.create_branch("test_replace_safekeeper")
 
@@ -1624,8 +1624,8 @@ def test_replace_safekeeper(neon_env_builder: NeonEnvBuilder):
 # When live_sk_change is False, compute is restarted to change set of
 # safekeepers; otherwise it is live reload.
 @pytest.mark.parametrize("live_sk_change", [False, True])
-def test_pull_timeline(neon_env_builder: NeonEnvBuilder, live_sk_change: bool):
-    neon_env_builder.auth_enabled = True
+def test_pull_timeline(serendb_env_builder: SerenDBEnvBuilder, live_sk_change: bool):
+    serendb_env_builder.auth_enabled = True
 
     def execute_payload(endpoint: Endpoint):
         with closing(endpoint.connect()) as conn:
@@ -1649,8 +1649,8 @@ def test_pull_timeline(neon_env_builder: NeonEnvBuilder, live_sk_change: bool):
             except Exception as e:
                 log.info(f"Safekeeper {sk.id} status error: {e}")
 
-    neon_env_builder.num_safekeepers = 4
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 4
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -1720,11 +1720,11 @@ def test_pull_timeline(neon_env_builder: NeonEnvBuilder, live_sk_change: bool):
 # 4) Do some write, verify integrity with timeline_digest.
 # Expected to fail while holding off WAL gc plus fetching commit_lsn WAL
 # segment is not implemented.
-def test_pull_timeline_gc(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
-    env = neon_env_builder.init_start()
+def test_pull_timeline_gc(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
+    env = serendb_env_builder.init_start()
 
     (src_sk, dst_sk) = (env.safekeepers[0], env.safekeepers[2])
 
@@ -1799,11 +1799,11 @@ def test_pull_timeline_gc(neon_env_builder: NeonEnvBuilder):
 # enough, so it won't be affected by term change anymore.
 #
 # Expected to fail while term check is not implemented.
-def test_pull_timeline_term_change(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
-    env = neon_env_builder.init_start()
+def test_pull_timeline_term_change(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
 
     (src_sk, dst_sk) = (env.safekeepers[0], env.safekeepers[2])
@@ -1847,18 +1847,18 @@ def test_pull_timeline_term_change(neon_env_builder: NeonEnvBuilder):
         pt_handle.join()
 
 
-def test_pull_timeline_while_evicted(neon_env_builder: NeonEnvBuilder):
+def test_pull_timeline_while_evicted(serendb_env_builder: SerenDBEnvBuilder):
     """
     Verify that when pull_timeline is used on an evicted timeline, it does not result in
     promoting any segments to local disk on the source, and the timeline is correctly instantiated
     in evicted state on the destination.  This behavior is important to avoid ballooning disk
     usage when doing mass migration of timelines.
     """
-    neon_env_builder.num_safekeepers = 4
-    neon_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
+    serendb_env_builder.num_safekeepers = 4
+    serendb_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
 
     # Configure safekeepers with ultra-fast eviction policy
-    neon_env_builder.safekeeper_extra_opts = [
+    serendb_env_builder.safekeeper_extra_opts = [
         "--enable-offload",
         "--partial-backup-timeout",
         "50ms",
@@ -1871,7 +1871,7 @@ def test_pull_timeline_while_evicted(neon_env_builder: NeonEnvBuilder):
     ]
 
     initial_tenant_conf = {"lagging_wal_timeout": "1s", "checkpoint_timeout": "100ms"}
-    env = neon_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -1954,14 +1954,14 @@ def test_pull_timeline_while_evicted(neon_env_builder: NeonEnvBuilder):
 # configuration. Normally these are called by storage controller, but this
 # allows to test them separately.
 @run_only_on_default_postgres("tests only safekeeper API")
-def test_membership_api(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 1
+def test_membership_api(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 1
     # timelines should be created the old way
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": False,
     }
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # These are expected after timeline deletion on safekeepers.
     env.pageserver.allowed_errors.extend(
@@ -2032,22 +2032,22 @@ def test_membership_api(neon_env_builder: NeonEnvBuilder):
         http_cli.timeline_status(tenant_id, timeline_id)
 
 
-def test_explicit_timeline_creation(neon_env_builder: NeonEnvBuilder):
+def test_explicit_timeline_creation(serendb_env_builder: SerenDBEnvBuilder):
     """
-    Test that having neon.safekeepers starting with g#n: with non zero n enables
+    Test that having serendb.safekeepers starting with g#n: with non zero n enables
     generations, which as a side effect disables automatic timeline creation.
 
     This is kind of bootstrapping test: here membership conf & timeline is
     created manually, later storcon will do that.
     """
-    neon_env_builder.num_safekeepers = 3
+    serendb_env_builder.num_safekeepers = 3
 
     # timelines should be created the old way manually
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": False,
     }
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2067,18 +2067,18 @@ def test_explicit_timeline_creation(neon_env_builder: NeonEnvBuilder):
     ep.safe_psql("CREATE TABLE IF NOT EXISTS t(key int, value text)")
 
 
-def test_explicit_timeline_creation_storcon(neon_env_builder: NeonEnvBuilder):
+def test_explicit_timeline_creation_storcon(serendb_env_builder: SerenDBEnvBuilder):
     """
-    Test that having neon.safekeepers starting with g#n: with non zero n enables
+    Test that having serendb.safekeepers starting with g#n: with non zero n enables
     generations, which as a side effect disables automatic timeline creation.
     Like test_explicit_timeline_creation, but asks the storcon to
     create membership conf & timeline.
     """
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     ep = env.endpoints.create("main")
 
@@ -2097,9 +2097,9 @@ def test_explicit_timeline_creation_storcon(neon_env_builder: NeonEnvBuilder):
 # This is longer than most other tests, we run it only for v16 to save CI resources.
 @run_only_on_default_postgres("run only on release build to save CI resources")
 @skip_in_debug_build("run only on release build to save CI resources")
-def test_idle_reconnections(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_idle_reconnections(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2156,13 +2156,13 @@ def test_idle_reconnections(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.parametrize("insert_rows", [0, 100, 100000, 500000])
-def test_timeline_copy(neon_env_builder: NeonEnvBuilder, insert_rows: int):
+def test_timeline_copy(serendb_env_builder: SerenDBEnvBuilder, insert_rows: int):
     target_percents = [10, 50, 90, 100]
 
-    neon_env_builder.num_safekeepers = 3
+    serendb_env_builder.num_safekeepers = 3
     # we need remote storage that supports copy_object S3 API
-    neon_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.MOCK_S3)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.MOCK_S3)
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2245,9 +2245,9 @@ def test_timeline_copy(neon_env_builder: NeonEnvBuilder, insert_rows: int):
     # TODO: test timelines can start after copy
 
 
-def test_patch_control_file(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start()
+def test_patch_control_file(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2293,9 +2293,9 @@ def test_patch_control_file(neon_env_builder: NeonEnvBuilder):
     assert res["timelines"][0]["control_file"]["timeline_start_lsn"] == "0/1"
 
 
-def test_term_bump(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start()
+def test_term_bump(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2332,10 +2332,10 @@ def test_term_bump(neon_env_builder: NeonEnvBuilder):
 
 # Test disables periodic pushes from safekeeper to the broker and checks that
 # pageserver can still discover safekeepers with discovery requests.
-def test_broker_discovery(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+def test_broker_discovery(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_broker_discovery")
 
@@ -2345,7 +2345,7 @@ def test_broker_discovery(neon_env_builder: NeonEnvBuilder):
     )
     endpoint.safe_psql("create table t(i int, payload text)")
     # Install extension containing function needed to clear buffer
-    endpoint.safe_psql("CREATE EXTENSION neon_test_utils")
+    endpoint.safe_psql("CREATE EXTENSION serendb_test_utils")
 
     def do_something():
         time.sleep(1)
@@ -2385,12 +2385,12 @@ def test_broker_discovery(neon_env_builder: NeonEnvBuilder):
 @pytest.mark.parametrize("delete_offloaded_wal", [False, True])
 @pytest.mark.parametrize("restart_chance", [0.0, 0.2])
 def test_s3_eviction(
-    neon_env_builder: NeonEnvBuilder, delete_offloaded_wal: bool, restart_chance: float
+    serendb_env_builder: SerenDBEnvBuilder, delete_offloaded_wal: bool, restart_chance: float
 ):
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    neon_env_builder.safekeeper_extra_opts = [
+    serendb_env_builder.safekeeper_extra_opts = [
         "--enable-offload",
         "--partial-backup-timeout",
         "50ms",
@@ -2401,13 +2401,13 @@ def test_s3_eviction(
         "--eviction-min-resident=100ms",
     ]
     if delete_offloaded_wal:
-        neon_env_builder.safekeeper_extra_opts.append("--delete-offloaded-wal")
+        serendb_env_builder.safekeeper_extra_opts.append("--delete-offloaded-wal")
     # make lagging_wal_timeout small to force pageserver quickly forget about
     # safekeeper after it stops sending updates (timeline is deactivated) to
     # make test faster. Won't be needed with
     # https://github.com/neondatabase/neon/issues/8148 fixed.
     initial_tenant_conf = {"lagging_wal_timeout": "1s", "checkpoint_timeout": "100ms"}
-    env = neon_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
 
     n_timelines = 5
 
@@ -2528,13 +2528,13 @@ def test_s3_eviction(
 
 
 # Test resetting uploaded partial segment state.
-def test_backup_partial_reset(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 1
-    neon_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
+def test_backup_partial_reset(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 1
+    serendb_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
     # We want to upload/evict quickly, but not too quickly to check that s3 is
     # empty before next round of upload happens.
     # Note: this test fails with --delete-offloaded-wal, this is expected.
-    neon_env_builder.safekeeper_extra_opts = [
+    serendb_env_builder.safekeeper_extra_opts = [
         "--enable-offload",
         "--partial-backup-timeout",
         "1s",
@@ -2550,7 +2550,7 @@ def test_backup_partial_reset(neon_env_builder: NeonEnvBuilder):
     initial_tenant_conf = {
         "lagging_wal_timeout": "1s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -2598,7 +2598,7 @@ def test_backup_partial_reset(neon_env_builder: NeonEnvBuilder):
     endpoint.safe_psql("insert into t values(1, 'hehe')")
 
 
-def test_pull_timeline_partial_segment_integrity(neon_env_builder: NeonEnvBuilder):
+def test_pull_timeline_partial_segment_integrity(serendb_env_builder: SerenDBEnvBuilder):
     """
     Verify that pulling timeline from a SK with an uploaded partial segment
     does not lead to consistency issues:
@@ -2611,11 +2611,11 @@ def test_pull_timeline_partial_segment_integrity(neon_env_builder: NeonEnvBuilde
     6. Go back to initial compute SK config and validate that
     source SK can unevict the timeline (S3 state is consistent)
     """
-    neon_env_builder.auth_enabled = True
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
+    serendb_env_builder.auth_enabled = True
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(default_remote_storage())
 
-    neon_env_builder.safekeeper_extra_opts = [
+    serendb_env_builder.safekeeper_extra_opts = [
         "--enable-offload",
         "--delete-offloaded-wal",
         "--partial-backup-timeout",
@@ -2634,7 +2634,7 @@ def test_pull_timeline_partial_segment_integrity(neon_env_builder: NeonEnvBuilde
         "lagging_wal_timeout": "1s",
         "checkpoint_timeout": "100ms",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=initial_tenant_conf)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -2742,7 +2742,7 @@ def test_pull_timeline_partial_segment_integrity(neon_env_builder: NeonEnvBuilde
     wait_until(unevicted)
 
 
-def test_timeline_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
+def test_timeline_disk_usage_limit(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that the timeline disk usage circuit breaker works as expected. We test that:
     1. The circuit breaker kicks in when the timeline's disk usage exceeds the configured limit,
@@ -2753,32 +2753,32 @@ def test_timeline_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
     4. There is no data corruption throughout the test.
     """
     # Set up environment with a very small disk usage limit (1KB)
-    neon_env_builder.num_safekeepers = 1
+    serendb_env_builder.num_safekeepers = 1
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Create a timeline and endpoint
     env.create_branch("test_timeline_disk_usage_limit")
     endpoint = env.endpoints.create_start(
         "test_timeline_disk_usage_limit",
         config_lines=[
-            "neon.lakebase_mode=true",
+            "serendb.lakebase_mode=true",
         ],
     )
 
-    # Install the neon extension in the test database. We need it to query perf counter metrics.
+    # Install the SerenDB extension in the test database. We need it to query perf counter metrics.
     with closing(endpoint.connect()) as conn:
         with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS neon")
-            # Sanity-check safekeeper connection status in neon_perf_counters in the happy case.
+            cur.execute("CREATE EXTENSION IF NOT EXISTS serendb")
+            # Sanity-check safekeeper connection status in serendb_perf_counters in the happy case.
             cur.execute(
-                "SELECT value FROM neon_perf_counters WHERE metric = 'num_active_safekeepers'"
+                "SELECT value FROM serendb_perf_counters WHERE metric = 'num_active_safekeepers'"
             )
             assert cur.fetchone() == (1,), "Expected 1 active safekeeper"
             cur.execute(
-                "SELECT value FROM neon_perf_counters WHERE metric = 'num_configured_safekeepers'"
+                "SELECT value FROM serendb_perf_counters WHERE metric = 'num_configured_safekeepers'"
             )
             assert cur.fetchone() == (1,), "Expected 1 configured safekeeper"
 
@@ -2815,13 +2815,13 @@ def test_timeline_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
 
     with closing(endpoint.connect()) as conn:
         with conn.cursor() as cur:
-            # Confirm that neon_perf_counters also indicates that there are no active safekeepers
+            # Confirm that serendb_perf_counters also indicates that there are no active safekeepers
             cur.execute(
-                "SELECT value FROM neon_perf_counters WHERE metric = 'num_active_safekeepers'"
+                "SELECT value FROM serendb_perf_counters WHERE metric = 'num_active_safekeepers'"
             )
             assert cur.fetchone() == (0,), "Expected 0 active safekeepers"
             cur.execute(
-                "SELECT value FROM neon_perf_counters WHERE metric = 'num_configured_safekeepers'"
+                "SELECT value FROM serendb_perf_counters WHERE metric = 'num_configured_safekeepers'"
             )
             assert cur.fetchone() == (1,), "Expected 1 configured safekeeper"
 
@@ -2856,7 +2856,7 @@ def test_timeline_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
             assert cur.fetchone() == (3000,)
 
 
-def test_global_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
+def test_global_disk_usage_limit(serendb_env_builder: SerenDBEnvBuilder):
     """
     Similar to `test_timeline_disk_usage_limit`, but test that the global disk usage circuit breaker
     also works as expected. The test scenario:
@@ -2867,11 +2867,11 @@ def test_global_disk_usage_limit(neon_env_builder: NeonEnvBuilder):
     5. Mock low disk usage via failpoint
     6. Verify that the hanging writes unblock and we can continue to write as normal.
     """
-    neon_env_builder.num_safekeepers = 1
+    serendb_env_builder.num_safekeepers = 1
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_safekeeper_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_global_disk_usage_limit")
     endpoint = env.endpoints.create_start("test_global_disk_usage_limit")

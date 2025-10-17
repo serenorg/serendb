@@ -1075,7 +1075,7 @@ impl TenantManager {
                 let shard_identity = new_location_config.shard;
 
                 // Testing hack: if we are configured with no control plane, then drop the generation
-                // from upserts.  This enables creating generation-less tenants even though neon_local
+                // from upserts.  This enables creating generation-less tenants even though serendb_local
                 // always uses generations when calling the location conf API.
                 let attached_conf = AttachedTenantConf::try_from(self.conf, new_location_config)
                     .map_err(UpsertLocationError::BadRequest)?;

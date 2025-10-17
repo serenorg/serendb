@@ -322,8 +322,8 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
             }
         }
         if pageserver_conninfo.is_none() {
-            if let Some(guc) = spec.cluster.settings.find("neon.pageserver_connstring") {
-                let stripe_size = if let Some(guc) = spec.cluster.settings.find("neon.stripe_size")
+            if let Some(guc) = spec.cluster.settings.find("serendb.pageserver_connstring") {
+                let stripe_size = if let Some(guc) = spec.cluster.settings.find("serendb.stripe_size")
                 {
                     Some(ShardStripeSize(u32::from_str(&guc)?))
                 } else {
@@ -342,7 +342,7 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
             if matches!(spec.mode, ComputeMode::Primary) {
                 spec.cluster
                     .settings
-                    .find("neon.safekeepers")
+                    .find("serendb.safekeepers")
                     .ok_or(anyhow::anyhow!("safekeeper connstrings should be provided"))?
                     .split(',')
                     .map(|str| str.to_string())
@@ -361,7 +361,7 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
             let guc = spec
                 .cluster
                 .settings
-                .find("neon.tenant_id")
+                .find("serendb.tenant_id")
                 .ok_or(anyhow::anyhow!("tenant id should be provided"))?;
             TenantId::from_str(&guc).context("invalid tenant id")?
         };
@@ -371,7 +371,7 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
             let guc = spec
                 .cluster
                 .settings
-                .find("neon.timeline_id")
+                .find("serendb.timeline_id")
                 .ok_or(anyhow::anyhow!("timeline id should be provided"))?;
             TimelineId::from_str(&guc).context(anyhow::anyhow!("invalid timeline id"))?
         };
@@ -379,11 +379,11 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
         let endpoint_storage_addr: Option<String> = spec
             .endpoint_storage_addr
             .clone()
-            .or_else(|| spec.cluster.settings.find("neon.endpoint_storage_addr"));
+            .or_else(|| spec.cluster.settings.find("serendb.endpoint_storage_addr"));
         let endpoint_storage_token = spec
             .endpoint_storage_token
             .clone()
-            .or_else(|| spec.cluster.settings.find("neon.endpoint_storage_token"));
+            .or_else(|| spec.cluster.settings.find("serendb.endpoint_storage_token"));
 
         let res = ParsedSpec {
             spec,
@@ -402,11 +402,11 @@ impl TryFrom<ComputeSpec> for ParsedSpec {
     }
 }
 
-/// If we are a VM, returns a [`Command`] that will run in the `neon-postgres`
+/// If we are a VM, returns a [`Command`] that will run in the `serendb-postgres`
 /// cgroup. Otherwise returns the default `Command::new(cmd)`
 ///
 /// This function should be used to start postgres, as it will start it in the
-/// neon-postgres cgroup if we are a VM. This allows autoscaling to control
+/// serendb-postgres cgroup if we are a VM. This allows autoscaling to control
 /// postgres' resource usage. The cgroup will exist in VMs because vm-builder
 /// creates it during the sysinit phase of its inittab.
 fn maybe_cgexec(cmd: &str) -> Command {
@@ -415,7 +415,7 @@ fn maybe_cgexec(cmd: &str) -> Command {
     // unicode. Should never be an concern . . . but just in case
     if env::var_os("AUTOSCALING").is_some() {
         let mut command = Command::new("cgexec");
-        command.args(["-g", "memory:neon-postgres"]);
+        command.args(["-g", "memory:serendb-postgres"]);
         command.arg(cmd);
         command
     } else {
@@ -550,7 +550,7 @@ impl DatabricksEnvVars {
     /// Convert DatabricksEnvVars to a list of string pairs that can be passed as env vars. Consumes `self`.
     pub fn to_env_var_list(self) -> Vec<(String, String)> {
         if !self.lakebase_mode {
-            // In neon env, we don't need to pass down the env vars to postgres.
+            // In SerenDB env, we don't need to pass down the env vars to postgres.
             return vec![];
         }
         vec![
@@ -711,7 +711,7 @@ impl ComputeNode {
         this.terminate_lfc_offload_task();
 
         // Terminate the vm_monitor so it releases the file watcher on
-        // /sys/fs/cgroup/neon-postgres.
+        // /sys/fs/cgroup/serendb-postgres.
         // Note: the vm-monitor only runs on linux because it requires cgroups.
         if let Some(vm_monitor) = vm_monitor {
             cfg_if::cfg_if! {
@@ -1229,7 +1229,7 @@ impl ComputeNode {
             PageserverProtocol::Libpq => self.try_get_basebackup_libpq(spec, lsn)?,
         };
 
-        self.fix_zenith_signal_neon_signal()?;
+        self.fix_zenith_signal_serendb_signal()?;
 
         let mut state = self.state.lock().unwrap();
         state.metrics.pageserver_connect_micros =
@@ -1240,22 +1240,22 @@ impl ComputeNode {
         Ok(())
     }
 
-    /// Move the Zenith signal file to Neon signal file location.
+    /// Move the Zenith signal file to SerenDB signal file location.
     /// This makes Compute compatible with older PageServers that don't yet
-    /// know about the Zenith->Neon rename.
-    fn fix_zenith_signal_neon_signal(&self) -> Result<()> {
+    /// know about the Zenith->SerenDB rename.
+    fn fix_zenith_signal_serendb_signal(&self) -> Result<()> {
         let datadir = Path::new(&self.params.pgdata);
 
-        let neonsig = datadir.join("neon.signal");
+        let serendbsig = datadir.join("serendb.signal");
 
-        if neonsig.is_file() {
+        if serendbsig.is_file() {
             return Ok(());
         }
 
         let zenithsig = datadir.join("zenith.signal");
 
         if zenithsig.is_file() {
-            fs::copy(zenithsig, neonsig)?;
+            fs::copy(zenithsig, serendbsig)?;
         }
 
         Ok(())
@@ -1325,7 +1325,7 @@ impl ComputeNode {
 
         config.application_name("compute_ctl");
         config.options(&format!(
-            "-c neon.compute_mode={}",
+            "-c serendb.compute_mode={}",
             spec.spec.mode.to_type_str()
         ));
 
@@ -1384,7 +1384,7 @@ impl ComputeNode {
         let mut attempts = 0;
         const DEFAULT_ATTEMPTS: u16 = 10;
         #[cfg(feature = "testing")]
-        let max_attempts = if let Ok(v) = env::var("NEON_COMPUTE_TESTING_BASEBACKUP_RETRIES") {
+        let max_attempts = if let Ok(v) = env::var("SERENDB_COMPUTE_TESTING_BASEBACKUP_RETRIES") {
             u16::from_str(&v).unwrap()
         } else {
             DEFAULT_ATTEMPTS
@@ -1511,7 +1511,7 @@ impl ComputeNode {
             .args(["--sync-safekeepers"])
             .env("PGDATA", &self.params.pgdata) // we cannot use -D in this mode
             .envs(if let Some(storage_auth_token) = &storage_auth_token {
-                vec![("NEON_AUTH_TOKEN", storage_auth_token)]
+                vec![("SERENDB_AUTH_TOKEN", storage_auth_token)]
             } else {
                 vec![]
             })
@@ -1755,7 +1755,7 @@ impl ComputeNode {
         let mut file = std::fs::File::create(conf_path)?;
         writeln!(file, "shared_buffers=65536")?;
         writeln!(file, "port=51055")?; // Nobody should be connecting
-        writeln!(file, "shared_preload_libraries = 'neon'")?;
+        writeln!(file, "shared_preload_libraries = 'serendb'")?;
 
         // Start postgres
         info!("starting postgres");
@@ -1807,10 +1807,10 @@ impl ComputeNode {
             );
 
             let mut env_vars = databricks_env_vars.to_env_var_list();
-            env_vars.extend(storage_auth_token.map(|t| ("NEON_AUTH_TOKEN".to_string(), t)));
+            env_vars.extend(storage_auth_token.map(|t| ("SERENDB_AUTH_TOKEN".to_string(), t)));
             env_vars
         } else if let Some(storage_auth_token) = &storage_auth_token {
-            vec![("NEON_AUTH_TOKEN".to_owned(), storage_auth_token.to_owned())]
+            vec![("SERENDB_AUTH_TOKEN".to_owned(), storage_auth_token.to_owned())]
         } else {
             vec![]
         };
@@ -1856,7 +1856,7 @@ impl ComputeNode {
     }
 
     /// Do post configuration of the already started Postgres. This function spawns a background task to
-    /// configure the database after applying the compute spec. Currently, it upgrades the neon extension
+    /// configure the database after applying the compute spec. Currently, it upgrades the SerenDB extension
     /// version. In the future, it may upgrade all 3rd-party extensions.
     #[instrument(skip_all)]
     pub fn post_apply_config(&self) -> Result<()> {
@@ -1870,9 +1870,9 @@ impl ComputeNode {
                     }
                 });
 
-                handle_neon_extension_upgrade(&mut client)
+                handle_serendb_extension_upgrade(&mut client)
                     .await
-                    .context("handle_neon_extension_upgrade")?;
+                    .context("handle_serendb_extension_upgrade")?;
                 Ok::<_, anyhow::Error>(())
             }
             .await;
@@ -1934,7 +1934,7 @@ impl ComputeNode {
 
                     // Disable forwarding so that users don't get a cloud_admin role
                     let mut func = || {
-                        client.simple_query("SET neon.forward_ddl = false")?;
+                        client.simple_query("SET serendb.forward_ddl = false")?;
                         client.simple_query("CREATE USER cloud_admin WITH SUPERUSER")?;
                         client.simple_query("GRANT zenith_admin TO cloud_admin")?;
                         Ok::<_, anyhow::Error>(())
@@ -1960,9 +1960,9 @@ impl ComputeNode {
         // Disable DDL forwarding because control plane already knows about the roles/databases
         // we're about to modify.
         client
-            .simple_query("SET neon.forward_ddl = false")
+            .simple_query("SET serendb.forward_ddl = false")
             .await
-            .context("apply_config SET neon.forward_ddl = false")?;
+            .context("apply_config SET serendb.forward_ddl = false")?;
 
         Ok(client)
     }
@@ -2148,7 +2148,7 @@ impl ComputeNode {
             // Temporarily reset max_cluster_size in config
             // to avoid the possibility of hitting the limit, while we are reconfiguring:
             // creating new extensions, roles, etc.
-            config::with_compute_ctl_tmp_override(pgdata_path, "neon.max_cluster_size=-1", || {
+            config::with_compute_ctl_tmp_override(pgdata_path, "serendb.max_cluster_size=-1", || {
                 self.pg_reload_conf()?;
 
                 if spec.mode == ComputeMode::Primary {
@@ -2185,7 +2185,7 @@ impl ComputeNode {
             // temporarily reset max_cluster_size in config
             // to avoid the possibility of hitting the limit, while we are applying config:
             // creating new extensions, roles, etc...
-            config::with_compute_ctl_tmp_override(pgdata_path, "neon.max_cluster_size=-1", || {
+            config::with_compute_ctl_tmp_override(pgdata_path, "serendb.max_cluster_size=-1", || {
                 self.pg_reload_conf()?;
 
                 self.apply_config(compute_state)?;
@@ -2196,10 +2196,10 @@ impl ComputeNode {
             let postgresql_conf_path = pgdata_path.join("postgresql.conf");
             if config::line_in_file(
                 &postgresql_conf_path,
-                "neon.disable_logical_replication_subscribers=false",
+                "serendb.disable_logical_replication_subscribers=false",
             )? {
                 info!(
-                    "updated postgresql.conf to set neon.disable_logical_replication_subscribers=false"
+                    "updated postgresql.conf to set serendb.disable_logical_replication_subscribers=false"
                 );
             }
             self.pg_reload_conf()?;
@@ -2620,13 +2620,13 @@ LIMIT 100",
         if let Some(libs) = spec.cluster.settings.find("shared_preload_libraries") {
             libs_vec = libs
                 .split(&[',', '\'', ' '])
-                .filter(|s| *s != "neon" && *s != "databricks_auth" && !s.is_empty())
+                .filter(|s| *s != "serendb" && *s != "databricks_auth" && !s.is_empty())
                 .map(str::to_string)
                 .collect();
         }
         info!("parse shared_preload_libraries from provided postgresql.conf");
 
-        // that is used in neon_local and python tests
+        // that is used in serendb_local and python tests
         if let Some(conf) = &spec.cluster.postgresql_conf {
             let conf_lines = conf.split('\n').collect::<Vec<&str>>();
             let mut shared_preload_libraries_line = "";
@@ -2639,7 +2639,7 @@ LIMIT 100",
             if let Some(libs) = shared_preload_libraries_line.split("='").nth(1) {
                 preload_libs_vec = libs
                     .split(&[',', '\'', ' '])
-                    .filter(|s| *s != "neon" && *s != "databricks_auth" && !s.is_empty())
+                    .filter(|s| *s != "serendb" && *s != "databricks_auth" && !s.is_empty())
                     .map(str::to_string)
                     .collect();
             }
@@ -2724,13 +2724,13 @@ LIMIT 100",
         let mut installed_extensions_collection_interval =
             2 * atomic_interval.load(std::sync::atomic::Ordering::SeqCst);
         info!(
-            "[NEON_EXT_SPAWN] Spawning background installed extensions worker with Timeout: {}",
+            "[SERENDB_EXT_SPAWN] Spawning background installed extensions worker with Timeout: {}",
             installed_extensions_collection_interval
         );
         let handle = tokio::spawn(async move {
             loop {
                 info!(
-                    "[NEON_EXT_INT_SLEEP]: Interval: {}",
+                    "[SERENDB_EXT_INT_SLEEP]: Interval: {}",
                     installed_extensions_collection_interval
                 );
                 // Sleep at the start of the loop to ensure that two collections don't happen at the same time.
@@ -2848,7 +2848,7 @@ pub async fn installed_extensions(conf: tokio_postgres::Config) -> Result<()> {
     match res {
         Ok(extensions) => {
             info!(
-                "[NEON_EXT_STAT] {}",
+                "[SERENDB_EXT_STAT] {}",
                 serde_json::to_string(&extensions).expect("failed to serialize extensions list")
             );
         }

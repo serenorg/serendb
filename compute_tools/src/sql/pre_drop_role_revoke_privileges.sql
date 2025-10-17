@@ -9,7 +9,7 @@ BEGIN
         FROM information_schema.schemata
         -- So far, we only had issues with 'public' schema. Probably, because we do some additional grants,
         -- e.g., make DB owner the owner of 'public' schema automatically (when created via API).
-        -- See https://github.com/neondatabase/cloud/issues/13582 for the context.
+        -- See https://github.com/serendb/cloud/issues/13582 for the context.
         -- Still, keep the loop because i) it efficiently handles the case when there is no 'public' schema,
         -- ii) it's easy to add more schemas to the list if needed.
         WHERE schema_name IN ('public')

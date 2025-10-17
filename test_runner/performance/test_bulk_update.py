@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from fixtures.neon_fixtures import NeonEnvBuilder, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, wait_for_last_flush_lsn
 from fixtures.utils import shared_buffers_for_max_cu
 
 
@@ -15,8 +15,8 @@ from fixtures.utils import shared_buffers_for_max_cu
 #
 @pytest.mark.timeout(10000)
 @pytest.mark.parametrize("fillfactor", [10, 50, 100])
-def test_bulk_update(neon_env_builder: NeonEnvBuilder, zenbenchmark, fillfactor):
-    env = neon_env_builder.init_start()
+def test_bulk_update(serendb_env_builder: SerenDBEnvBuilder, zenbenchmark, fillfactor):
+    env = serendb_env_builder.init_start()
     n_records = 1000000
 
     timeline_id = env.create_branch("test_bulk_update")

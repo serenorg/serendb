@@ -12,23 +12,23 @@ if TYPE_CHECKING:
     from typing import Any
 
     from fixtures.common_types import TenantId, TimelineId
-    from fixtures.neon_fixtures import (
-        NeonEnv,
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnv,
+        SerenDBEnvBuilder,
     )
 
 
 def single_timeline(
-    neon_env_builder: NeonEnvBuilder,
-    setup_template: Callable[[NeonEnv], tuple[TenantId, TimelineId, dict[str, Any]]],
+    serendb_env_builder: SerenDBEnvBuilder,
+    setup_template: Callable[[SerenDBEnv], tuple[TenantId, TimelineId, dict[str, Any]]],
     ncopies: int,
-) -> NeonEnv:
+) -> SerenDBEnv:
     """
     Create `ncopies` duplicates of a template tenant that has a single timeline.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     remote_storage = env.pageserver_remote_storage
     assert isinstance(remote_storage, LocalFsStorage)

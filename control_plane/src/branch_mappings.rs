@@ -13,7 +13,7 @@ use utils::id::{TenantId, TenantTimelineId, TimelineId};
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BranchMappings {
-    /// Default tenant ID to use with the 'neon_local' command line utility, when
+    /// Default tenant ID to use with the 'serendb_local' command line utility, when
     /// --tenant_id is not explicitly specified. This comes from the branches.
     pub default_tenant_id: Option<TenantId>,
 

@@ -10,8 +10,8 @@ use hyper::client::conn::http1::SendRequest;
 use hyper_util::rt::TokioIo;
 
 /// Name of the socket within the Postgres data directory. This better match that in
-/// `pgxn/neon/communicator/src/lib.rs`.
-const NEON_COMMUNICATOR_SOCKET_NAME: &str = "neon-communicator.socket";
+/// `pgxn/serendb/communicator/src/lib.rs`.
+const SERENDB_COMMUNICATOR_SOCKET_NAME: &str = "serendb-communicator.socket";
 
 /// Open a connection to the communicator's control socket, prepare to send requests to it
 /// with hyper.
@@ -21,14 +21,14 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    let socket_path = pgdata.join(NEON_COMMUNICATOR_SOCKET_NAME);
+    let socket_path = pgdata.join(SERENDB_COMMUNICATOR_SOCKET_NAME);
     let socket_path_len = socket_path.display().to_string().len();
 
     // There is a limit of around 100 bytes (108 on Linux?) on the length of the path to a
     // Unix Domain socket. The limit is on the connect(2) function used to open the
     // socket, not on the absolute path itself. Postgres changes the current directory to
     // the data directory and uses a relative path to bind to the socket, and the relative
-    // path "./neon-communicator.socket" is always short, but when compute_ctl needs to
+    // path "./serendb-communicator.socket" is always short, but when compute_ctl needs to
     // open the socket, we need to use a full path, which can be arbitrarily long.
     //
     // There are a few ways we could work around this:
@@ -43,7 +43,7 @@ where
     //    change.
     //
     // 2. On Linux, you could open() the data directory, and refer to the the socket
-    //    inside it as "/proc/self/fd/<fd>/neon-communicator.socket". But that's
+    //    inside it as "/proc/self/fd/<fd>/serendb-communicator.socket". But that's
     //    Linux-only.
     //
     // 3. Create a symbolic link to the socket with a shorter path, and use that.

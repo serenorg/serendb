@@ -72,7 +72,7 @@ runs:
         ARCHIVE: /tmp/uploads/${{ inputs.name }}.tar.zst
         PREFIX: artifacts/${{ inputs.prefix || format('{0}/{1}/{2}', github.event.pull_request.head.sha || github.sha, github.run_id , github.run_attempt) }}
       run: |
-        BUCKET=neon-github-public-dev
+        BUCKET=serendb-github-public-dev
         FILENAME=$(basename $ARCHIVE)
 
         FILESIZE=$(du -sh ${ARCHIVE} | cut -f1)

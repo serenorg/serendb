@@ -1,4 +1,4 @@
-# Neon storage node — alternative
+# SerenDB storage node — alternative
 
 ## **Design considerations**
 

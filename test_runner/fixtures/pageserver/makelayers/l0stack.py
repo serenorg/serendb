@@ -4,7 +4,7 @@ from psycopg2.extensions import connection as PgConnection
 
 from fixtures.common_types import Lsn, TenantShardId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import Endpoint
+from fixtures.serendb_fixtures import Endpoint
 from fixtures.pageserver.http import PageserverHttpClient
 from fixtures.pageserver.utils import wait_for_last_record_lsn
 

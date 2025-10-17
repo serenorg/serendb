@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     PSQL,
-    NeonProxy,
+    SerenDBProxy,
     VanillaPostgres,
 )
 from werkzeug.wrappers.response import Response
@@ -42,11 +42,11 @@ def proxy_metrics_handler(request: Request) -> Response:
 @pytest.fixture(scope="function")
 def proxy_with_metric_collector(
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     httpserver_listen_address: ListenAddress,
     test_output_dir: Path,
-) -> Iterator[NeonProxy]:
-    """Neon proxy that routes through link auth and has metric collection enabled."""
+) -> Iterator[SerenDBProxy]:
+    """SerenDB proxy that routes through link auth and has metric collection enabled."""
 
     http_port = port_distributor.get_port()
     proxy_port = port_distributor.get_port()
@@ -59,8 +59,8 @@ def proxy_with_metric_collector(
     metric_collection_endpoint = f"http://{host}:{port}/billing/api/v1/usage_events"
     metric_collection_interval = "5s"
 
-    with NeonProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         proxy_port=proxy_port,
         http_port=http_port,
@@ -70,7 +70,7 @@ def proxy_with_metric_collector(
         external_http_port=external_http_port,
         metric_collection_endpoint=metric_collection_endpoint,
         metric_collection_interval=metric_collection_interval,
-        auth_backend=NeonProxy.Link(),
+        auth_backend=SerenDBProxy.Link(),
     ) as proxy:
         proxy.start()
         yield proxy
@@ -79,7 +79,7 @@ def proxy_with_metric_collector(
 @pytest.mark.asyncio
 async def test_proxy_metric_collection(
     httpserver: HTTPServer,
-    proxy_with_metric_collector: NeonProxy,
+    proxy_with_metric_collector: SerenDBProxy,
     vanilla_pg: VanillaPostgres,
 ):
     # mock http server that returns OK for the metrics
@@ -96,10 +96,10 @@ async def test_proxy_metric_collection(
     )
 
     base_uri = proxy_with_metric_collector.link_auth_uri
-    link = await NeonProxy.find_auth_link(base_uri, psql)
+    link = await SerenDBProxy.find_auth_link(base_uri, psql)
 
-    psql_session_id = NeonProxy.get_session_id(base_uri, link)
-    await NeonProxy.activate_link_auth(vanilla_pg, proxy_with_metric_collector, psql_session_id)
+    psql_session_id = SerenDBProxy.get_session_id(base_uri, link)
+    await SerenDBProxy.activate_link_auth(vanilla_pg, proxy_with_metric_collector, psql_session_id)
 
     assert psql.stdout is not None
     out = (await psql.stdout.read()).decode("utf-8").strip()
@@ -111,9 +111,9 @@ async def test_proxy_metric_collection(
         host=proxy_with_metric_collector.host, port=proxy_with_metric_collector.proxy_port
     ).run("insert into tbl select * from generate_series(0,1000);  select pg_sleep(5); select 42")
 
-    link = await NeonProxy.find_auth_link(base_uri, psql)
-    psql_session_id = NeonProxy.get_session_id(base_uri, link)
-    await NeonProxy.activate_link_auth(
+    link = await SerenDBProxy.find_auth_link(base_uri, psql)
+    psql_session_id = SerenDBProxy.get_session_id(base_uri, link)
+    await SerenDBProxy.activate_link_auth(
         vanilla_pg, proxy_with_metric_collector, psql_session_id, create_user=False
     )
 

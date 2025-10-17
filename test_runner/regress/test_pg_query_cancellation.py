@@ -8,7 +8,7 @@ from fixtures.log_helper import log
 from psycopg2.errors import QueryCanceled
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import Endpoint, NeonEnv, NeonPageserver
+    from fixtures.serendb_fixtures import Endpoint, SerenDBEnv, SerenDBPageserver
     from fixtures.pageserver.http import PageserverHttpClient
 
 CRITICAL_PG_PS_WAIT_FAILPOINTS: set[str] = {
@@ -40,8 +40,8 @@ unfortunate connection startup and request states.
 """
 
 
-def test_cancellations(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_cancellations(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     ps = env.pageserver
     ps_http = ps.http_client()
     ps_http.is_testing_enabled_or_skip()
@@ -100,7 +100,7 @@ ENABLED_FAILPOINTS: set[str] = set()
 
 
 def connect_works_correctly(
-    failpoint: str, ep: Endpoint, ps: NeonPageserver, ps_http: PageserverHttpClient
+    failpoint: str, ep: Endpoint, ps: SerenDBPageserver, ps_http: PageserverHttpClient
 ):
     log.debug("Starting work on %s", failpoint)
     # All queries we use should finish (incl. IO) within 500ms,

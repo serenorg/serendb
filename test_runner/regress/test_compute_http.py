@@ -10,16 +10,16 @@ from fixtures.utils import run_only_on_default_postgres
 from requests import RequestException
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 @run_only_on_default_postgres("The code path being tested is not dependent on Postgres version")
-def test_compute_no_scope_claim(neon_simple_env: NeonEnv):
+def test_compute_no_scope_claim(serendb_simple_env: SerenDBEnv):
     """
     Test that if the JWT scope is not admin and no compute_id is specified,
     the external HTTP server returns a 403 Forbidden error.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 
@@ -47,12 +47,12 @@ def test_compute_no_scope_claim(neon_simple_env: NeonEnv):
     ids=["with_audience", "with_invalid_audience", "without_audience"],
 )
 @run_only_on_default_postgres("The code path being tested is not dependent on Postgres version")
-def test_compute_admin_scope_claim(neon_simple_env: NeonEnv, audience: str | None):
+def test_compute_admin_scope_claim(serendb_simple_env: SerenDBEnv, audience: str | None):
     """
     Test that an admin-scoped JWT can access the compute's external HTTP server
     without the compute_id being specified in the claims.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 

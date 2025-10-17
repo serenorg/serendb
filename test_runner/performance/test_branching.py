@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fixtures.benchmark_fixture import PgBenchRunResult
-from fixtures.neon_fixtures import fork_at_current_lsn
+from fixtures.serendb_fixtures import fork_at_current_lsn
 
 from performance.test_perf_pgbench import utc_now_timestamp
 
 if TYPE_CHECKING:
-    from fixtures.compare_fixtures import NeonCompare
+    from fixtures.compare_fixtures import SerenDBCompare
 
 # -----------------------------------------------------------------------
 # Start of `test_compare_child_and_root_*` tests
@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 # some latencies/metrics during the workload for performance comparison between a branch and its ancestor.
 
 
-def test_compare_child_and_root_pgbench_perf(neon_compare: NeonCompare):
-    env = neon_compare.env
-    pg_bin = neon_compare.pg_bin
+def test_compare_child_and_root_pgbench_perf(serendb_compare: SerenDBCompare):
+    env = serendb_compare.env
+    pg_bin = serendb_compare.pg_bin
 
     def run_pgbench_on_branch(branch: str, cmd: list[str]):
         run_start_timestamp = utc_now_timestamp()
@@ -43,7 +43,7 @@ def test_compare_child_and_root_pgbench_perf(neon_compare: NeonCompare):
             run_start_timestamp=run_start_timestamp,
             run_end_timestamp=run_end_timestamp,
         )
-        neon_compare.zenbenchmark.record_pg_bench_result(branch, res)
+        serendb_compare.zenbenchmark.record_pg_bench_result(branch, res)
 
     env.create_branch("root")
     endpoint_root = env.endpoints.create_start("root")
@@ -57,8 +57,8 @@ def test_compare_child_and_root_pgbench_perf(neon_compare: NeonCompare):
     run_pgbench_on_branch("child", ["pgbench", "-c10", "-T10", endpoint_child.connstr()])
 
 
-def test_compare_child_and_root_write_perf(neon_compare: NeonCompare):
-    env = neon_compare.env
+def test_compare_child_and_root_write_perf(serendb_compare: SerenDBCompare):
+    env = serendb_compare.env
     env.create_branch("root")
     endpoint_root = env.endpoints.create_start("root")
 
@@ -69,14 +69,14 @@ def test_compare_child_and_root_write_perf(neon_compare: NeonCompare):
     env.create_branch("child", ancestor_branch_name="root")
     endpoint_child = env.endpoints.create_start("child")
 
-    with neon_compare.record_duration("root_run_duration"):
+    with serendb_compare.record_duration("root_run_duration"):
         endpoint_root.safe_psql("INSERT INTO foo SELECT FROM generate_series(1,1000000)")
-    with neon_compare.record_duration("child_run_duration"):
+    with serendb_compare.record_duration("child_run_duration"):
         endpoint_child.safe_psql("INSERT INTO foo SELECT FROM generate_series(1,1000000)")
 
 
-def test_compare_child_and_root_read_perf(neon_compare: NeonCompare):
-    env = neon_compare.env
+def test_compare_child_and_root_read_perf(serendb_compare: SerenDBCompare):
+    env = serendb_compare.env
     env.create_branch("root")
     endpoint_root = env.endpoints.create_start("root")
 
@@ -90,9 +90,9 @@ def test_compare_child_and_root_read_perf(neon_compare: NeonCompare):
     env.create_branch("child", ancestor_branch_name="root")
     endpoint_child = env.endpoints.create_start("child")
 
-    with neon_compare.record_duration("root_run_duration"):
+    with serendb_compare.record_duration("root_run_duration"):
         endpoint_root.safe_psql("SELECT count(*) from foo")
-    with neon_compare.record_duration("child_run_duration"):
+    with serendb_compare.record_duration("child_run_duration"):
         endpoint_child.safe_psql("SELECT count(*) from foo")
 
 

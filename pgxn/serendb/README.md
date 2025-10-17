@@ -1,6 +1,6 @@
-neon extension consists of several parts:
+serendb extension consists of several parts:
 
-### shared preload library `neon.so`
+### shared preload library `serendb.so`
 
 - implements storage manager API and network communications with remote page server.
 
@@ -12,9 +12,9 @@ neon extension consists of several parts:
 
 - file_cache: Local file cache is used to temporary store relations pages in local file system for better performance.
 
-- relsize_cache: Relation size cache for better neon performance.
+- relsize_cache: Relation size cache for better SerenDB performance.
 
-### SQL functions in `neon--*.sql`
+### SQL functions in `serendb--*.sql`
 
-Utility functions to expose neon specific information to user and metrics collection.
+Utility functions to expose SerenDB specific information to user and metrics collection.
 This extension is created in all databases in the cluster by default.

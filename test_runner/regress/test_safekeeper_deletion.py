@@ -15,16 +15,16 @@ from fixtures.safekeeper_utils import is_segment_offloaded
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         Endpoint,
-        NeonEnvBuilder,
+        SerenDBEnvBuilder,
     )
 
 
 @pytest.mark.parametrize("auth_enabled", [False, True])
-def test_safekeeper_delete_timeline(neon_env_builder: NeonEnvBuilder, auth_enabled: bool):
-    neon_env_builder.auth_enabled = auth_enabled
-    env = neon_env_builder.init_start()
+def test_safekeeper_delete_timeline(serendb_env_builder: SerenDBEnvBuilder, auth_enabled: bool):
+    serendb_env_builder.auth_enabled = auth_enabled
+    env = serendb_env_builder.init_start()
 
     # FIXME: are these expected?
     env.pageserver.allowed_errors.extend(
@@ -147,7 +147,7 @@ def test_safekeeper_delete_timeline(neon_env_builder: NeonEnvBuilder, auth_enabl
             cur.execute("INSERT INTO t (key) VALUES (123)")
 
 
-def test_safekeeper_delete_timeline_under_load(neon_env_builder: NeonEnvBuilder):
+def test_safekeeper_delete_timeline_under_load(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test deleting timelines on a safekeeper while they're under load.
 
@@ -156,8 +156,8 @@ def test_safekeeper_delete_timeline_under_load(neon_env_builder: NeonEnvBuilder)
     safekeeper that we're migrating a timeline away from, or if the timeline
     is being deleted while such a rogue client is running.
     """
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
 
     # Create two endpoints that will generate load
     timeline_id_a = env.create_branch("deleteme_a")
@@ -238,21 +238,21 @@ class RemoteDeleteFailpoint(StrEnum):
 
 @pytest.mark.parametrize("failpoint", [RemoteDeleteFailpoint.PAUSE, RemoteDeleteFailpoint.FAIL])
 def test_safekeeper_delete_remote_errors(
-    neon_env_builder: NeonEnvBuilder, failpoint: RemoteDeleteFailpoint
+    serendb_env_builder: SerenDBEnvBuilder, failpoint: RemoteDeleteFailpoint
 ):
     """
     Test that errors and delays during remote deletion are handled correctly.
     """
 
     # Configure safekeepers with ultra-fast eviction policy
-    neon_env_builder.safekeeper_extra_opts = [
+    serendb_env_builder.safekeeper_extra_opts = [
         "--enable-offload",
         "--delete-offloaded-wal",
         "--control-file-save-interval",
         "1s",
     ]
-    neon_env_builder.enable_safekeeper_remote_storage(s3_storage())
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_safekeeper_remote_storage(s3_storage())
+    env = serendb_env_builder.init_start()
 
     # FIXME: pageserver is intermittently emitting this
     env.pageserver.allowed_errors.extend(

@@ -98,7 +98,7 @@
 
 #include "miscadmin.h"
 
-#include "neon_seccomp.h"
+#include "serendb_seccomp.h"
 
 static void die(int code, const char *str);
 

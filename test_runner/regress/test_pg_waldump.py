@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 from fixtures.utils import subprocess_capture
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnv, PgBin
 
 
 def check_wal_segment(pg_waldump_path: str, segment_path: str, test_output_dir):
     # use special --ignore option to ignore the validation checks in pg_waldump
-    # this is necessary, because neon WAL files contain gap at the beginning
+    # this is necessary, because SerenDB WAL files contain gap at the beginning
     output_path, _, _ = subprocess_capture(
         test_output_dir, [pg_waldump_path, "--ignore", segment_path]
     )
@@ -23,9 +23,9 @@ def check_wal_segment(pg_waldump_path: str, segment_path: str, test_output_dir):
         assert "COMMIT" in stdout
 
 
-# Simple test to check that pg_waldump works with neon WAL files
-def test_pg_waldump(neon_simple_env: NeonEnv, test_output_dir, pg_bin: PgBin):
-    env = neon_simple_env
+# Simple test to check that pg_waldump works with SerenDB WAL files
+def test_pg_waldump(serendb_simple_env: SerenDBEnv, test_output_dir, pg_bin: PgBin):
+    env = serendb_simple_env
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
     endpoint = env.endpoints.create_start("main")

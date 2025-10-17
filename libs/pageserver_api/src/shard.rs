@@ -1,7 +1,7 @@
 //! See docs/rfcs/031-sharding-static.md for an overview of sharding.
 //!
 //! This module contains a variety of types used to represent the concept of sharding
-//! a Neon tenant across multiple physical shards.  Since there are quite a few of these,
+//! a SerenDB tenant across multiple physical shards.  Since there are quite a few of these,
 //! we provide an summary here.
 //!
 //! Types used to describe shards:

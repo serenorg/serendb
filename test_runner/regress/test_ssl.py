@@ -4,25 +4,25 @@ from datetime import datetime, timedelta
 
 import pytest
 import requests
-from fixtures.neon_fixtures import NeonEnvBuilder, StorageControllerApiException
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, StorageControllerApiException
 from fixtures.utils import wait_until
 from fixtures.workload import Workload
 
 
-def test_pageserver_https_api(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_https_api(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test HTTPS pageserver management API.
-    If NeonEnv starts with use_https_pageserver_api with no errors, it's already a success.
+    If SerenDBEnv starts with use_https_pageserver_api with no errors, it's already a success.
     Make /v1/status request to HTTPS API to ensure it's appropriately configured.
     """
-    neon_env_builder.use_https_pageserver_api = True
-    env = neon_env_builder.init_start()
+    serendb_env_builder.use_https_pageserver_api = True
+    env = serendb_env_builder.init_start()
 
     addr = f"https://localhost:{env.pageserver.service_port.https}/v1/status"
     requests.get(addr, verify=str(env.ssl_ca_file)).raise_for_status()
 
 
-def test_safekeeper_https_api(neon_env_builder: NeonEnvBuilder):
+def test_safekeeper_https_api(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test HTTPS safekeeper management API.
     1. Make /v1/status request to HTTPS API to ensure it's appropriately configured.
@@ -30,8 +30,8 @@ def test_safekeeper_https_api(neon_env_builder: NeonEnvBuilder):
     3. Register safekeeper with https port.
     4. Wait for a heartbeat round to complete.
     """
-    neon_env_builder.use_https_safekeeper_api = True
-    env = neon_env_builder.init_start()
+    serendb_env_builder.use_https_safekeeper_api = True
+    env = serendb_env_builder.init_start()
 
     sk = env.safekeepers[0]
 
@@ -73,20 +73,20 @@ def test_safekeeper_https_api(neon_env_builder: NeonEnvBuilder):
     wait_until(storcon_heartbeat)
 
 
-def test_storage_controller_https_api(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_https_api(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test HTTPS storage controller API.
-    If NeonEnv starts with use_https_storage_controller_api with no errors, it's already a success.
+    If SerenDBEnv starts with use_https_storage_controller_api with no errors, it's already a success.
     Make /status request to HTTPS API to ensure it's appropriately configured.
     """
-    neon_env_builder.use_https_storage_controller_api = True
-    env = neon_env_builder.init_start()
+    serendb_env_builder.use_https_storage_controller_api = True
+    env = serendb_env_builder.init_start()
 
     addr = f"https://localhost:{env.storage_controller.port}/status"
     requests.get(addr, verify=str(env.ssl_ca_file)).raise_for_status()
 
 
-def test_certificate_rotation(neon_env_builder: NeonEnvBuilder):
+def test_certificate_rotation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that pageserver reloads certificates when they are updated on the disk.
     Safekeepers and storage controller use the same server implementation, so
@@ -98,10 +98,10 @@ def test_certificate_rotation(neon_env_builder: NeonEnvBuilder):
     5. Replace ps's key.
     6. Check that ps reloaded the cert and key and returns the new one.
     """
-    neon_env_builder.use_https_pageserver_api = True
+    serendb_env_builder.use_https_pageserver_api = True
     # Speed up the test :)
-    neon_env_builder.pageserver_config_override = "ssl_cert_reload_period='100 ms'"
-    env = neon_env_builder.init_start()
+    serendb_env_builder.pageserver_config_override = "ssl_cert_reload_period='100 ms'"
+    env = serendb_env_builder.init_start()
 
     # We intentionally set an incorrect key/cert pair during the test to test this error.
     env.pageserver.allowed_errors.append(".*Error reloading certificate.*")
@@ -155,13 +155,13 @@ def test_certificate_rotation(neon_env_builder: NeonEnvBuilder):
     assert cur_cert == sk_cert
 
 
-def test_server_and_cert_metrics(neon_env_builder: NeonEnvBuilder):
+def test_server_and_cert_metrics(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test metrics exported from http/https server and tls cert reloader.
     """
-    neon_env_builder.use_https_pageserver_api = True
-    neon_env_builder.pageserver_config_override = "ssl_cert_reload_period='100 ms'"
-    env = neon_env_builder.init_start()
+    serendb_env_builder.use_https_pageserver_api = True
+    serendb_env_builder.pageserver_config_override = "ssl_cert_reload_period='100 ms'"
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.append(".*Error reloading certificate.*")
 
@@ -198,7 +198,7 @@ def test_server_and_cert_metrics(neon_env_builder: NeonEnvBuilder):
         ps_client.get_metric_value("tls_certs_expiration_time_seconds") or 0
     )
     now = datetime.now()
-    # neon_local generates certs valid for 100 years.
+    # serendb_local generates certs valid for 100 years.
     # Compare with +-1 year to not care about leap years.
     assert now + timedelta(days=365 * 99) < expiration_time < now + timedelta(days=365 * 101)
 
@@ -215,14 +215,14 @@ def test_server_and_cert_metrics(neon_env_builder: NeonEnvBuilder):
     wait_until(reload_failed)
 
 
-def test_storage_broker_https_api(neon_env_builder: NeonEnvBuilder):
+def test_storage_broker_https_api(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test HTTPS storage broker API.
     1. Make /status request to HTTPS API to ensure it's appropriately configured.
     2. Generate simple workload to ensure that SK -> broker -> PS communication works well.
     """
-    neon_env_builder.use_https_storage_broker_api = True
-    env = neon_env_builder.init_start()
+    serendb_env_builder.use_https_storage_broker_api = True
+    env = serendb_env_builder.init_start()
 
     # 1. Simple check that HTTPS is enabled and works.
     url = env.broker.client_url() + "/status"

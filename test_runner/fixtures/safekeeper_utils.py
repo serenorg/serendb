@@ -1,6 +1,6 @@
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import Endpoint, NeonPageserver, Safekeeper
+from fixtures.serendb_fixtures import Endpoint, SerenDBPageserver, Safekeeper
 from fixtures.pageserver.utils import wait_for_last_record_lsn, wait_for_upload
 from fixtures.utils import get_dir_size
 
@@ -34,7 +34,7 @@ def wait_lsn_force_checkpoint(
     tenant_id: TenantId,
     timeline_id: TimelineId,
     endpoint: Endpoint,
-    ps: NeonPageserver,
+    ps: SerenDBPageserver,
     pageserver_conn_options=None,
 ):
     pageserver_conn_options = pageserver_conn_options or {}
@@ -48,7 +48,7 @@ def wait_lsn_force_checkpoint_at_sk(
     safekeeper: Safekeeper,
     tenant_id: TenantId,
     timeline_id: TimelineId,
-    ps: NeonPageserver,
+    ps: SerenDBPageserver,
     pageserver_conn_options=None,
 ):
     sk_flush_lsn = safekeeper.get_flush_lsn(tenant_id, timeline_id)
@@ -59,7 +59,7 @@ def wait_lsn_force_checkpoint_at(
     lsn: Lsn,
     tenant_id: TenantId,
     timeline_id: TimelineId,
-    ps: NeonPageserver,
+    ps: SerenDBPageserver,
     pageserver_conn_options=None,
 ):
     """

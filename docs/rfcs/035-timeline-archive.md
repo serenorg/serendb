@@ -24,7 +24,7 @@ Most storage and database systems have some form of snapshot, which can be imple
 2. shallow snapshots which are CoW relative to the original version of the data, e.g. on a typical NFS appliance, or a filesystem like CephFS.
 3. a series of snapshots which are CoW or de-duplicated relative to one another.
 
-Today's Neon branches are approximately like `2.`, although due to implementation details branches
+Today's SerenDB branches are approximately like `2.`, although due to implementation details branches
 often end up storing much more data than they really need, as parent branches assume that all data
 at the branch point is needed.  The layers pinned in the parent branch may have a much larger size
 than the physical size of a compressed image layer representing the data at the branch point.
@@ -47,7 +47,7 @@ than the physical size of a compressed image layer representing the data at the 
 ## Non Goals
 
 - Archived branches are not a literal `fullbackup` postgres snapshot: they are still stored
-  in Neon's internal format.
+  in SerenDB's internal format.
 - Compute cold starts after activating an archived branch will not have comparable performance to
   cold starts on an active branch.
 - Archived branches will not use any new/additional compression or de-duplication beyond what

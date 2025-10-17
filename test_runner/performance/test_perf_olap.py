@@ -94,8 +94,8 @@ QUERIES: tuple[LabelledQuery, ...] = (
     LabelledQuery("Q40", r"SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC LIMIT 10 OFFSET 100;"),
     LabelledQuery("Q41", r"SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC LIMIT 10 OFFSET 10000;"),
     LabelledQuery("Q42", r"SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;"),
-    ### Custom Neon queries:
-    # I suggest using the NQ prefix (which stands for Neon Query) instead of Q
+    ### Custom SerenDB queries:
+    # I suggest using the NQ prefix (which stands for SerenDB Query) instead of Q
     # to not intersect with the original ClickBench queries if their list is extended.
     #
     # LabelledQuery("NQ0", r"..."),

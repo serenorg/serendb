@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 from fixtures.metrics import parse_metrics
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder, NeonProxy
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder, SerenDBProxy
 
 
-def test_build_info_metric(neon_env_builder: NeonEnvBuilder, link_proxy: NeonProxy):
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start()
+def test_build_info_metric(serendb_env_builder: SerenDBEnvBuilder, link_proxy: SerenDBProxy):
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start()
 
     parsed_metrics = {}
 

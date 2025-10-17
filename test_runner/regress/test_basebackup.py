@@ -6,11 +6,11 @@ import pytest
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.parametrize("grpc", [True, False])
-def test_basebackup_cache(neon_env_builder: NeonEnvBuilder, grpc: bool):
+def test_basebackup_cache(serendb_env_builder: SerenDBEnvBuilder, grpc: bool):
     """
     Simple test for basebackup cache.
     1. Check that we always hit the cache after compute restart.
@@ -18,12 +18,12 @@ def test_basebackup_cache(neon_env_builder: NeonEnvBuilder, grpc: bool):
     3. Check that we delete basebackup file for timeline with active compute.
     """
 
-    neon_env_builder.pageserver_config_override = """
+    serendb_env_builder.pageserver_config_override = """
         tenant_config = { basebackup_cache_enabled = true }
         basebackup_cache_config = { cleanup_period = '1s' }
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ep = env.endpoints.create("main", grpc=grpc)
     ps = env.pageserver
     ps_http = ps.http_client()

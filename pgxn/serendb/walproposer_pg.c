@@ -48,9 +48,9 @@
 #include "libpq-fe.h"
 
 #include "libpqwalproposer.h"
-#include "neon.h"
-#include "neon_perf_counters.h"
-#include "neon_walreader.h"
+#include "serendb.h"
+#include "serendb_perf_counters.h"
+#include "serendb_walreader.h"
 #include "walproposer.h"
 
 #define XLOG_HDR_SIZE (1 + 8 * 3)	/* 'w' + startPos + walEnd + timestamp */
@@ -93,7 +93,7 @@ static XLogRecPtr standby_apply_lsn = InvalidXLogRecPtr;
 static HotStandbyFeedback agg_hs_feedback;
 
 static void nwp_register_gucs(void);
-static void assign_neon_safekeepers(const char *newval, void *extra);
+static void assign_serendb_safekeepers(const char *newval, void *extra);
 static uint64 backpressure_lag_impl(void);
 static uint64 hadron_backpressure_lag_impl(void);
 static uint64 startup_backpressure_wrap(void);
@@ -139,8 +139,8 @@ static int positive_mb_to_bytes(int mb)
 static void
 init_walprop_config(bool syncSafekeepers)
 {
-	walprop_config.neon_tenant = neon_tenant;
-	walprop_config.neon_timeline = neon_timeline;
+	walprop_config.serendb_tenant = serendb_tenant;
+	walprop_config.serendb_timeline = serendb_timeline;
 	/* WalProposerCreate scribbles directly on it, so pstrdup */
 	walprop_config.safekeepers_list = pstrdup(wal_acceptors_list);
 	walprop_config.safekeeper_conninfo_options = pstrdup(safekeeper_conninfo_options);
@@ -223,18 +223,18 @@ static void
 nwp_register_gucs(void)
 {
 	DefineCustomStringVariable(
-							   "neon.safekeepers",
-							   "List of Neon WAL acceptors (host:port)",
+							   "serendb.safekeepers",
+							   "List of SerenDB WAL acceptors (host:port)",
 							   NULL,	/* long_desc */
 							   &wal_acceptors_list, /* valueAddr */
 							   "",	/* bootValue */
 							   PGC_SIGHUP,
 							   GUC_LIST_INPUT,	/* extensions can't use*
 												 * GUC_LIST_QUOTE */
-							   NULL, assign_neon_safekeepers, NULL);
+							   NULL, assign_serendb_safekeepers, NULL);
 
 	DefineCustomStringVariable(
-							   "neon.safekeeper_conninfo_options",
+							   "serendb.safekeeper_conninfo_options",
 							   "libpq keyword parameters and values to apply to safekeeper connections",
 							   NULL,
 							   &safekeeper_conninfo_options,
@@ -244,7 +244,7 @@ nwp_register_gucs(void)
 							   NULL, NULL, NULL);
 
 	DefineCustomIntVariable(
-							"neon.safekeeper_reconnect_timeout",
+							"serendb.safekeeper_reconnect_timeout",
 							"Walproposer reconnects to offline safekeepers once in this interval.",
 							NULL,
 							&wal_acceptor_reconnect_timeout,
@@ -254,7 +254,7 @@ nwp_register_gucs(void)
 							NULL, NULL, NULL);
 
 	DefineCustomIntVariable(
-							"neon.safekeeper_connect_timeout",
+							"serendb.safekeeper_connect_timeout",
 							"Connection or connection attempt to safekeeper is terminated if no message is received (or connection attempt doesn't finish) within this period.",
 							NULL,
 							&wal_acceptor_connection_timeout,
@@ -264,7 +264,7 @@ nwp_register_gucs(void)
 							NULL, NULL, NULL);
 
 	DefineCustomIntVariable(
-							"neon.safekeeper_proto_version",
+							"serendb.safekeeper_proto_version",
 							"Version of compute <-> safekeeper protocol.",
 							"Used while migrating from 2 to 3.",
 							&safekeeper_proto_version,
@@ -336,11 +336,11 @@ static char *split_off_safekeepers_generation(char *safekeepers_list, uint32 *ge
 		*generation = strtoul(safekeepers_list + 2, &endptr, 10);
 		if (errno != 0)
 		{
-			wp_log(FATAL, "failed to parse neon.safekeepers generation number: %m");
+			wp_log(FATAL, "failed to parse serendb.safekeepers generation number: %m");
 		}
 		if (*endptr != ':')
 		{
-			wp_log(FATAL, "failed to parse neon.safekeepers: no colon after generation");
+			wp_log(FATAL, "failed to parse serendb.safekeepers: no colon after generation");
 		}
 		return endptr + 1;
 	}
@@ -391,11 +391,11 @@ safekeepers_cmp(char *old, char *new)
 }
 
 /*
- * GUC assign_hook for neon.safekeepers. Restarts walproposer through FATAL if
+ * GUC assign_hook for serendb.safekeepers. Restarts walproposer through FATAL if
  * the list changed.
  */
 static void
-assign_neon_safekeepers(const char *newval, void *extra)
+assign_serendb_safekeepers(const char *newval, void *extra)
 {
 	char	   *newval_copy;
 	char	   *oldval;
@@ -409,7 +409,7 @@ assign_neon_safekeepers(const char *newval, void *extra)
 	if (!newval)
 	{
 		/* should never happen */
-		wpg_log(FATAL, "neon.safekeepers is empty");
+		wpg_log(FATAL, "serendb.safekeepers is empty");
 	}
 
 	/* Copy values because we will modify them in split_safekeepers_list() */
@@ -693,7 +693,7 @@ walprop_register_bgworker(void)
 	memset(&bgw, 0, sizeof(bgw));
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	snprintf(bgw.bgw_library_name, BGW_MAXLEN, "neon");
+	snprintf(bgw.bgw_library_name, BGW_MAXLEN, "serendb");
 	snprintf(bgw.bgw_function_name, BGW_MAXLEN, "WalProposerMain");
 	snprintf(bgw.bgw_name, BGW_MAXLEN, "WAL proposer");
 	snprintf(bgw.bgw_type, BGW_MAXLEN, "WAL proposer");
@@ -1014,11 +1014,11 @@ libpqwp_connect_start(char *conninfo)
 	const char *keywords[3];
 	const char *values[3];
 	int			n;
-	char	   *password = neon_auth_token;
+	char	   *password = serendb_auth_token;
 
 
 	/*
-	 * Connect using the given connection string. If the NEON_AUTH_TOKEN
+	 * Connect using the given connection string. If the SERENDB_AUTH_TOKEN
 	 * environment variable was set, use that as the password.
 	 *
 	 * The connection options are parsed in the order they're given, so when
@@ -1425,7 +1425,7 @@ walprop_finish(Safekeeper *sk)
 	/* free xlogreader */
 	if (sk->xlogreader)
 	{
-		NeonWALReaderFree(sk->xlogreader);
+		SerenDBWALReaderFree(sk->xlogreader);
 		sk->xlogreader = NULL;
 	}
 	rm_safekeeper_event_set(sk, false);
@@ -1477,7 +1477,7 @@ StartProposerReplication(WalProposer *wp, StartReplicationCmd *cmd)
 	 * that. Otherwise use the timeline of the last replayed record, which is
 	 * kept in ThisTimeLineID.
 	 *
-	 * Neon doesn't currently use PG Timelines, but it may in the future, so
+	 * SerenDB doesn't currently use PG Timelines, but it may in the future, so
 	 * we keep this code around to lighten the load for when we need it.
 	 */
 #if PG_VERSION_NUM >= 150000
@@ -1683,7 +1683,7 @@ XLogBroadcastWalProposer(WalProposer *wp)
 
 /*
   Used to download WAL before basebackup for walproposer/logical walsenders. No
-  longer used, replaced by neon_walreader; but callback still exists because
+  longer used, replaced by serendb_walreader; but callback still exists because
   simulation tests use it.
  */
 static bool
@@ -1699,23 +1699,23 @@ walprop_pg_wal_reader_allocate(Safekeeper *sk)
 
 	snprintf(log_prefix, sizeof(log_prefix), WP_LOG_PREFIX "sk %s:%s nwr: ", sk->host, sk->port);
 	Assert(!sk->xlogreader);
-	sk->xlogreader = NeonWALReaderAllocate(wal_segment_size, sk->wp->propTermStartLsn, log_prefix, sk->wp->localTimeLineID);
+	sk->xlogreader = SerenDBWALReaderAllocate(wal_segment_size, sk->wp->propTermStartLsn, log_prefix, sk->wp->localTimeLineID);
 	if (sk->xlogreader == NULL)
 		wpg_log(FATAL, "failed to allocate xlog reader");
 }
 
-static NeonWALReadResult
+static SerenDBWALReadResult
 walprop_pg_wal_read(Safekeeper *sk, char *buf, XLogRecPtr startptr, Size count, char **errmsg)
 {
-	NeonWALReadResult res;
+	SerenDBWALReadResult res;
 
-	res = NeonWALRead(sk->xlogreader,
+	res = SerenDBWALRead(sk->xlogreader,
 					  buf,
 					  startptr,
 					  count,
 					  sk->wp->localTimeLineID);
 
-	if (res == NEON_WALREAD_SUCCESS)
+	if (res == SERENDB_WALREAD_SUCCESS)
 	{
 		/*
 		 * If we have the socket subscribed, but walreader doesn't need any
@@ -1725,12 +1725,12 @@ walprop_pg_wal_read(Safekeeper *sk, char *buf, XLogRecPtr startptr, Size count, 
 		 * be able to distinguish whether we have correct socket added in wait
 		 * event set.
 		 */
-		if (NeonWALReaderEvents(sk->xlogreader) == 0)
+		if (SerenDBWALReaderEvents(sk->xlogreader) == 0)
 			rm_safekeeper_event_set(sk, false);
 	}
-	else if (res == NEON_WALREAD_ERROR)
+	else if (res == SERENDB_WALREAD_ERROR)
 	{
-		*errmsg = NeonWALReaderErrMsg(sk->xlogreader);
+		*errmsg = SerenDBWALReaderErrMsg(sk->xlogreader);
 	}
 
 	return res;
@@ -1739,7 +1739,7 @@ walprop_pg_wal_read(Safekeeper *sk, char *buf, XLogRecPtr startptr, Size count, 
 static uint32
 walprop_pg_wal_reader_events(Safekeeper *sk)
 {
-	return NeonWALReaderEvents(sk->xlogreader);
+	return SerenDBWALReaderEvents(sk->xlogreader);
 }
 
 static WaitEventSet *waitEvents;
@@ -1767,7 +1767,7 @@ walprop_pg_init_event_set(WalProposer *wp)
 	if (waitEvents)
 		wpg_log(FATAL, "double-initialization of event set");
 
-	/* for each sk, we have socket plus potentially socket for neon walreader */
+	/* for each sk, we have socket plus potentially socket for SerenDB walreader */
 #if PG_MAJORVERSION_NUM >= 17
 	waitEvents = CreateWaitEventSet(NULL, 2 + 2 * wp->n_safekeepers);
 #else
@@ -1794,13 +1794,13 @@ walprop_pg_add_safekeeper_event_set(Safekeeper *sk, uint32 events)
 	sk->eventPos = AddWaitEventToSet(waitEvents, events, walprop_socket(sk), NULL, sk);
 }
 
-/* add neon wal reader socket to wait event set */
+/* add SerenDB wal reader socket to wait event set */
 static void
 add_nwr_event_set(Safekeeper *sk, uint32 events)
 {
 	Assert(sk->nwrEventPos == -1);
-	sk->nwrEventPos = AddWaitEventToSet(waitEvents, events, NeonWALReaderSocket(sk->xlogreader), NULL, sk);
-	sk->nwrConnEstablished = NeonWALReaderIsRemConnEstablished(sk->xlogreader);
+	sk->nwrEventPos = AddWaitEventToSet(waitEvents, events, SerenDBWALReaderSocket(sk->xlogreader), NULL, sk);
+	sk->nwrConnEstablished = SerenDBWALReaderIsRemConnEstablished(sk->xlogreader);
 	wpg_log(DEBUG5, "sk %s:%s: added nwr socket events %d", sk->host, sk->port, events);
 }
 
@@ -1814,7 +1814,7 @@ walprop_pg_update_event_set(Safekeeper *sk, uint32 events)
 }
 
 /*
- * Update neon_walreader event.
+ * Update serendb_walreader event.
  * Can be called when nwr socket doesn't exist, does nothing in this case.
  */
 static void
@@ -1836,7 +1836,7 @@ walprop_pg_active_state_update_event_set(Safekeeper *sk)
 	SafekeeperStateDesiredEvents(sk, &sk_events, &nwr_events);
 
 	/*
-	 * If we need to wait for neon_walreader, ensure we have up to date socket
+	 * If we need to wait for serendb_walreader, ensure we have up to date socket
 	 * in the wait event set.
 	 */
 	if (sk->active_state == SS_ACTIVE_READ_WAL)
@@ -1893,7 +1893,7 @@ walprop_pg_rm_safekeeper_event_set(Safekeeper *to_remove)
  * avoided if possible.
  *
  * If is_sk is true, socket of connection to safekeeper is removed; otherwise
- * socket of neon_walreader.
+ * socket of serendb_walreader.
  */
 static void
 rm_safekeeper_event_set(Safekeeper *to_remove, bool is_sk)
@@ -1905,7 +1905,7 @@ rm_safekeeper_event_set(Safekeeper *to_remove, bool is_sk)
 
 	/*
 	 * Shortpath for exiting if have nothing to do. We never call this
-	 * function with safekeeper socket not existing, but do that with neon
+	 * function with safekeeper socket not existing, but do that with SerenDB
 	 * walreader socket.
 	 */
 	if ((is_sk && to_remove->eventPos == -1) ||
@@ -2156,7 +2156,7 @@ walprop_pg_process_safekeeper_feedback(WalProposer *wp, Safekeeper *sk)
 
 			/* Only one main shard sends non-zero currentClusterSize */
 			if (sk->appendResponse.ps_feedback.currentClusterSize > 0)
-				SetNeonCurrentClusterSize(sk->appendResponse.ps_feedback.currentClusterSize);
+				SetSerenDBCurrentClusterSize(sk->appendResponse.ps_feedback.currentClusterSize);
 
 			if (min_feedback.disk_consistent_lsn != standby_apply_lsn)
 			{
@@ -2183,7 +2183,7 @@ walprop_pg_process_safekeeper_feedback(WalProposer *wp, Safekeeper *sk)
 		/*
 		 * Advance the replication slot to commitLsn. WAL before it is
 		 * hardened and will be fetched from one of safekeepers by
-		 * neon_walreader if needed.
+		 * serendb_walreader if needed.
 		 *
 		 * Also wakes up syncrep waiters.
 		 */
@@ -2249,17 +2249,17 @@ walprop_pg_log_internal(WalProposer *wp, int level, const char *line)
 }
 
 void
-SetNeonCurrentClusterSize(uint64 size)
+SetSerenDBCurrentClusterSize(uint64 size)
 {
 	pg_atomic_write_u64(&walprop_shared->currentClusterSize, size);
 }
 
 uint64
-GetNeonCurrentClusterSize(void)
+GetSerenDBCurrentClusterSize(void)
 {
 	return pg_atomic_read_u64(&walprop_shared->currentClusterSize);
 }
-uint64		GetNeonCurrentClusterSize(void);
+uint64		GetSerenDBCurrentClusterSize(void);
 
 /* BEGIN_HADRON */
 static void

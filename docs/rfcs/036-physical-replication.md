@@ -13,12 +13,12 @@ PostgreSQL has a feature called streaming replication, where a replica
 streams WAL from the primary and continuously applies it. It is also
 known as "physical replication", to distinguish it from logical
 replication.  In PostgreSQL, a replica is initialized by taking a
-physical backup of the primary. In Neon, the replica is initialized
+physical backup of the primary. In SerenDB, the replica is initialized
 from a slim "base backup" from the pageserver, just like a primary,
 and the primary and the replicas connect to the same pageserver,
 sharing the storage.
 
-There are two kinds of read-only replicas in Neon:
+There are two kinds of read-only replicas in SerenDB:
 - replicas that follow the primary, and
 - "static" replicas that are pinned at a particular LSN.
 
@@ -40,7 +40,7 @@ controls.
 This RFC is all about WAL-based *physical* replication. Logical
 replication is a different feature.
 
-Neon also has the capability to launch "static" read-only nodes which
+SerenDB also has the capability to launch "static" read-only nodes which
 do not follow the primary, but are pinned to a particular LSN. They
 can be used for long-running one-off queries, or for Point-in-time
 queries. They work similarly to read replicas that follow the primary,
@@ -73,11 +73,11 @@ replica startup goes through several stages:
 
 2. Then the server reads the checpoint record from the WAL and starts
    the WAL replay starting from the checkpoint. This works differently
-   in Neon: we start the WAL replay at the basebackup LSN, not from a
+   in SerenDB: we start the WAL replay at the basebackup LSN, not from a
    checkpoint! If you connect to the server in this state, you get an
    error: ERROR: the database system is not yet accepting
    connections. We proceed to the next stage, when the WAL replay sees
-   a running-xacts record. Or in Neon, the "CLOG scanning" mechanism
+   a running-xacts record. Or in SerenDB, the "CLOG scanning" mechanism
    can allow us to move directly to next stage, with all the caveats
    listed in this RFC.
 
@@ -97,7 +97,7 @@ plane will mark the start operation as failed.
 
 When a read replica follows the primary in PostgreSQL, it needs to
 stream all the WAL from the primary and apply all the records, to keep
-the local copy of the data consistent with the primary. In Neon, the
+the local copy of the data consistent with the primary. In SerenDB, the
 replica can fetch the updated page versions from the pageserver, so
 it's not necessary to apply all the WAL. However, it needs to ensure
 that any pages that are currently in the Postgres buffer cache, or the
@@ -108,7 +108,7 @@ We choose to apply the WAL records for pages that are already in the
 buffer cache, and skip records for other pages. Somewhat arbitrarily,
 we also apply records affecting catalog relations, fetching the old
 page version from the pageserver if necessary first. See
-`neon_redo_read_buffer_filter()` function.
+`serendb_redo_read_buffer_filter()` function.
 
 The replica wouldn't necessarily need to see all the WAL records, only
 the records that apply to cached pages. For simplicity, we do stream
@@ -124,7 +124,7 @@ to see delayed data (see recovery_min_apply_delay). It's important
 that the replica sees a consistent view of the whole cluster at the
 replay LSN, when it's lagging behind.
 
-In Neon, the replica connects to a safekeeper to get the WAL
+In SerenDB, the replica connects to a safekeeper to get the WAL
 stream. That means that the safekeepers must be able to regurgitate
 the original WAL as far back as the replay LSN of any running read
 replica. (A static read-only node that does not follow the primary
@@ -147,7 +147,7 @@ the non-prepared transactions have ended.) If there are a lot of
 subtransactions in progress, however, the standby might need to wait
 for old transactions to complete before it can open up for queries.
 
-In Neon that problem is worse: a replica can start at any LSN, so
+In SerenDB that problem is worse: a replica can start at any LSN, so
 there's no guarantee that it will see a running-xacts record any time
 soon. In particular, if the primary is not running when the replica is
 started, it might never see a running-xacts record.
@@ -203,7 +203,7 @@ don't affect the operations on the primary, which is why it's off by
 default. We leave it to users to decide if they want to turn it on,
 same as PostgreSQL.
 
-Neon supports `hot_standby_feedback` by passing the feedback messages
+SerenDB supports `hot_standby_feedback` by passing the feedback messages
 from the replica to the safekeepers, and from safekeepers to the
 primary.
 
@@ -214,7 +214,7 @@ be set to the same or larger values in the standby, compared to the
 primary.  See [explanation in the PostgreSQL
 docs](https://www.postgresql.org/docs/current/hot-standby.html#HOT-STANDBY-ADMIN)
 
-In Neon, we have this problem too. To prevent customers from hitting
+In SerenDB, we have this problem too. To prevent customers from hitting
 it, the control plane automatically adjusts the settings of a replica,
 so that they match or exceed the primary's settings (see
 https://github.com/neondatabase/cloud/issues/14903). However, you
@@ -256,7 +256,7 @@ We haven't put any effort into synchronous replication yet.
 PostgreSQL provides multiple levels of synchronicity. In the weaker
 levels, a transaction is not acknowledged as committed to the client
 in the primary until the WAL has been streamed to a replica or flushed
-to disk there. Those modes don't make senses in Neon, because the
+to disk there. Those modes don't make senses in SerenDB, because the
 safekeepers handle durability.
 
 `synchronous_commit=remote_apply` mode would make sense. In that mode,

@@ -3,7 +3,7 @@
 //! In the local test environment, the storage broker stores its data directly in
 //!
 //! ```text
-//!   .neon/storage_broker
+//!   .serendb/storage_broker
 //! ```
 use std::time::Duration;
 
@@ -36,7 +36,7 @@ impl StorageBroker {
     pub async fn start(&self, retry_timeout: &Duration) -> anyhow::Result<()> {
         let broker = &self.env.broker;
 
-        println!("Starting neon broker at {}", broker.client_url());
+        println!("Starting SerenDB broker at {}", broker.client_url());
 
         let mut args = Vec::new();
 

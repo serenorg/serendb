@@ -8,14 +8,14 @@ import pytest
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 # This test checks of logical replication subscriber is able to correctly restart replication without receiving duplicates.
 # It requires tracking information about replication origins at page server side
 @pytest.mark.timeout(900)  # This test is slow with sanitizers enabled, especially on ARM
-def test_subscriber_restart(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_subscriber_restart(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     env.create_branch("publisher")
     pub = env.endpoints.create("publisher")
     pub.start()

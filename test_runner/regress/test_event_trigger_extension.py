@@ -11,20 +11,20 @@ from fixtures.paths import BASE_DIR
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_fixtures import (
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnvBuilder,
     )
     from fixtures.pg_version import PgVersion
 
 
-# use neon_env_builder_local fixture to override the default neon_env_builder fixture
+# use serendb_env_builder_local fixture to override the default serendb_env_builder fixture
 # and use a test-specific pg_install instead of shared one
 @pytest.fixture(scope="function")
-def neon_env_builder_event_trigger_extension(
-    neon_env_builder_local: NeonEnvBuilder,
+def serendb_env_builder_event_trigger_extension(
+    serendb_env_builder_local: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_version: PgVersion,
-) -> NeonEnvBuilder:
+) -> SerenDBEnvBuilder:
     test_local_pginstall = test_output_dir / "pg_install"
 
     # Now copy the SQL only extension test_event_trigger_extension in the local
@@ -45,10 +45,10 @@ def neon_env_builder_event_trigger_extension(
     ]:
         shutil.copy(f, test_local_extension_dir)
 
-    return neon_env_builder_local
+    return serendb_env_builder_local
 
 
-def test_event_trigger_extension(neon_env_builder_event_trigger_extension: NeonEnvBuilder):
+def test_event_trigger_extension(serendb_env_builder_event_trigger_extension: SerenDBEnvBuilder):
     """
     Test installing an extension that contains an Event Trigger.
 
@@ -62,7 +62,7 @@ def test_event_trigger_extension(neon_env_builder_event_trigger_extension: NeonE
     This test makes sure that the event trigger function is fired correctly
     by non-privileged user DDL actions such as CREATE TABLE.
     """
-    env = neon_env_builder_event_trigger_extension.init_start()
+    env = serendb_env_builder_event_trigger_extension.init_start()
     env.create_branch("test_event_trigger_extension")
 
     endpoint = env.endpoints.create_start("test_event_trigger_extension")

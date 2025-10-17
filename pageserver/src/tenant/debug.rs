@@ -20,7 +20,7 @@ use utils::{
     lsn::Lsn,
     shard::{ShardCount, ShardIndex, ShardNumber},
 };
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
 use crate::{
     context::{DownloadBehavior, RequestContext},
@@ -111,7 +111,7 @@ async fn redo_wals(input: &str, key: Key) -> anyhow::Result<()> {
             if state.img.is_none() {
                 state.img = Some((lsn, process_page_image(lsn, is_fpw, bytes)));
             } else {
-                let wal_record = NeonWalRecord::Postgres {
+                let wal_record = SerenDBWalRecord::Postgres {
                     will_init: false,
                     rec: bytes,
                 };
@@ -257,7 +257,7 @@ async fn search_key(
         }
         for delta in state.records.iter() {
             match &delta.1 {
-                NeonWalRecord::Postgres { will_init, rec } => {
+                SerenDBWalRecord::Postgres { will_init, rec } => {
                     eprintln!(
                         "delta: {}: will_init: {}, {:x?}",
                         delta.0,

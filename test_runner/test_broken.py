@@ -7,7 +7,7 @@ import pytest
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 """
 Use this test to see what happens when tests fail.
@@ -25,8 +25,8 @@ run_broken = pytest.mark.skipif(
 
 
 @run_broken
-def test_broken(neon_simple_env: NeonEnv, pg_bin):
-    env = neon_simple_env
+def test_broken(serendb_simple_env: SerenDBEnv, pg_bin):
+    env = serendb_simple_env
 
     env.endpoints.create_start("main")
     log.info("postgres is running")

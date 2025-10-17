@@ -3,7 +3,7 @@
 //! In the local test environment, the data for each endpoint is stored in
 //!
 //! ```text
-//!   .neon/endpoints/<endpoint id>
+//!   .serendb/endpoints/<endpoint id>
 //! ```
 //!
 //! Some basic information about the endpoint, like the tenant and timeline IDs,
@@ -25,15 +25,15 @@
 //! Directory contents:
 //!
 //! ```text
-//! .neon/endpoints/main/
+//! .serendb/endpoints/main/
 //!     compute.log               - log output of `compute_ctl` and `postgres`
 //!     endpoint.json             - serialized `EndpointConf` struct
 //!     postgresql.conf           - postgresql settings
 //!     config.json                 - passed to `compute_ctl`
 //!     pgdata/
 //!         postgresql.conf       - copy of postgresql.conf created by `compute_ctl`
-//!         neon.signal
-//!         zenith.signal         - copy of neon.signal, for backward compatibility
+//!         serendb.signal
+//!         zenith.signal         - copy of serendb.signal, for backward compatibility
 //!         <other PostgreSQL files>
 //! ```
 //!
@@ -485,8 +485,8 @@ impl Endpoint {
         // walproposer panics when basebackup is invalid, it is pointless to restart in this case.
         conf.append("restart_after_crash", "off");
 
-        // Load the 'neon' extension
-        conf.append("shared_preload_libraries", "neon");
+        // Load the 'serendb' extension
+        conf.append("shared_preload_libraries", "serendb");
 
         conf.append_line("");
         // Replication-related configurations, such as WAL sending
@@ -520,7 +520,7 @@ impl Endpoint {
                         .map(|sk| format!("localhost:{}", sk.get_compute_port()))
                         .collect::<Vec<String>>()
                         .join(",");
-                    conf.append("neon.safekeepers", &safekeepers);
+                    conf.append("serendb.safekeepers", &safekeepers);
                 } else {
                     // We only use setup without safekeepers for tests,
                     // and don't care about data durability on pageserver,
@@ -564,7 +564,7 @@ impl Endpoint {
                 conf.append("primary_slot_name", slot_name.as_str());
                 conf.append("hot_standby", "on");
                 // prefetching of blocks referenced in WAL doesn't make sense for us
-                // Neon hot standby ignores pages that are not in the shared_buffers
+                // SerenDB hot standby ignores pages that are not in the shared_buffers
                 if self.pg_version >= PgMajorVersion::PG15 {
                     conf.append("recovery_prefetch", "off");
                 }
@@ -621,7 +621,7 @@ impl Endpoint {
 
         // Pass authentication token used for the connections to pageserver and safekeepers
         if let Some(token) = auth_token {
-            cmd.env("NEON_AUTH_TOKEN", token);
+            cmd.env("SERENDB_AUTH_TOKEN", token);
         }
 
         let pg_ctl = cmd
@@ -789,7 +789,7 @@ impl Endpoint {
                     },
                     databases: if args.create_test_user {
                         vec![Database {
-                            name: PgIdent::from_str("neondb").unwrap(),
+                            name: PgIdent::from_str("serendb").unwrap(),
                             owner: PgIdent::from_str("test").unwrap(),
                             options: None,
                             restrict_conn: false,
@@ -825,7 +825,7 @@ impl Endpoint {
                 endpoint_storage_token: Some(args.endpoint_storage_token),
                 autoprewarm: args.autoprewarm,
                 offload_lfc_interval_seconds: args.offload_lfc_interval_seconds,
-                suspend_timeout_seconds: -1, // Only used in neon_local.
+                suspend_timeout_seconds: -1, // Only used in serendb_local.
                 databricks_settings: None,
             };
 
@@ -844,7 +844,7 @@ impl Endpoint {
                         options: None,
                     });
                     spec.cluster.databases.push(Database {
-                        name: PgIdent::from_str("neondb").unwrap(),
+                        name: PgIdent::from_str("serendb").unwrap(),
                         owner: PgIdent::from_str("test").unwrap(),
                         options: None,
                         restrict_conn: false,
@@ -873,10 +873,10 @@ impl Endpoint {
         let conn_str = self.connstr("cloud_admin", "postgres");
         println!("Starting postgres node at '{conn_str}'");
         if args.create_test_user {
-            let conn_str = self.connstr("test", "neondb");
+            let conn_str = self.connstr("test", "serendb");
             println!("Also at '{conn_str}'");
         }
-        let mut cmd = Command::new(self.env.neon_distrib_dir.join("compute_ctl"));
+        let mut cmd = Command::new(self.env.serendb_distrib_dir.join("compute_ctl"));
         cmd.args([
             "--external-http-port",
             &self.external_http_address.port().to_string(),
@@ -990,7 +990,7 @@ impl Endpoint {
             tokio::time::sleep(ATTEMPT_INTERVAL).await;
         }
 
-        // disarm the scopeguard, let the child outlive this function (and neon_local invoction)
+        // disarm the scopeguard, let the child outlive this function (and serendb_local invoction)
         drop(scopeguard::ScopeGuard::into_inner(child));
 
         Ok(())

@@ -4,14 +4,14 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Test truncation of FSM and VM forks of a relation
 #
-def test_truncate(neon_env_builder: NeonEnvBuilder, zenbenchmark):
-    env = neon_env_builder.init_start()
+def test_truncate(serendb_env_builder: SerenDBEnvBuilder, zenbenchmark):
+    env = serendb_env_builder.init_start()
     n_records = 10000
     n_iter = 10
 

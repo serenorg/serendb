@@ -16,7 +16,7 @@ use crate::control_plane::client::cplane_proxy_v1;
 use crate::control_plane::{self, NodeInfo};
 use crate::error::{ReportableError, UserFacingError};
 use crate::pqproto::BeMessage;
-use crate::proxy::NeonOptions;
+use crate::proxy::SerenDBOptions;
 use crate::proxy::wake_compute::WakeComputeBackend;
 use crate::stream::PqStream;
 use crate::types::RoleName;
@@ -37,12 +37,12 @@ pub(crate) enum ConsoleRedirectError {
 #[derive(Debug)]
 pub struct ConsoleRedirectBackend {
     console_uri: reqwest::Url,
-    api: cplane_proxy_v1::NeonControlPlaneClient,
+    api: cplane_proxy_v1::SerenDBControlPlaneClient,
 }
 
-impl fmt::Debug for cplane_proxy_v1::NeonControlPlaneClient {
+impl fmt::Debug for cplane_proxy_v1::SerenDBControlPlaneClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NeonControlPlaneClient")
+        write!(f, "SerenDBControlPlaneClient")
     }
 }
 
@@ -70,7 +70,7 @@ fn hello_message(
     let formatted_duration = humantime::format_duration(duration).to_string();
     format!(
         concat![
-            "Welcome to Neon!\n",
+            "Welcome to SerenDB!\n",
             "Authenticate by visiting (will expire in {duration}):\n",
             "    {redirect_uri}{session_id}\n\n",
         ],
@@ -85,11 +85,11 @@ pub(crate) fn new_psql_session_id() -> String {
 }
 
 impl ConsoleRedirectBackend {
-    pub fn new(console_uri: reqwest::Url, api: cplane_proxy_v1::NeonControlPlaneClient) -> Self {
+    pub fn new(console_uri: reqwest::Url, api: cplane_proxy_v1::SerenDBControlPlaneClient) -> Self {
         Self { console_uri, api }
     }
 
-    pub(crate) fn get_api(&self) -> &cplane_proxy_v1::NeonControlPlaneClient {
+    pub(crate) fn get_api(&self) -> &cplane_proxy_v1::SerenDBControlPlaneClient {
         &self.api
     }
 
@@ -204,7 +204,7 @@ async fn authenticate(
     let user_info = ComputeUserInfo {
         endpoint: db_info.aux.endpoint_id.as_str().into(),
         user: user.clone(),
-        options: NeonOptions::default(),
+        options: SerenDBOptions::default(),
     };
 
     ctx.set_dbname(db_info.dbname.into());

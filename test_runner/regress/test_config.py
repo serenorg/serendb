@@ -5,14 +5,14 @@ from contextlib import closing
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder
 
 
 #
 # Test starting Postgres with custom options
 #
-def test_config(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_config(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     # change config
     endpoint = env.endpoints.create_start("main", config_lines=["log_min_messages=debug1"])
@@ -38,10 +38,10 @@ def test_config(neon_simple_env: NeonEnv):
 # Test that reordering of safekeepers does not restart walproposer
 #
 def test_safekeepers_reconfigure_reorder(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
     env.create_branch("test_safekeepers_reconfigure_reorder")
 
     endpoint = env.endpoints.create_start("test_safekeepers_reconfigure_reorder")
@@ -49,9 +49,9 @@ def test_safekeepers_reconfigure_reorder(
     old_sks = ""
     with closing(endpoint.connect()) as conn:
         with conn.cursor() as cur:
-            cur.execute("SHOW neon.safekeepers")
+            cur.execute("SHOW serendb.safekeepers")
             res = cur.fetchone()
-            assert res is not None, "neon.safekeepers GUC is set"
+            assert res is not None, "serendb.safekeepers GUC is set"
             old_sks = res[0]
 
     # Reorder safekeepers
@@ -62,9 +62,9 @@ def test_safekeepers_reconfigure_reorder(
 
     with closing(endpoint.connect()) as conn:
         with conn.cursor() as cur:
-            cur.execute("SHOW neon.safekeepers")
+            cur.execute("SHOW serendb.safekeepers")
             res = cur.fetchone()
-            assert res is not None, "neon.safekeepers GUC is set"
+            assert res is not None, "serendb.safekeepers GUC is set"
             new_sks = res[0]
 
             assert new_sks != old_sks, "GUC changes were applied"

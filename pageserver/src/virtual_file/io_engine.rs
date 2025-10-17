@@ -73,7 +73,7 @@ pub(super) fn init(engine_kind: IoEngineKind) {
 pub(crate) fn get() -> IoEngine {
     let cur = IoEngine::try_from(IO_ENGINE.load(Ordering::Relaxed)).unwrap();
     if cfg!(test) {
-        let env_var_name = "NEON_PAGESERVER_UNIT_TEST_VIRTUAL_FILE_IOENGINE";
+        let env_var_name = "SERENDB_PAGESERVER_UNIT_TEST_VIRTUAL_FILE_IOENGINE";
         match cur {
             IoEngine::NotSet => {
                 let kind = match std::env::var(env_var_name) {

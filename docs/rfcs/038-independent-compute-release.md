@@ -32,7 +32,7 @@ image and tag, we pin it region by region using Admin UI. It's better, but it st
 ## Non-goals
 
 It's not the goal of this document to propose a design for some general-purpose release tool like Helm.
-The document considers how the current compute fleet is orchestrated at Neon. Even if we later
+The document considers how the current compute fleet is orchestrated at SerenDB. Even if we later
 decide to split the control plane further (e.g., introduce a separate compute controller), the proposed
 release process shouldn't change much, i.e., the releases table and API will reside in
 one of the parts.
@@ -71,7 +71,7 @@ TL;DR it has several important attributes:
 We will use a separate release branch, `release-compute`, to have a clean history for releases and commits.
 In order to avoid confusion with storage releases, we will use a different prefix for compute [git release
 tags](https://github.com/neondatabase/neon/releases) -- `release-compute-XXXX`. We will use the same tag for
-Docker images as well. The `neondatabase/compute-node-v16:release-compute-XXXX` looks longer and a bit redundant,
+Docker images as well. The `serendb/compute-node-v16:release-compute-XXXX` looks longer and a bit redundant,
 but it's better to have image and git tags in sync.
 
 Currently, control plane relies on the numeric compute and storage release versions to decide on compute->storage
@@ -93,10 +93,10 @@ pg_settings:
     14:
       # Common settings for both replica and primary of version PG 14
       common:
-        shared_preload_libraries: "neon,pg_stat_statements,extension_x"
+        shared_preload_libraries: "serendb,pg_stat_statements,extension_x"
     15:
       common:
-        shared_preload_libraries: "neon,pg_stat_statements,extension_x"
+        shared_preload_libraries: "serendb,pg_stat_statements,extension_x"
       # Settings that should be applied only to
       replica:
         # Available only starting Postgres 15th
@@ -105,7 +105,7 @@ pg_settings:
     17:
       common:
         # For example, if third-party `extension_x` is not yet available for PG 17
-        shared_preload_libraries: "neon,pg_stat_statements"
+        shared_preload_libraries: "serendb,pg_stat_statements"
       replica:
         recovery_prefetch: "off"
 ```
@@ -214,8 +214,8 @@ The control plane will implement new API methods to manage releases:
 
    Here, we can actually mix-in custom (remote) extensions metadata into the `manifest`, so that the control plane
    will get information about all available extensions not bundled into compute image. The corresponding
-   workflow in `neondatabase/build-custom-extensions` should produce it as an artifact and make
-   it accessible to the workflow in the `neondatabase/infra`. See the complete release flow below. Doing that,
+   workflow in `serendb/build-custom-extensions` should produce it as an artifact and make
+   it accessible to the workflow in the `serendb/infra`. See the complete release flow below. Doing that,
    we put a constraint that new custom extension requires new compute release, which is good for the safety,
    but is not exactly what we want operational-wise (we want to be able to deploy new extensions without new
    images). Yet, it can be solved incrementally: v0 -- do not do anything with extensions at all;
@@ -264,12 +264,12 @@ compatibility between storage and compute:
   sequenceDiagram
 
   actor oncall as Compute on-call person
-  participant neon as neondatabase/neon
+  participant serendb as serendb/serendb
 
   box private
-    participant cloud as neondatabase/cloud
-    participant exts as neondatabase/build-custom-extensions
-    participant infra as neondatabase/infra
+    participant cloud as serendb/cloud
+    participant exts as serendb/build-custom-extensions
+    participant infra as serendb/infra
   end
 
   box cloud
@@ -278,27 +278,27 @@ compatibility between storage and compute:
     participant k8s as Compute k8s
   end
 
-  oncall ->> neon: Open release PR into release-compute
+  oncall ->> serendb: Open release PR into release-compute
 
-  activate neon
-  neon ->> cloud: CI: trigger e2e compatibility tests
+  activate serendb
+  serendb ->> cloud: CI: trigger e2e compatibility tests
   activate cloud
-  cloud -->> neon: CI: e2e tests pass
+  cloud -->> serendb: CI: e2e tests pass
   deactivate cloud
-  neon ->> neon: CI: pass PR checks, get approvals
-  deactivate neon
+  serendb ->> serendb: CI: pass PR checks, get approvals
+  deactivate serendb
 
-  oncall ->> neon: Merge release PR into release-compute
+  oncall ->> serendb: Merge release PR into release-compute
 
-  activate neon
-  neon ->> neon: CI: pass checks, build and push images
-  neon ->> exts: CI: trigger extensions build
+  activate serendb
+  serendb ->> serendb: CI: pass checks, build and push images
+  serendb ->> exts: CI: trigger extensions build
   activate exts
-  exts -->> neon: CI: extensions are ready
+  exts -->> serendb: CI: extensions are ready
   deactivate exts
-  neon ->> neon: CI: create release tag
-  neon ->> infra: Trigger release workflow using the produced tag
-  deactivate neon
+  serendb ->> serendb: CI: create release tag
+  serendb ->> infra: Trigger release workflow using the produced tag
+  deactivate serendb
 
   activate infra
   infra ->> infra: CI: pass checks
@@ -335,7 +335,7 @@ In theory, we can try using Helm as-is:
 Drawbacks:
 
 1. Helm releases work best if the workload is controlled by the Helm chart itself. Then you can have different
-   deployment strategies like rolling update or canary or blue/green deployments. At Neon, the compute starts are controlled
+   deployment strategies like rolling update or canary or blue/green deployments. At SerenDB, the compute starts are controlled
    by control plane, so it makes it much more tricky.
 2. Releases visibility will suffer, i.e. instead of a nice table in the control plane and Admin UI, we would need to use
    `helm` cli and/or K8s UIs like K8sLens.

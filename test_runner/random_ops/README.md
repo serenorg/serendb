@@ -1,18 +1,18 @@
-# Random Operations Test for Neon Stability
+# Random Operations Test for SerenDB Stability
 
 ## Problem Statement
 
-Neon needs robust testing of Neon's stability to ensure reliability for users. The random operations test addresses this by continuously exercising the API with unpredictable sequences of operations, helping to identify edge cases and potential issues that might not be caught by deterministic tests.
+SerenDB needs robust testing of SerenDB's stability to ensure reliability for users. The random operations test addresses this by continuously exercising the API with unpredictable sequences of operations, helping to identify edge cases and potential issues that might not be caught by deterministic tests.
 
 ### Key Components
 
 #### 1. Class Structure
 
-The test implements three main classes to model the Neon architecture:
+The test implements three main classes to model the SerenDB architecture:
 
-- **NeonProject**: Represents a Neon project and manages the lifecycle of branches and endpoints
-- **NeonBranch**: Represents a branch within a project, with methods for creating child branches, endpoints, and performing point-in-time restores
-- **NeonEndpoint**: Represents an endpoint (connection point) for a branch, with methods for managing benchmarks
+- **SerenDBProject**: Represents a SerenDB project and manages the lifecycle of branches and endpoints
+- **SerenDBBranch**: Represents a branch within a project, with methods for creating child branches, endpoints, and performing point-in-time restores
+- **SerenDBEndpoint**: Represents an endpoint (connection point) for a branch, with methods for managing benchmarks
 
 #### 2. Operations Tested
 
@@ -42,7 +42,7 @@ The test is integrated into the CI pipeline via a GitHub workflow that runs dail
 
 ## How It Works
 
-1. The test creates a Neon project using the Public API
+1. The test creates a SerenDB project using the Public API
 2. It initializes the main branch with pgbench data
 3. It performs random operations according to the weighted probabilities
 4. During each operation, it checks that all running benchmarks are still operational
@@ -52,8 +52,8 @@ The test is integrated into the CI pipeline via a GitHub workflow that runs dail
 
 The test can be configured with:
 - `RANDOM_SEED`: Set a specific random seed for reproducible test runs
-- `NEON_API_KEY`: API key for authentication
-- `NEON_API_BASE_URL`: Base URL for the API (defaults to staging environment)
+- `SERENDB_API_KEY`: API key for authentication
+- `SERENDB_API_BASE_URL`: Base URL for the API (defaults to staging environment)
 - `NUM_OPERATIONS`: The number of operations to be performed
 
 ## Running the Test
@@ -61,19 +61,19 @@ The test can be configured with:
 The test is designed to run in the CI environment but can also be executed locally:
 
 ```bash
-NEON_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
+SERENDB_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
 ```
 
 To run with a specific random seed for reproducibility:
 
 ```bash
-RANDOM_SEED=12345 NEON_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
+RANDOM_SEED=12345 SERENDB_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
 ```
 
 To run with the custom number of operations:
 
 ```bash
-NUM_OPERATIONS=500 NEON_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
+NUM_OPERATIONS=500 SERENDB_API_KEY=your_api_key ./scripts/pytest test_runner/random_ops/test_random_ops.py -m remote_cluster
 ```
 
 ## Benefits

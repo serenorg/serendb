@@ -1,9 +1,9 @@
 {
   metric_name: 'getpage_prefetches_buffered',
   type: 'gauge',
-  help: 'Number of prefetched pages buffered in neon',
+  help: 'Number of prefetched pages buffered in SerenDB',
   values: [
     'getpage_prefetches_buffered',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }

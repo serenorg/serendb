@@ -339,8 +339,8 @@ impl PageCache {
 
     async fn try_get_pinned_slot_permit(&self) -> anyhow::Result<PinnedSlotsPermit> {
         match tokio::time::timeout(
-            // Choose small timeout, neon_smgr does its own retries.
-            // https://neondb.slack.com/archives/C04DGM6SMTM/p1694786876476869
+            // Choose small timeout, serendb_smgr does its own retries.
+            // https://serendb.slack.com/archives/C04DGM6SMTM/p1694786876476869
             Duration::from_secs(10),
             Arc::clone(&self.pinned_slots).acquire_owned(),
         )

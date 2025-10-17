@@ -11,7 +11,7 @@ import pytest
 from fixtures.utils import USE_LFC, query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder
 
 """
 Test whether LFC doesn't error out when the LRU is empty, but the LFC is
@@ -24,13 +24,13 @@ we hit lfc->used >= lfc->limit.
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_local_file_cache_all_pinned(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_local_file_cache_all_pinned(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
-            "neon.max_file_cache_size='1MB'",
-            "neon.file_cache_size_limit='1MB'",
+            "serendb.max_file_cache_size='1MB'",
+            "serendb.file_cache_size_limit='1MB'",
         ],
     )
     top_cur = endpoint.connect().cursor()
@@ -84,8 +84,8 @@ def test_local_file_cache_all_pinned(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_local_file_cache_unlink(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_local_file_cache_unlink(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     cache_dir = os.path.join(env.repo_dir, "file_cache")
     os.mkdir(cache_dir)
@@ -93,8 +93,8 @@ def test_local_file_cache_unlink(neon_env_builder: NeonEnvBuilder):
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
-            "neon.max_file_cache_size='64MB'",
-            "neon.file_cache_size_limit='10MB'",
+            "serendb.max_file_cache_size='64MB'",
+            "serendb.file_cache_size_limit='10MB'",
         ],
     )
 

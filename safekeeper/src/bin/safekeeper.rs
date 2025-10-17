@@ -85,7 +85,7 @@ split), and serving the hardened part further downstream to pageserver(s).
 "#;
 
 #[derive(Parser)]
-#[command(name = "Neon safekeeper", version = GIT_VERSION, about = ABOUT, long_about = None)]
+#[command(name = "SerenDB safekeeper", version = GIT_VERSION, about = ABOUT, long_about = None)]
 struct Args {
     /// Path to the safekeeper data directory.
     #[arg(short = 'D', long, default_value = "./")]
@@ -283,7 +283,7 @@ fn opt_pathbuf_parser(s: &str) -> Result<Utf8PathBuf, String> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     // We want to allow multiple occurences of the same arg (taking the last) so
-    // that neon_local could generate command with defaults + overrides without
+    // that serendb_local could generate command with defaults + overrides without
     // getting 'argument cannot be used multiple times' error. This seems to be
     // impossible with pure Derive API, so convert struct to Command, modify it,
     // parse arguments, and then fill the struct back.

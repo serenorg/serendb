@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     "env",
     [
         # The test is too slow to run in CI, but fast enough to run with remote tests
-        pytest.param(lazy_fixture("neon_compare"), id="neon", marks=pytest.mark.slow),
+        pytest.param(lazy_fixture("serendb_compare"), id="serendb", marks=pytest.mark.slow),
         pytest.param(lazy_fixture("vanilla_compare"), id="vanilla", marks=pytest.mark.slow),
         pytest.param(lazy_fixture("remote_compare"), id="remote", marks=pytest.mark.remote_cluster),
     ],

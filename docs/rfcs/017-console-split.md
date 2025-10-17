@@ -59,7 +59,7 @@ This split is quite complex and this RFC proposes several smaller steps to achie
 1. Start by refactoring the console code, the goal is to have console and control-plane code in the different directories without dependencies on each other.
 2. Do similar refactoring for tables in the console database, remove queries selecting data from both console and control-plane; move control-plane tables to a separate database.
 3. Implement control-plane HTTP API serving on a separate TCP port; make all console→control-plane calls to go through that HTTP API.
-4. Move control-plane source code to the neon repo; start control-plane as a separate service.
+4. Move control-plane source code to the SerenDB repo; start control-plane as a separate service.
 
 ## Motivation
 
@@ -68,7 +68,7 @@ These are the two most important problems we want to solve:
 - Publish open-source implementation of all our cloud/storage features
 - Make a unified control-plane that is used in all cloud (serverless) and local (tests) setups
 
-Right now we have some closed-source code in the cloud repo. That code contains implementation for running Neon computes in k8s and without that code it’s impossible to automatically scale PostgreSQL computes. That means that we don’t have an open-source serverless PostgreSQL at the moment.
+Right now we have some closed-source code in the cloud repo. That code contains implementation for running SerenDB computes in k8s and without that code it’s impossible to automatically scale PostgreSQL computes. That means that we don’t have an open-source serverless PostgreSQL at the moment.
 
 After splitting and open-sourcing control-plane service we will have source code and Docker images for all storage services. That control-plane service should have HTTP API for creating and managing tenants (including all our storage features), while proxy will listen for incoming connections and create computes on-demand.
 
@@ -85,14 +85,14 @@ For example, console currently requires authentication providers such as GitHub 
 Let’s start with defining the current state of things at the moment of this proposal. We have three repositories containing source code:
 
 - open-source `postgres` — our fork of postgres
-- open-source `neon` — our main repository for storage source code
+- open-source `serendb` — our main repository for storage source code
 - closed-source `cloud` — mostly console backend and UI frontend
 
-This proposal aims not to change anything at the existing code in `neon` and `postgres` repositories, but to create control-plane service and move it’s source code from `cloud` to the `neon` repository. That means that we need to split code in `cloud` repo only, and will consider only this repository for exploring its source code.
+This proposal aims not to change anything at the existing code in `serendb` and `postgres` repositories, but to create control-plane service and move it’s source code from `cloud` to the `serendb` repository. That means that we need to split code in `cloud` repo only, and will consider only this repository for exploring its source code.
 
 Let’s look at the miscellaneous things in the `cloud` repo which are NOT part of the console application, i.e. NOT the Go source code that is compiled to the `./console` binary. There we have:
 
-- command-line tools, such as cloudbench, neonadmin
+- command-line tools, such as cloudbench, serendbadmin
 - markdown documentation
 - cloud operations scripts (helm, terraform, ansible)
 - configs and other things
@@ -374,13 +374,13 @@ Cons:
 
 ## Definition of Done
 
-We have a new control-plane service running in the k8s. Source code for that control-plane service is located in the open-source neon repo.
+We have a new control-plane service running in the k8s. Source code for that control-plane service is located in the open-source SerenDB repo.
 
 ## Next steps
 
 After we’ve reached DoD, we can make further improvements.
 
-First thing that can benefit from the split is local testing. The same control-plane service can implement starting computes as a local processes instead of k8s deployments. If it will also support starting pageservers/safekeepers/proxy for the local setup, then it can completely replace `./neon_local` binary, which is currently used for testing. The local testing environment can look like this:
+First thing that can benefit from the split is local testing. The same control-plane service can implement starting computes as a local processes instead of k8s deployments. If it will also support starting pageservers/safekeepers/proxy for the local setup, then it can completely replace `./serendb_local` binary, which is currently used for testing. The local testing environment can look like this:
 
 ```
 ┌─────────────────────┐     ┌───────────────────────┐
@@ -413,7 +413,7 @@ First thing that can benefit from the split is local testing. The same control-p
 
 The key thing here is that control-plane local service have the same API and almost the same implementation as the one deployed in the k8s. This allows to run the same e2e tests against both cloud and local setups.
 
-For the python test_runner tests everything can stay mostly the same. To do that, we just need to replace `./neon_local` cli commands with API calls to the control-plane.
+For the python test_runner tests everything can stay mostly the same. To do that, we just need to replace `./serendb_local` cli commands with API calls to the control-plane.
 
 The benefit here will be in having fast local tests that are really close to our cloud setup. Bugs in k8s queries are still cannot be found when running computes as a local processes, but it should be really easy to start k8s locally (for example in k3s) and run the same tests with control-plane connected to the local k8s.
 

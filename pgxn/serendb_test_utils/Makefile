@@ -1,14 +1,14 @@
-# pgxs/neon_test_utils/Makefile
+# pgxs/serendb_test_utils/Makefile
 
 
-MODULE_big = neon_test_utils
+MODULE_big = serendb_test_utils
 OBJS = \
 	$(WIN32RES) \
-	neontest.o
+	serendbtest.o
 
-EXTENSION = neon_test_utils
-DATA = neon_test_utils--1.3.sql
-PGFILEDESC = "neon_test_utils - helpers for neon testing and debugging"
+EXTENSION = serendb_test_utils
+DATA = serendb_test_utils--1.3.sql
+PGFILEDESC = "serendb_test_utils - helpers for SerenDB testing and debugging"
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

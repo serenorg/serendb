@@ -1,21 +1,17 @@
-[![Neon](https://github.com/neondatabase/neon/assets/11527560/f15a17f0-836e-40c5-b35d-030606a6b660)](https://neon.tech)
+# SerenDB
 
-
-
-# Neon
-
-Neon is an open-source serverless Postgres database platform. It separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
+SerenDB is a serverless open-source alternative to AWS Aurora Postgres. It separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
 
 ## Quick start
-Try the [Neon Free Tier](https://neon.tech/github) to create a serverless Postgres instance. Then connect to it with your preferred Postgres client (psql, dbeaver, etc) or use the online [SQL Editor](https://neon.tech/docs/get-started-with-neon/query-with-neon-sql-editor/). See [Connect from any application](https://neon.tech/docs/connect/connect-from-any-app/) for connection instructions.
+Try the [SerenDB Free Tier](https://serendb.com/github) to create a serverless Postgres instance. Then connect to it with your preferred Postgres client (psql, dbeaver, etc) or use the online [SQL Editor](https://serendb.com/docs/get-started-with-serendb/query-with-sql-editor/). See [Connect from any application](https://serendb.com/docs/connect/connect-from-any-app/) for connection instructions.
 
 Alternatively, compile and run the project [locally](#running-local-installation).
 
 ## Architecture overview
 
-A Neon installation consists of compute nodes and the Neon storage engine. Compute nodes are stateless PostgreSQL nodes backed by the Neon storage engine.
+A SerenDB installation consists of compute nodes and the SerenDB storage engine. Compute nodes are stateless PostgreSQL nodes backed by the SerenDB storage engine.
 
-The Neon storage engine consists of two major components:
+The SerenDB storage engine consists of two major components:
 - Pageserver: Scalable storage backend for the compute nodes.
 - Safekeepers: The safekeepers form a redundant WAL service that received WAL from the compute node, and stores it durably until it has been processed by the pageserver and uploaded to cloud storage.
 
@@ -23,7 +19,7 @@ See developer documentation in [SUMMARY.md](/docs/SUMMARY.md) for more informati
 
 ## Running a local development environment
 
-Neon can be run on a workstation for small experiments and to test code changes, by
+SerenDB can be run on a workstation for small experiments and to test code changes, by
 following these instructions.
 
 #### Installing dependencies on Linux
@@ -48,7 +44,7 @@ pacman -S base-devel readline zlib libseccomp openssl clang \
 postgresql-libs cmake postgresql protobuf curl lsof
 ```
 
-Building Neon requires 3.15+ version of `protoc` (protobuf-compiler). If your distribution provides an older version, you can install a newer version from [here](https://github.com/protocolbuffers/protobuf/releases).
+Building SerenDB requires 3.15+ version of `protoc` (protobuf-compiler). If your distribution provides an older version, you can install a newer version from [here](https://github.com/protocolbuffers/protobuf/releases).
 
 2. [Install Rust](https://www.rust-lang.org/tools/install)
 ```
@@ -62,7 +58,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 xcode-select --install
 brew install protobuf openssl flex bison icu4c pkg-config m4
 
-# add openssl to PATH, required for ed25519 keys generation in neon_local
+# add openssl to PATH, required for ed25519 keys generation in serendb_local
 echo 'export PATH="$(brew --prefix openssl)/bin:$PATH"' >> ~/.zshrc
 ```
 
@@ -98,12 +94,12 @@ Newer rustc versions most probably will work fine, yet older ones might not be s
 
 #### Building on Linux
 
-1. Build neon and patched postgres
+1. Build SerenDB and patched postgres
 ```
-# Note: The path to the neon sources can not contain a space.
+# Note: The path to the SerenDB sources can not contain a space.
 
-git clone --recursive https://github.com/neondatabase/neon.git
-cd neon
+git clone --recursive https://github.com/serenorg/serendb.git
+cd serendb
 
 # The preferred and default is to make a debug build. This will create a
 # demonstrably slower build than a release build. For a release build,
@@ -115,12 +111,12 @@ make -j`nproc` -s
 
 #### Building on OSX
 
-1. Build neon and patched postgres
+1. Build SerenDB and patched postgres
 ```
-# Note: The path to the neon sources can not contain a space.
+# Note: The path to the SerenDB sources can not contain a space.
 
-git clone --recursive https://github.com/neondatabase/neon.git
-cd neon
+git clone --recursive https://github.com/serenorg/serendb.git
+cd serendb
 
 # The preferred and default is to make a debug build. This will create a
 # demonstrably slower build than a release build. For a release build,
@@ -137,39 +133,39 @@ To run the integration tests or Python scripts (not required to use the code), i
 Python (3.11 or higher), and install the python3 packages using `./scripts/pysync` (requires [poetry>=1.8](https://python-poetry.org/)) in the project directory.
 
 
-#### Running neon database
+#### Running SerenDB database
 1. Start pageserver and postgres on top of it (should be called from repo root):
 ```sh
-# Create repository in .neon with proper paths to binaries and data
+# Create repository in .serendb with proper paths to binaries and data
 # Later that would be responsibility of a package install script
-> cargo neon init
-Initializing pageserver node 1 at '127.0.0.1:64000' in ".neon"
+> cargo serendb init
+Initializing pageserver node 1 at '127.0.0.1:64000' in ".serendb"
 
 # start pageserver, safekeeper, and broker for their intercommunication
-> cargo neon start
-Starting neon broker at 127.0.0.1:50051.
+> cargo serendb start
+Starting SerenDB broker at 127.0.0.1:50051.
 storage_broker started, pid: 2918372
-Starting pageserver node 1 at '127.0.0.1:64000' in ".neon".
+Starting pageserver node 1 at '127.0.0.1:64000' in ".serendb".
 pageserver started, pid: 2918386
-Starting safekeeper at '127.0.0.1:5454' in '.neon/safekeepers/sk1'.
+Starting safekeeper at '127.0.0.1:5454' in '.serendb/safekeepers/sk1'.
 safekeeper 1 started, pid: 2918437
 
-# create initial tenant and use it as a default for every future neon_local invocation
-> cargo neon tenant create --set-default
+# create initial tenant and use it as a default for every future serendb_local invocation
+> cargo serendb tenant create --set-default
 tenant 9ef87a5bf0d92544f6fafeeb3239695c successfully created on the pageserver
 Created an initial timeline 'de200bd42b49cc1814412c7e592dd6e9' at Lsn 0/16B5A50 for tenant: 9ef87a5bf0d92544f6fafeeb3239695c
 Setting tenant 9ef87a5bf0d92544f6fafeeb3239695c as a default one
 
 # create postgres compute node
-> cargo neon endpoint create main
+> cargo serendb endpoint create main
 
 # start postgres compute node
-> cargo neon endpoint start main
+> cargo serendb endpoint start main
 Starting new endpoint main (PostgreSQL v14) on timeline de200bd42b49cc1814412c7e592dd6e9 ...
 Starting postgres at 'postgresql://cloud_admin@127.0.0.1:55432/postgres'
 
 # check list of running postgres instances
-> cargo neon endpoint list
+> cargo serendb endpoint list
  ENDPOINT  ADDRESS          TIMELINE                          BRANCH NAME  LSN        STATUS
  main      127.0.0.1:55432  de200bd42b49cc1814412c7e592dd6e9  main         0/16B5BA8  running
 ```
@@ -191,24 +187,24 @@ postgres=# select * from t;
 3. And create branches and run postgres on them:
 ```sh
 # create branch named migration_check
-> cargo neon timeline branch --branch-name migration_check
+> cargo serendb timeline branch --branch-name migration_check
 Created timeline 'b3b863fa45fa9e57e615f9f2d944e601' at Lsn 0/16F9A00 for tenant: 9ef87a5bf0d92544f6fafeeb3239695c. Ancestor timeline: 'main'
 
 # check branches tree
-> cargo neon timeline list
+> cargo serendb timeline list
 (L) main [de200bd42b49cc1814412c7e592dd6e9]
 (L) ┗━ @0/16F9A00: migration_check [b3b863fa45fa9e57e615f9f2d944e601]
 
 # create postgres on that branch
-> cargo neon endpoint create migration_check --branch-name migration_check
+> cargo serendb endpoint create migration_check --branch-name migration_check
 
 # start postgres on that branch
-> cargo neon endpoint start migration_check
+> cargo serendb endpoint start migration_check
 Starting new endpoint migration_check (PostgreSQL v14) on timeline b3b863fa45fa9e57e615f9f2d944e601 ...
 Starting postgres at 'postgresql://cloud_admin@127.0.0.1:55434/postgres'
 
 # check the new list of running postgres instances
-> cargo neon endpoint list
+> cargo serendb endpoint list
  ENDPOINT         ADDRESS          TIMELINE                          BRANCH NAME      LSN        STATUS
  main             127.0.0.1:55432  de200bd42b49cc1814412c7e592dd6e9  main             0/16F9A38  running
  migration_check  127.0.0.1:55434  b3b863fa45fa9e57e615f9f2d944e601  migration_check  0/16F9A70  running
@@ -237,14 +233,14 @@ postgres=# select * from t;
 4. If you want to run tests afterwards (see below), you must stop all the running pageserver, safekeeper, and postgres instances
    you have just started. You can terminate them all with one command:
 ```sh
-> cargo neon stop
+> cargo serendb stop
 ```
 
-More advanced usages can be found at [Local Development Control Plane (`neon_local`))](./control_plane/README.md).
+More advanced usages can be found at [Local Development Control Plane (`serendb_local`))](./control_plane/README.md).
 
 #### Handling build failures
 
-If you encounter errors during setting up the initial tenant, it's best to stop everything (`cargo neon stop`) and remove the `.neon` directory. Then fix the problems, and start the setup again.
+If you encounter errors during setting up the initial tenant, it's best to stop everything (`cargo serendb stop`) and remove the `.serendb` directory. Then fix the problems, and start the setup again.
 
 ## Running tests
 
@@ -256,10 +252,10 @@ You can install `cargo-nextest` with `cargo install cargo-nextest`.
 
 ### Integration tests
 
-Ensure your dependencies are installed as described [here](https://github.com/neondatabase/neon#dependency-installation-notes).
+Ensure your dependencies are installed as described [here](https://github.com/serenorg/serendb#dependency-installation-notes).
 
 ```sh
-git clone --recursive https://github.com/neondatabase/neon.git
+git clone --recursive https://github.com/serenorg/serendb.git
 
 CARGO_BUILD_FLAGS="--features=testing" make
 
@@ -287,7 +283,7 @@ You can use [`flamegraph-rs`](https://github.com/flamegraph-rs/flamegraph) or th
 
 For cleaning up the source tree from build artifacts, run `make clean` in the source directory.
 
-For removing every artifact from build and configure steps, run `make distclean`, and also consider removing the cargo binaries in the `target` directory, as well as the database in the `.neon` directory. Note that removing the `.neon` directory will remove your database, with all data in it. You have been warned!
+For removing every artifact from build and configure steps, run `make distclean`, and also consider removing the cargo binaries in the `target` directory, as well as the database in the `.serendb` directory. Note that removing the `.serendb` directory will remove your database, with all data in it. You have been warned!
 
 ## Documentation
 
@@ -301,20 +297,20 @@ See also README files in some source directories, and `rustdoc` style documentat
 
 Other resources:
 
-- [SELECT 'Hello, World'](https://neon.tech/blog/hello-world/): Blog post by Nikita Shamgunov on the high level architecture
-- [Architecture decisions in Neon](https://neon.tech/blog/architecture-decisions-in-neon/): Blog post by Heikki Linnakangas
-- [Neon: Serverless PostgreSQL!](https://www.youtube.com/watch?v=rES0yzeERns): Presentation on storage system by Heikki Linnakangas in the CMU Database Group seminar series
+- [SELECT 'Hello, World'](https://serendb.com/blog/hello-world/): Blog post by Nikita Shamgunov on the high level architecture
+- [Architecture decisions in SerenDB](https://serendb.com/blog/architecture-decisions-in-serendb/): Blog post by Heikki Linnakangas
+- [SerenDB: Serverless PostgreSQL!](https://www.youtube.com/watch?v=rES0yzeERns): Presentation on storage system by Heikki Linnakangas in the CMU Database Group seminar series
 
 ### Postgres-specific terms
 
-Due to Neon's very close relation with PostgreSQL internals, numerous specific terms are used.
+Due to SerenDB's very close relation with PostgreSQL internals, numerous specific terms are used.
 The same applies to certain spelling: i.e. we use MB to denote 1024 * 1024 bytes, while MiB would be technically more correct, it's inconsistent with what PostgreSQL code and its documentation use.
 
 To get more familiar with this aspect, refer to:
 
-- [Neon glossary](/docs/glossary.md)
+- [SerenDB glossary](/docs/glossary.md)
 - [PostgreSQL glossary](https://www.postgresql.org/docs/14/glossary.html)
-- Other PostgreSQL documentation and sources (Neon fork sources can be found [here](https://github.com/neondatabase/postgres))
+- Other PostgreSQL documentation and sources (SerenDB fork sources can be found [here](https://github.com/serenorg/postgres))
 
 ## Join the development
 

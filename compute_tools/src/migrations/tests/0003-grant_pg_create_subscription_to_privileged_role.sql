@@ -4,7 +4,7 @@ BEGIN
         RETURN;
     END IF;
 
-    IF NOT (SELECT pg_catalog.pg_has_role('neon_superuser', 'pg_create_subscription', 'member')) THEN
-        RAISE EXCEPTION 'neon_superuser cannot execute pg_create_subscription';
+    IF NOT (SELECT pg_catalog.pg_has_role('serendb_superuser', 'pg_create_subscription', 'member')) THEN
+        RAISE EXCEPTION 'serendb_superuser cannot execute pg_create_subscription';
     END IF;
 END $$;

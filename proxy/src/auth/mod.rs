@@ -51,7 +51,7 @@ pub(crate) enum AuthError {
         "Endpoint ID is not specified. \
         Either please upgrade the postgres client library (libpq) for SNI support \
         or pass the endpoint ID (first part of the domain name) as a parameter: '?options=endpoint%3D<endpoint-id>'. \
-        See more at https://neon.tech/sni"
+        See more at https://serendb.com/sni"
     )]
     MissingEndpointName,
 
@@ -70,7 +70,7 @@ pub(crate) enum AuthError {
 
     #[error(
         "This IP address {0} is not allowed to connect to this endpoint. \
-        Please add it to the allowed list in the Neon console. \
+        Please add it to the allowed list in the SerenDB console. \
         Make sure to check for IPv4 or IPv6 addresses."
     )]
     IpAddressNotAllowed(IpAddr),
@@ -80,7 +80,7 @@ pub(crate) enum AuthError {
 
     #[error(
         "This VPC endpoint id {0} is not allowed to connect to this endpoint. \
-        Please add it to the allowed list in the Neon console."
+        Please add it to the allowed list in the SerenDB console."
     )]
     VpcEndpointIdNotAllowed(String),
 

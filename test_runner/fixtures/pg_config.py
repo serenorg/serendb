@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import IO
 
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.serendb_fixtures import PgBin
 
 
 @final

@@ -10,12 +10,12 @@ from fixtures.log_helper import log
 from fixtures.utils import USE_LFC
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.timeout(600)
-def test_compute_pageserver_connection_stress(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_compute_pageserver_connection_stress(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.append(".*simulated connection error.*")  # this is never hit
 
     # the real reason (Simulated Connection Error) is on the next line, and we cannot filter this out.
@@ -86,11 +86,11 @@ def test_compute_pageserver_connection_stress(neon_env_builder: NeonEnvBuilder):
     env.pageserver.stop()
 
 
-def test_compute_pageserver_hung_connections(neon_env_builder: NeonEnvBuilder):
+def test_compute_pageserver_hung_connections(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test timeouts in waiting for response to pageserver request
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.append(".*slow GetPage.*")
     pageserver_http = env.pageserver.http_client()
     endpoint = env.endpoints.create_start(
@@ -149,7 +149,7 @@ def test_compute_pageserver_hung_connections(neon_env_builder: NeonEnvBuilder):
     ##
     ## This is to exercise the logging timeout.
     log.info("running workload with log timeout")
-    cur.execute("SET neon.pageserver_response_log_timeout = '500ms'")
+    cur.execute("SET serendb.pageserver_response_log_timeout = '500ms'")
     pageserver_http.configure_failpoints(("before-pagestream-msg-flush", "10%3*return(3000)"))
     run_workload(20)
 
@@ -162,8 +162,8 @@ def test_compute_pageserver_hung_connections(neon_env_builder: NeonEnvBuilder):
     ## This exercises the disconnect timeout. We'll disconnect and
     ## reconnect after 500 ms.
     log.info("running workload with disconnect timeout")
-    cur.execute("SET neon.pageserver_response_log_timeout = '250ms'")
-    cur.execute("SET neon.pageserver_response_disconnect_timeout = '500ms'")
+    cur.execute("SET serendb.pageserver_response_log_timeout = '250ms'")
+    cur.execute("SET serendb.pageserver_response_disconnect_timeout = '500ms'")
     pageserver_http.configure_failpoints(("before-pagestream-msg-flush", "10%3*return(3000)"))
     run_workload(15)
 
@@ -174,11 +174,11 @@ def test_compute_pageserver_hung_connections(neon_env_builder: NeonEnvBuilder):
     env.pageserver.stop()
 
 
-def test_compute_pageserver_statement_timeout(neon_env_builder: NeonEnvBuilder):
+def test_compute_pageserver_statement_timeout(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test statement_timeout while waiting for response to pageserver request
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.append(".*slow GetPage.*")
     pageserver_http = env.pageserver.http_client()
 
@@ -189,7 +189,7 @@ def test_compute_pageserver_statement_timeout(neon_env_builder: NeonEnvBuilder):
         "autovacuum = off",
     ]
     if USE_LFC:
-        config_lines = ["neon.max_file_cache_size = 1MB", "neon.file_cache_size_limit = 1MB"]
+        config_lines = ["serendb.max_file_cache_size = 1MB", "serendb.file_cache_size_limit = 1MB"]
     endpoint = env.endpoints.create_start(
         "main",
         tenant_id=env.initial_tenant,
@@ -232,8 +232,8 @@ def test_compute_pageserver_statement_timeout(neon_env_builder: NeonEnvBuilder):
     ## get stuck. This tests that the statement_timeout is obeyed while waiting on a
     ## GetPage request.
     log.info("running workload with statement_timeout")
-    cur.execute("SET neon.pageserver_response_log_timeout = '2000ms'")
-    cur.execute("SET neon.pageserver_response_disconnect_timeout = '30000ms'")
+    cur.execute("SET serendb.pageserver_response_log_timeout = '2000ms'")
+    cur.execute("SET serendb.pageserver_response_disconnect_timeout = '30000ms'")
     cur.execute("SET statement_timeout='10s'")
     pageserver_http.configure_failpoints(("before-pagestream-msg-flush", "10%return(60000)"))
 
@@ -244,7 +244,7 @@ def test_compute_pageserver_statement_timeout(neon_env_builder: NeonEnvBuilder):
     log.info("Statement timeout reached")
     end_time = time.time()
     # Verify that the statement_timeout canceled the query before
-    # neon.pageserver_response_disconnect_timeout expired
+    # serendb.pageserver_response_disconnect_timeout expired
     assert end_time - start_time < 40
     times_canceled = 1
 
@@ -256,7 +256,7 @@ def test_compute_pageserver_statement_timeout(neon_env_builder: NeonEnvBuilder):
     pageserver_http.configure_failpoints(("before-pagestream-msg-flush", "off"))
 
     # If we keep retrying, we should eventually succeed. (This tests that the
-    # neon.pageserver_response_disconnect_timeout is not reset on query
+    # serendb.pageserver_response_disconnect_timeout is not reset on query
     # cancellation.)
     while times_canceled < 10:
         try:

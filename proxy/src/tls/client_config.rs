@@ -8,7 +8,7 @@ use rustls::crypto::ring;
 
 /// We use an internal certificate authority when establishing a TLS connection with compute.
 fn load_internal_certs(store: &mut rustls::RootCertStore) -> anyhow::Result<()> {
-    let Some(ca_file) = env::var_os("NEON_INTERNAL_CA_FILE") else {
+    let Some(ca_file) = env::var_os("SERENDB_INTERNAL_CA_FILE") else {
         return Ok(());
     };
     let ca_file = PathBuf::from(ca_file);
@@ -47,7 +47,7 @@ fn load_compute_certs() -> anyhow::Result<Arc<rustls::RootCertStore>> {
     Ok(Arc::new(store))
 }
 
-/// Loads the root certificates and constructs a client config suitable for connecting to the neon compute.
+/// Loads the root certificates and constructs a client config suitable for connecting to the SerenDB compute.
 /// This function is blocking.
 pub fn compute_client_config_with_root_certs() -> anyhow::Result<rustls::ClientConfig> {
     Ok(

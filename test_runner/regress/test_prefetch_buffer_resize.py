@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_prefetch(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
+def test_prefetch(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_start(
+        serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shard_count,
     )
     n_iter = 10
@@ -37,6 +37,6 @@ def test_prefetch(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
 
     for _ in range(n_iter):
         buf_size = random.randrange(16, 32)
-        cur.execute(f"set neon.readahead_buffer_size={buf_size}")
+        cur.execute(f"set serendb.readahead_buffer_size={buf_size}")
         limit = random.randrange(1, n_rec)
         cur.execute(f"select sum(pk) from (select pk from t limit {limit}) s")

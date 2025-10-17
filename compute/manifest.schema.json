@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Neon Compute Manifest Schema",
-  "description": "Schema for Neon compute node configuration manifest",
+  "title": "SerenDB Compute Manifest Schema",
+  "description": "Schema for SerenDB compute node configuration manifest",
   "type": "object",
   "properties": {
     "pg_settings": {
@@ -87,13 +87,13 @@
               "type": "string",
               "description": "Maximum WAL size"
             },
-            "neon.unstable_extensions": {
+            "serendb.unstable_extensions": {
               "type": "string",
               "description": "List of unstable extensions"
             },
-            "neon.protocol_version": {
+            "serendb.protocol_version": {
               "type": "string",
-              "description": "Neon protocol version"
+              "description": "SerenDB protocol version"
             },
             "password_encryption": {
               "type": "string",
@@ -149,8 +149,8 @@
             "max_replication_write_lag",
             "max_wal_senders",
             "max_wal_size",
-            "neon.unstable_extensions",
-            "neon.protocol_version",
+            "serendb.unstable_extensions",
+            "serendb.protocol_version",
             "password_encryption",
             "restart_after_crash",
             "superuser_reserved_connections",

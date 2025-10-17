@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     check_restored_datadir_content,
 )
 
@@ -10,10 +10,10 @@ from fixtures.neon_fixtures import (
 #
 # The pg_subxact SLRU is not preserved on restarts, and doesn't need to be
 # maintained in the pageserver, so subtransactions are not very exciting for
-# Neon. They are included in the commit record though and updated in the
+# SerenDB. They are included in the commit record though and updated in the
 # CLOG.
-def test_subxacts(neon_env_builder: NeonEnvBuilder, test_output_dir):
-    env = neon_env_builder.init_start()
+def test_subxacts(serendb_env_builder: SerenDBEnvBuilder, test_output_dir):
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
 
     pg_conn = endpoint.connect()

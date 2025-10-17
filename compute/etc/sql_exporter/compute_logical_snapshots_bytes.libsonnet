@@ -1,4 +1,4 @@
-local neon = import 'neon.libsonnet';
+local serendb = import 'serendb.libsonnet';
 
 local pg_ls_logicalsnapdir = importstr 'sql_exporter/compute_logical_snapshots_bytes.15.sql';
 local pg_ls_dir = importstr 'sql_exporter/compute_logical_snapshots_bytes.sql';
@@ -13,5 +13,5 @@ local pg_ls_dir = importstr 'sql_exporter/compute_logical_snapshots_bytes.sql';
   values: [
     'logical_snapshots_bytes',
   ],
-  query: if neon.PG_MAJORVERSION_NUM < 15 then pg_ls_dir else pg_ls_logicalsnapdir,
+  query: if serendb.PG_MAJORVERSION_NUM < 15 then pg_ls_dir else pg_ls_logicalsnapdir,
 }

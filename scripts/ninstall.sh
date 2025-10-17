@@ -11,7 +11,7 @@ set -euo pipefail
 # matter in our configuration.
 #
 # Such behavior may be incorrect if e.g. permissions have changed, but it should
-# not happen during normal Neon development that often, and rebuild should help.
+# not happen during normal SerenDB development that often, and rebuild should help.
 #
 # See https://github.com/neondatabase/neon/issues/1873
 if [ "$#" == "5" ]; then

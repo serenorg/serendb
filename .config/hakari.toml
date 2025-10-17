@@ -24,7 +24,7 @@ platforms = [
 [final-excludes]
 workspace-members = [
     # vm_monitor benefits from the same Cargo.lock as the rest of our artifacts, but
-    # it is built primarly in separate repo neondatabase/autoscaling and thus is excluded
+    # it is built primarly in separate repo serenorg/autoscaling and thus is excluded
     # from depending on workspace-hack because most of the dependencies are not used.
     "vm_monitor",
     # subzero-core is a stub crate that should be excluded from workspace-hack

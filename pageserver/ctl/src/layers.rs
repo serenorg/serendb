@@ -19,11 +19,11 @@ use crate::layer_map_analyzer::{LayerFile, parse_filename};
 pub(crate) enum LayerCmd {
     /// List all tenants and timelines under the pageserver path
     ///
-    /// Example: `cargo run --bin pagectl layer list .neon/`
+    /// Example: `cargo run --bin pagectl layer list .serendb/`
     List { path: PathBuf },
     /// List all layers of a given tenant and timeline
     ///
-    /// Example: `cargo run --bin pagectl layer list .neon/`
+    /// Example: `cargo run --bin pagectl layer list .serendb/`
     ListLayer {
         path: PathBuf,
         tenant: String,

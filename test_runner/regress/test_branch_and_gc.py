@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import Lsn, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import wait_for_last_flush_lsn
 from fixtures.pageserver.http import TimelineCreate406
 from fixtures.utils import query_scalar, skip_in_debug_build
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 # Test the GC implementation when running with branching.
@@ -53,8 +53,8 @@ if TYPE_CHECKING:
 # starting from lsn1 should return an error as follows:
 #     could not find data for key ... at LSN ..., for request at LSN ...
 @skip_in_debug_build("times out in debug builds")
-def test_branch_and_gc(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_branch_and_gc(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     pageserver_http_client = env.pageserver.http_client()
 
     tenant, timeline_main = env.create_tenant(
@@ -121,8 +121,8 @@ def test_branch_and_gc(neon_simple_env: NeonEnv):
 # and prevent creating branches with invalid starting LSNs.
 #
 # For more details, see discussion in https://github.com/neondatabase/neon/pull/2101#issuecomment-1185273447.
-def test_branch_creation_before_gc(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_branch_creation_before_gc(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     pageserver_http_client = env.pageserver.http_client()
 
     error_regexes = [

@@ -18,9 +18,9 @@ from enum import StrEnum
 import pytest
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     generate_uploads_and_deletions,
 )
@@ -58,7 +58,7 @@ TENANT_CONF = {
 
 
 def read_all(
-    env: NeonEnv, tenant_id: TenantId | None = None, timeline_id: TimelineId | None = None
+    env: SerenDBEnv, tenant_id: TenantId | None = None, timeline_id: TimelineId | None = None
 ):
     if tenant_id is None:
         tenant_id = env.initial_tenant
@@ -122,12 +122,12 @@ def assert_deletion_queue(ps_http, size_fn) -> None:
     assert size_fn(v) is True
 
 
-def test_deferred_deletion(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(
+def test_deferred_deletion(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(
         RemoteStorageKind.MOCK_S3,
     )
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     attached_to_id = env.storage_controller.locate(env.initial_tenant)[0]["node_id"]
     main_pageserver = env.get_pageserver(attached_to_id)
@@ -189,7 +189,7 @@ class ValidateBefore(StrEnum):
 @pytest.mark.parametrize("keep_attachment", [KeepAttachment.KEEP, KeepAttachment.LOSE])
 @pytest.mark.parametrize("validate_before", [ValidateBefore.VALIDATE, ValidateBefore.NO_VALIDATE])
 def test_deletion_queue_recovery(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     keep_attachment: KeepAttachment,
     validate_before: ValidateBefore,
@@ -200,11 +200,11 @@ def test_deletion_queue_recovery(
     :param validate_before: whether to wait for deletions to be validated before restart.  This
     makes them elegible to be executed after restart, if the same node keeps the attachment.
     """
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.enable_pageserver_remote_storage(
         RemoteStorageKind.MOCK_S3,
     )
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     attached_to_id = env.storage_controller.locate(env.initial_tenant)[0]["node_id"]
     main_pageserver = env.get_pageserver(attached_to_id)
@@ -311,11 +311,11 @@ def test_deletion_queue_recovery(
     assert get_deletion_queue_dropped_lsn_updates(ps_http) == 0
 
 
-def test_emergency_mode(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
-    neon_env_builder.enable_pageserver_remote_storage(
+def test_emergency_mode(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
+    serendb_env_builder.enable_pageserver_remote_storage(
         RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     ps_http = env.pageserver.http_client()
 
@@ -387,7 +387,7 @@ def test_emergency_mode(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
     assert get_deletion_queue_executed(ps_http) > 0
 
 
-def evict_all_layers(env: NeonEnv, tenant_id: TenantId, timeline_id: TimelineId):
+def evict_all_layers(env: SerenDBEnv, tenant_id: TenantId, timeline_id: TimelineId):
     client = env.pageserver.http_client()
 
     layer_map = client.layer_map_info(tenant_id, timeline_id)
@@ -404,16 +404,16 @@ def evict_all_layers(env: NeonEnv, tenant_id: TenantId, timeline_id: TimelineId)
         )
 
 
-def test_eviction_across_generations(neon_env_builder: NeonEnvBuilder):
+def test_eviction_across_generations(serendb_env_builder: SerenDBEnvBuilder):
     """
     Eviction and on-demand downloads exercise a particular code path where RemoteLayer is constructed
     and must be constructed using the proper generation for the layer, which may not be the same generation
     that the tenant is running in.
     """
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.enable_pageserver_remote_storage(
         RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
     env.pageserver.http_client()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -436,14 +436,14 @@ def test_eviction_across_generations(neon_env_builder: NeonEnvBuilder):
 
 
 def test_multi_attach(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
-    neon_env_builder.num_pageservers = 3
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.num_pageservers = 3
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     pageservers = env.pageservers
     http_clients = list([p.http_client() for p in pageservers])
@@ -531,15 +531,15 @@ def test_multi_attach(
 
 
 def test_upgrade_generationless_local_file_paths(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test pageserver behavior when startup up with local layer paths without
     generation numbers: it should accept these layer files, and avoid doing
     a delete/download cycle on them.
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -627,7 +627,7 @@ def test_upgrade_generationless_local_file_paths(
 
 @run_only_on_default_postgres("Only tests index logic")
 def test_old_index_time_threshold(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Exercise pageserver's detection of trying to load an ancient non-latest index.
@@ -635,8 +635,8 @@ def test_old_index_time_threshold(
     """
 
     # Run with local_fs because we will interfere with mtimes by local filesystem access
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 

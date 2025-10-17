@@ -3,8 +3,8 @@
  * to help with compiling the same sources for all of them.
  */
 
-#ifndef NEON_PGVERSIONCOMPAT_H
-#define NEON_PGVERSIONCOMPAT_H
+#ifndef SERENDB_PGVERSIONCOMPAT_H
+#define SERENDB_PGVERSIONCOMPAT_H
 
 #include "fmgr.h"
 #include "storage/buf_internals.h"
@@ -175,4 +175,4 @@ extern TimeLineID GetWALInsertionTimeLine(void);
 #define INT64_HEX_FORMAT "%" INT64_MODIFIER "x"
 #define UINT64_HEX_FORMAT "%" INT64_MODIFIER "x"
 
-#endif							/* NEON_PGVERSIONCOMPAT_H */
+#endif							/* SERENDB_PGVERSIONCOMPAT_H */

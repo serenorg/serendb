@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     logical_replication_sync,
     wait_for_last_flush_lsn,
 )
@@ -20,8 +20,8 @@ from fixtures.utils import skip_on_postgres
     PgVersion.V15,
     reason="pg_log_standby_snapshot() function is available since Postgres 16",
 )
-def test_layer_bloating(neon_env_builder: NeonEnvBuilder, vanilla_pg):
-    env = neon_env_builder.init_start(
+def test_layer_bloating(serendb_env_builder: SerenDBEnvBuilder, vanilla_pg):
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "0s",
             "compaction_period": "0s",

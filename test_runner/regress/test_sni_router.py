@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import backoff
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonProxy, PgProtocol, VanillaPostgres
+from fixtures.serendb_fixtures import SerenDBProxy, PgProtocol, VanillaPostgres
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,7 +39,7 @@ def generate_tls_cert(cn, certout, keyout):
 class PgSniRouter(PgProtocol):
     def __init__(
         self,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         port: int,
         tls_port: int,
         destination: str,
@@ -52,7 +52,7 @@ class PgSniRouter(PgProtocol):
         super().__init__(host=host, port=port)
 
         self.host = host
-        self.neon_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
         self.port = port
         self.tls_port = tls_port
         self.destination = destination
@@ -64,7 +64,7 @@ class PgSniRouter(PgProtocol):
     def start(self) -> Self:
         assert self._popen is None
         args = [
-            str(self.neon_binpath / "pg_sni_router"),
+            str(self.serendb_binpath / "pg_sni_router"),
             *["--listen", f"127.0.0.1:{self.port}"],
             *["--listen-tls", f"127.0.0.1:{self.tls_port}"],
             *["--tls-cert", str(self.tls_cert)],
@@ -116,11 +116,11 @@ class PgSniRouter(PgProtocol):
 def test_pg_sni_router(
     vanilla_pg: VanillaPostgres,
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
 ):
     generate_tls_cert(
-        "endpoint.namespace.local.neon.build",
+        "endpoint.namespace.local.serendb.build",
         test_output_dir / "router.crt",
         test_output_dir / "router.key",
     )
@@ -133,10 +133,10 @@ def test_pg_sni_router(
     router_tls_port = port_distributor.get_port()
 
     with PgSniRouter(
-        neon_binpath=neon_binpath,
+        serendb_binpath=serendb_binpath,
         port=router_port,
         tls_port=router_tls_port,
-        destination="local.neon.build",
+        destination="local.serendb.build",
         tls_cert=test_output_dir / "router.crt",
         tls_key=test_output_dir / "router.key",
         test_output_dir=test_output_dir,
@@ -147,14 +147,14 @@ def test_pg_sni_router(
             "select 1",
             dbname="postgres",
             sslmode="require",
-            host=f"endpoint--namespace--{pg_port}.local.neon.build",
+            host=f"endpoint--namespace--{pg_port}.local.serendb.build",
             hostaddr="127.0.0.1",
         )
         assert out[0][0] == 1
 
 
 def test_pg_sni_router_in_proxy(
-    static_proxy: NeonProxy,
+    static_proxy: SerenDBProxy,
     vanilla_pg: VanillaPostgres,
 ):
     # static_proxy starts this.
@@ -165,7 +165,7 @@ def test_pg_sni_router_in_proxy(
         "select 1",
         dbname="postgres",
         sslmode="require",
-        host=f"endpoint--namespace--{pg_port}.local.neon.build",
+        host=f"endpoint--namespace--{pg_port}.local.serendb.build",
         hostaddr="127.0.0.1",
         port=static_proxy.router_port,
     )

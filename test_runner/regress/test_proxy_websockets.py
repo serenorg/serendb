@@ -11,12 +11,12 @@ import websockets
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonProxy
+    from fixtures.serendb_fixtures import SerenDBProxy
     from fixtures.port_distributor import PortDistributor
 
 
 @pytest.mark.asyncio
-async def test_websockets(static_proxy: NeonProxy):
+async def test_websockets(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user ws_auth with password 'ws' superuser")
 
     user = "ws_auth"
@@ -107,7 +107,7 @@ async def test_websockets(static_proxy: NeonProxy):
 
 
 @pytest.mark.asyncio
-async def test_websockets_pipelined(static_proxy: NeonProxy):
+async def test_websockets_pipelined(static_proxy: SerenDBProxy):
     """
     Test whether we can send the startup + auth + query all in one go
     """
@@ -207,7 +207,7 @@ async def test_websockets_pipelined(static_proxy: NeonProxy):
 
 
 @pytest.mark.asyncio
-async def test_websockets_tunneled(static_proxy: NeonProxy, port_distributor: PortDistributor):
+async def test_websockets_tunneled(static_proxy: SerenDBProxy, port_distributor: PortDistributor):
     static_proxy.safe_psql("create user ws_auth with password 'ws' superuser")
 
     user = "ws_auth"

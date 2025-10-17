@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder, PgBin
 
 
 # Just start and measure duration.
@@ -27,14 +27,14 @@ if TYPE_CHECKING:
 #      for a large database might be larger if there's a lof of transaction metadata,
 #      or safekeepers might need more syncing, or there might be more operations to
 #      apply during config step, like more users, databases, or extensions. By default
-#      we load extensions 'neon,pg_stat_statements,timescaledb,pg_cron', but in this
-#      test we only load neon.
+#      we load extensions 'serendb,pg_stat_statements,timescaledb,pg_cron', but in this
+#      test we only load serendb.
 def test_compute_startup_simple(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
 ):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_startup")
 
@@ -102,10 +102,10 @@ def test_compute_startup_simple(
 @pytest.mark.timeout(1800)
 @pytest.mark.parametrize("slru", ["lazy", "eager"])
 def test_compute_ondemand_slru_startup(
-    slru: str, neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchmarker
+    slru: str, serendb_env_builder: SerenDBEnvBuilder, zenbenchmark: SerenDBBenchmarker
 ):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     lazy_slru_download = "true" if slru == "lazy" else "false"
     tenant, _ = env.create_tenant(
@@ -183,16 +183,16 @@ def test_compute_ondemand_slru_startup(
 
 @pytest.mark.timeout(240)
 def test_compute_startup_latency(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Do NUM_STARTS 'optimized' starts, i.e. with pg_catalog updates skipped,
     and measure the duration of each step. Report p50, p90, p99 latencies.
     """
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main")
     pg_bin.run_capture(["pgbench", "-i", "-I", "dtGvp", "-s4", endpoint.connstr()])

@@ -1,5 +1,5 @@
-#ifndef __NEON_WALPROPOSER_H__
-#define __NEON_WALPROPOSER_H__
+#ifndef __SERENDB_WALPROPOSER_H__
+#define __SERENDB_WALPROPOSER_H__
 
 #include "access/transam.h"
 #include "access/xlogdefs.h"
@@ -9,7 +9,7 @@
 #include "utils/uuid.h"
 
 #include "libpqwalproposer.h"
-#include "neon_walreader.h"
+#include "serendb_walreader.h"
 #include "pagestore_client.h"
 
 #define MAX_SAFEKEEPERS 32
@@ -112,7 +112,7 @@ typedef enum
 	SS_ACTIVE_SEND,
 
 	/*
-	 * Polling neon_walreader to receive chunk of WAL (probably remotely) to
+	 * Polling serendb_walreader to receive chunk of WAL (probably remotely) to
 	 * send to this safekeeper.
 	 *
 	 * Note: socket management is done completely inside walproposer_pg for
@@ -137,7 +137,7 @@ typedef enum
 /* Consensus logical timestamp. */
 typedef uint64 term_t;
 
-/* neon storage node id */
+/* SerenDB storage node id */
 typedef uint64 NNodeId;
 
 /*
@@ -215,7 +215,7 @@ typedef struct ProposerGreetingV2
 	uint32		pgVersion;
 	pg_uuid_t	proposerId;
 	uint64		systemId;		/* Postgres system identifier */
-	uint8		timeline_id[16];	/* Neon timeline id */
+	uint8		timeline_id[16];	/* SerenDB timeline id */
 	uint8		tenant_id[16];
 	TimeLineID	timeline;
 	uint32		walSegSize;
@@ -465,7 +465,7 @@ typedef struct AppendResponse
 	XLogRecPtr	commitLsn;
 	HotStandbyFeedback hs;
 	/* Feedback received from pageserver includes standby_status_update fields */
-	/* and custom neon feedback. */
+	/* and custom SerenDB feedback. */
 	/* This part of the message is extensible. */
 	PageserverFeedback ps_feedback;
 } AppendResponse;
@@ -534,7 +534,7 @@ typedef struct Safekeeper
 	/*
 	 * WAL reader, allocated for each safekeeper.
 	 */
-	NeonWALReader *xlogreader;
+	SerenDBWALReader *xlogreader;
 
 	/*
 	 * Position in wait event set. Equal to -1 if no event
@@ -542,7 +542,7 @@ typedef struct Safekeeper
 	int			eventPos;
 
 	/*
-	 * Neon WAL reader position in wait event set, or -1 if no socket. Note
+	 * SerenDB WAL reader position in wait event set, or -1 if no socket. Note
 	 * that event must be removed not only on error/failure, but also on
 	 * successful *local* read, as next read might again be remote, but with
 	 * different socket.
@@ -675,7 +675,7 @@ typedef struct walproposer_api
 	void		(*wal_reader_allocate) (Safekeeper *sk);
 
 	/* Read WAL from disk to buf. */
-	NeonWALReadResult (*wal_read) (Safekeeper *sk, char *buf, XLogRecPtr startptr, Size count, char **errmsg);
+	SerenDBWALReadResult (*wal_read) (Safekeeper *sk, char *buf, XLogRecPtr startptr, Size count, char **errmsg);
 
 	/* Returns events to be awaited on WAL reader, if any. */
 	uint32		(*wal_reader_events) (Safekeeper *sk);
@@ -765,10 +765,10 @@ typedef struct walproposer_api
 typedef struct WalProposerConfig
 {
 	/* hex-encoded TenantId cstr */
-	char	   *neon_tenant;
+	char	   *serendb_tenant;
 
 	/* hex-encoded TimelineId cstr */
-	char	   *neon_timeline;
+	char	   *serendb_timeline;
 
 	/*
 	 * Comma-separated list of safekeepers, in the following format:
@@ -855,7 +855,7 @@ typedef struct WalProposer
 	/*
 	 * Generation of the membership conf of which safekeepers[] are presumably
 	 * members. To make cplane life a bit easier and have more control in
-	 * tests with which sks walproposer gets connected neon.safekeepers GUC
+	 * tests with which sks walproposer gets connected serendb.safekeepers GUC
 	 * doesn't provide full mconf, only the list of endpoints to connect to.
 	 * We still would like to know generation associated with it because 1) we
 	 * need some handle to enforce using generations in walproposer, and
@@ -965,4 +965,4 @@ extern void WalProposerLibLog(WalProposer *wp, int elevel, char *fmt,...) pg_att
  */
 #define wpg_log(elevel, fmt, ...) elog(elevel, WP_LOG_PREFIX fmt, ## __VA_ARGS__)
 
-#endif							/* __NEON_WALPROPOSER_H__ */
+#endif							/* __SERENDB_WALPROPOSER_H__ */

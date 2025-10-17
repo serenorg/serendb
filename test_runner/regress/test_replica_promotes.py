@@ -9,7 +9,7 @@ import psycopg2
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import Endpoint, NeonEnv, wait_replica_caughtup
+from fixtures.serendb_fixtures import Endpoint, SerenDBEnv, wait_replica_caughtup
 from fixtures.utils import USE_LFC
 from psycopg2.extensions import cursor as Cursor
 from pytest import raises
@@ -45,7 +45,7 @@ METHOD_IDS = [e.value for e in PromoteMethod]
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
 @pytest.mark.parametrize("method", METHOD_OPTIONS, ids=METHOD_IDS)
-def test_replica_promote(neon_simple_env: NeonEnv, method: PromoteMethod):
+def test_replica_promote(serendb_simple_env: SerenDBEnv, method: PromoteMethod):
     """
     Test that a replica safely promotes, and can commit data updates which
     show up when the primary boots up after the promoted secondary endpoint
@@ -54,13 +54,13 @@ def test_replica_promote(neon_simple_env: NeonEnv, method: PromoteMethod):
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env: NeonEnv = neon_simple_env
+    env: SerenDBEnv = serendb_simple_env
     primary: Endpoint = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     secondary: Endpoint = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
 
     with primary.connect() as primary_conn:
         primary_cur = primary_conn.cursor()
-        primary_cur.execute("create schema neon;create extension neon with schema neon")
+        primary_cur.execute("create schema serendb;create extension serendb with schema serendb")
         primary_cur.execute(
             "create table t(pk bigint GENERATED ALWAYS AS IDENTITY, payload integer)"
         )
@@ -69,7 +69,7 @@ def test_replica_promote(neon_simple_env: NeonEnv, method: PromoteMethod):
         lsn_triple = get_lsn_triple(primary_cur)
         log.info(f"Primary: Current LSN after workload is {lsn_triple}")
         expected_primary_lsn: Lsn = Lsn(lsn_triple[2])
-        primary_cur.execute("show neon.safekeepers")
+        primary_cur.execute("show serendb.safekeepers")
         safekeepers = primary_cur.fetchall()[0][0]
 
     if method == PromoteMethod.COMPUTE_CTL:
@@ -104,7 +104,7 @@ def test_replica_promote(neon_simple_env: NeonEnv, method: PromoteMethod):
         promote_spec = {"spec": primary_spec, "wal_flush_lsn": str(lsn)}
         assert client.promote(promote_spec)["status"] == "completed"
     else:
-        promo_cur.execute(f"alter system set neon.safekeepers='{safekeepers}'")
+        promo_cur.execute(f"alter system set serendb.safekeepers='{safekeepers}'")
         promo_cur.execute("select pg_reload_conf()")
         promo_cur.execute("SELECT * FROM pg_promote()")
         assert promo_cur.fetchone() == (True,)
@@ -178,17 +178,17 @@ def test_replica_promote(neon_simple_env: NeonEnv, method: PromoteMethod):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_replica_promote_handler_disconnects(neon_simple_env: NeonEnv):
+def test_replica_promote_handler_disconnects(serendb_simple_env: SerenDBEnv):
     """
     Test that if a handler disconnects from /promote route of compute_ctl, promotion still happens
     once, and no error is thrown
     """
-    env: NeonEnv = neon_simple_env
+    env: SerenDBEnv = serendb_simple_env
     primary: Endpoint = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     secondary: Endpoint = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
 
     with primary.connect() as conn, conn.cursor() as cur:
-        cur.execute("create schema neon;create extension neon with schema neon")
+        cur.execute("create schema serendb;create extension serendb with schema serendb")
         cur.execute("create table t(pk bigint GENERATED ALWAYS AS IDENTITY, payload integer)")
         cur.execute("INSERT INTO t(payload) SELECT generate_series(1, 100)")
 
@@ -212,18 +212,18 @@ def test_replica_promote_handler_disconnects(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_replica_promote_fails(neon_simple_env: NeonEnv):
+def test_replica_promote_fails(serendb_simple_env: SerenDBEnv):
     """
     Test that if a /promote route fails, we can safely start primary back
     """
-    env: NeonEnv = neon_simple_env
+    env: SerenDBEnv = serendb_simple_env
     primary: Endpoint = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     secondary: Endpoint = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
     secondary.stop()
     secondary.start(env={"FAILPOINTS": "compute-promotion=return(0)"})
 
     with primary.connect() as conn, conn.cursor() as cur:
-        cur.execute("create schema neon;create extension neon with schema neon")
+        cur.execute("create schema serendb;create extension serendb with schema serendb")
         cur.execute("create table t(pk bigint GENERATED ALWAYS AS IDENTITY, payload integer)")
         cur.execute("INSERT INTO t(payload) SELECT generate_series(1, 100)")
 
@@ -249,18 +249,18 @@ def test_replica_promote_fails(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_replica_promote_prewarm_fails(neon_simple_env: NeonEnv):
+def test_replica_promote_prewarm_fails(serendb_simple_env: SerenDBEnv):
     """
     Test that if /lfc/prewarm route fails, we are able to promote
     """
-    env: NeonEnv = neon_simple_env
+    env: SerenDBEnv = serendb_simple_env
     primary: Endpoint = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     secondary: Endpoint = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
     secondary.stop()
     secondary.start(env={"FAILPOINTS": "compute-prewarm=return(0)"})
 
     with primary.connect() as conn, conn.cursor() as cur:
-        cur.execute("create schema neon;create extension neon with schema neon")
+        cur.execute("create schema serendb;create extension serendb with schema serendb")
         cur.execute("create table t(pk bigint GENERATED ALWAYS AS IDENTITY, payload integer)")
         cur.execute("INSERT INTO t(payload) SELECT generate_series(1, 100)")
 

@@ -11,13 +11,13 @@ import pytest
 from _pytest.config import Config
 
 from fixtures.log_helper import log
-from fixtures.neon_cli import AbstractNeonCli
-from fixtures.neon_fixtures import Endpoint, VanillaPostgres
+from fixtures.serendb_cli import AbstractSerenDBCli
+from fixtures.serendb_fixtures import Endpoint, VanillaPostgres
 from fixtures.pg_version import PgVersion
 from fixtures.remote_storage import MockS3Server
 
 
-class FastImport(AbstractNeonCli):
+class FastImport(AbstractSerenDBCli):
     COMMAND = "fast_import"
     cmd: subprocess.CompletedProcess[str] | None = None
 
@@ -138,14 +138,14 @@ class FastImport(AbstractNeonCli):
 def fast_import(
     pg_version: PgVersion,
     test_output_dir: Path,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     pg_distrib_dir: Path,
     pytestconfig: Config,
 ) -> Iterator[FastImport]:
     workdir = Path(tempfile.mkdtemp(dir=test_output_dir, prefix="fast_import_"))
     with FastImport(
         None,
-        neon_binpath,
+        serendb_binpath,
         pg_distrib_dir,
         pg_version,
         workdir,

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * neon_perf_counters.c
- *	  Collect statistics about Neon I/O
+ * serendb_perf_counters.c
+ *	  Collect statistics about SerenDB I/O
  *
  * Each backend has its own set of counters in shared memory.
  *
@@ -17,8 +17,8 @@
 #include "storage/shmem.h"
 #include "utils/builtins.h"
 
-#include "neon.h"
-#include "neon_perf_counters.h"
+#include "serendb.h"
+#include "serendb_perf_counters.h"
 #include "walproposer.h"
 
 /* BEGIN_HADRON */
@@ -50,22 +50,22 @@ DatabricksMetricsShmemInit(void)
 }
 /* END_HADRON */
 
-neon_per_backend_counters *neon_per_backend_counters_shared;
+serendb_per_backend_counters *serendb_per_backend_counters_shared;
 
 void
-NeonPerfCountersShmemRequest(void)
+SerenDBPerfCountersShmemRequest(void)
 {
 	Size size;
 #if PG_MAJORVERSION_NUM < 15
-	/* Hack: in PG14 MaxBackends is not initialized at the time of calling NeonPerfCountersShmemRequest function.
+	/* Hack: in PG14 MaxBackends is not initialized at the time of calling SerenDBPerfCountersShmemRequest function.
 	 * Do it ourselves and then undo to prevent assertion failure
 	 */
 	Assert(MaxBackends == 0); /* not initialized yet */
 	InitializeMaxBackends();
-	size = mul_size(NUM_NEON_PERF_COUNTER_SLOTS, sizeof(neon_per_backend_counters));
+	size = mul_size(NUM_SERENDB_PERF_COUNTER_SLOTS, sizeof(serendb_per_backend_counters));
 	MaxBackends = 0;
 #else
-	size = mul_size(NUM_NEON_PERF_COUNTER_SLOTS, sizeof(neon_per_backend_counters));
+	size = mul_size(NUM_SERENDB_PERF_COUNTER_SLOTS, sizeof(serendb_per_backend_counters));
 #endif
 	if (lakebase_mode) {
 		size = add_size(size, DatabricksMetricsShmemSize());
@@ -74,14 +74,14 @@ NeonPerfCountersShmemRequest(void)
 }
 
 void
-NeonPerfCountersShmemInit(void)
+SerenDBPerfCountersShmemInit(void)
 {
 	bool		found;
 
-	neon_per_backend_counters_shared =
-		ShmemInitStruct("Neon perf counters",
-						mul_size(NUM_NEON_PERF_COUNTER_SLOTS,
-								 sizeof(neon_per_backend_counters)),
+	serendb_per_backend_counters_shared =
+		ShmemInitStruct("SerenDB perf counters",
+						mul_size(NUM_SERENDB_PERF_COUNTER_SLOTS,
+								 sizeof(serendb_per_backend_counters)),
 						&found);
 	Assert(found == IsUnderPostmaster);
 	if (!found)
@@ -138,7 +138,7 @@ inc_qthist(QTHistogram hist, uint64 elapsed_us)
 void
 inc_getpage_wait(uint64 latency)
 {
-	inc_iohist(&MyNeonCounters->getpage_hist, latency);
+	inc_iohist(&MySerenDBCounters->getpage_hist, latency);
 }
 
 /*
@@ -147,7 +147,7 @@ inc_getpage_wait(uint64 latency)
 void
 inc_page_cache_read_wait(uint64 latency)
 {
-	inc_iohist(&MyNeonCounters->file_cache_read_hist, latency);
+	inc_iohist(&MySerenDBCounters->file_cache_read_hist, latency);
 }
 
 /*
@@ -156,19 +156,19 @@ inc_page_cache_read_wait(uint64 latency)
 void
 inc_page_cache_write_wait(uint64 latency)
 {
-	inc_iohist(&MyNeonCounters->file_cache_write_hist, latency);
+	inc_iohist(&MySerenDBCounters->file_cache_write_hist, latency);
 }
 
 
 void
 inc_query_time(uint64 elapsed)
 {
-	inc_qthist(&MyNeonCounters->query_time_hist, elapsed);
+	inc_qthist(&MySerenDBCounters->query_time_hist, elapsed);
 }
 
 /*
- * Support functions for the views, neon_backend_perf_counters and
- * neon_perf_counters.
+ * Support functions for the views, serendb_backend_perf_counters and
+ * serendb_perf_counters.
  */
 
 typedef struct
@@ -248,7 +248,7 @@ qt_histogram_to_metrics(QTHistogram histogram,
 }
 
 static metric_t *
-neon_perf_counters_to_metrics(neon_per_backend_counters *counters)
+serendb_perf_counters_to_metrics(serendb_per_backend_counters *counters)
 {
 #define NUM_METRICS ((2 + NUM_IO_WAIT_BUCKETS) * 3 + (2 + NUM_QT_BUCKETS) + 12)
 	metric_t   *metrics = palloc((NUM_METRICS + 1) * sizeof(metric_t));
@@ -328,9 +328,9 @@ metric_to_datums(metric_t *m, Datum *values, bool *nulls)
 	nulls[2] = false;
 }
 
-PG_FUNCTION_INFO_V1(neon_get_backend_perf_counters);
+PG_FUNCTION_INFO_V1(serendb_get_backend_perf_counters);
 Datum
-neon_get_backend_perf_counters(PG_FUNCTION_ARGS)
+serendb_get_backend_perf_counters(PG_FUNCTION_ARGS)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	Datum		values[5];
@@ -339,12 +339,12 @@ neon_get_backend_perf_counters(PG_FUNCTION_ARGS)
 	/* We put all the tuples into a tuplestore in one go. */
 	InitMaterializedSRF(fcinfo, 0);
 
-	for (int procno = 0; procno < NUM_NEON_PERF_COUNTER_SLOTS; procno++)
+	for (int procno = 0; procno < NUM_SERENDB_PERF_COUNTER_SLOTS; procno++)
 	{
 		PGPROC	   *proc = GetPGProcByNumber(procno);
 		int			pid = proc->pid;
-		neon_per_backend_counters *counters = &neon_per_backend_counters_shared[procno];
-		metric_t   *metrics = neon_perf_counters_to_metrics(counters);
+		serendb_per_backend_counters *counters = &serendb_per_backend_counters_shared[procno];
+		metric_t   *metrics = serendb_perf_counters_to_metrics(counters);
 
 		values[0] = Int32GetDatum(procno);
 		nulls[0] = false;
@@ -381,14 +381,14 @@ qt_histogram_merge_into(QTHistogram into, QTHistogram from)
 		into->elapsed_us_bucket[bucketno] += from->elapsed_us_bucket[bucketno];
 }
 
-PG_FUNCTION_INFO_V1(neon_get_perf_counters);
+PG_FUNCTION_INFO_V1(serendb_get_perf_counters);
 Datum
-neon_get_perf_counters(PG_FUNCTION_ARGS)
+serendb_get_perf_counters(PG_FUNCTION_ARGS)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	Datum		values[3];
 	bool		nulls[3];
-	neon_per_backend_counters totals = {0};
+	serendb_per_backend_counters totals = {0};
 	metric_t   *metrics;
 
 	/* BEGIN_HADRON */
@@ -401,9 +401,9 @@ neon_get_perf_counters(PG_FUNCTION_ARGS)
 	InitMaterializedSRF(fcinfo, 0);
 
 	/* Aggregate the counters across all backends */
-	for (int procno = 0; procno < NUM_NEON_PERF_COUNTER_SLOTS; procno++)
+	for (int procno = 0; procno < NUM_SERENDB_PERF_COUNTER_SLOTS; procno++)
 	{
-		neon_per_backend_counters *counters = &neon_per_backend_counters_shared[procno];
+		serendb_per_backend_counters *counters = &serendb_per_backend_counters_shared[procno];
 
 		io_histogram_merge_into(&totals.getpage_hist, &counters->getpage_hist);
 		totals.getpage_prefetch_requests_total += counters->getpage_prefetch_requests_total;
@@ -425,7 +425,7 @@ neon_get_perf_counters(PG_FUNCTION_ARGS)
 		qt_histogram_merge_into(&totals.query_time_hist, &counters->query_time_hist);
 	}
 
-	metrics = neon_perf_counters_to_metrics(&totals);
+	metrics = serendb_perf_counters_to_metrics(&totals);
 	for (int i = 0; metrics[i].name != NULL; i++)
 	{
 		metric_to_datums(&metrics[i], &values[0], &nulls[0]);
@@ -440,8 +440,8 @@ neon_get_perf_counters(PG_FUNCTION_ARGS)
 						errmsg("test corruption")));
 		}
 
-		// Not ideal but piggyback our databricks counters into the neon perf counters view
-		// so that we don't need to introduce neon--1.x+1.sql to add a new view.
+		// Not ideal but piggyback our databricks counters into the SerenDB perf counters view
+		// so that we don't need to introduce serendb--1.x+1.sql to add a new view.
 		{
 		// Keeping this code in its own block to work around the C90 "don't mix declarations and code" rule when we define
 		// the `databricks_metrics` array in the next block. Yes, we are seriously dealing with C90 rules in 2025.

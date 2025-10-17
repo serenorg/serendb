@@ -1,5 +1,5 @@
 //!
-//! Parse PostgreSQL WAL records and store them in a neon Timeline.
+//! Parse PostgreSQL WAL records and store them in a SerenDB Timeline.
 //!
 //! The pipeline for ingesting WAL looks like this:
 //!
@@ -9,7 +9,7 @@
 //! Records get decoded and interpreted in the [`wal_decoder`] module
 //! and then stored to the Repository by WalIngest.
 //!
-//! The neon Repository can store page versions in two formats: as
+//! The SerenDB Repository can store page versions in two formats: as
 //! page images, or a WAL records. [`wal_decoder::models::InterpretedWalRecord::from_bytes_filtered`]
 //! extracts page images out of some WAL records, but mostly it's WAL
 //! records. If a WAL record modifies multiple pages, WalIngest
@@ -43,7 +43,7 @@ use utils::bin_ser::{DeserializeError, SerializeError};
 use utils::lsn::Lsn;
 use utils::rate_limit::RateLimit;
 use utils::{critical_timeline, failpoint_support};
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 use wal_decoder::models::*;
 
 use crate::ZERO_PAGE;
@@ -264,8 +264,8 @@ impl WalIngest {
                         .await?;
                 }
             },
-            Some(MetadataRecord::Neonrmgr(rec)) => match rec {
-                NeonrmgrRecord::ClearVmBits(clear_vm_bits) => {
+            Some(MetadataRecord::SerenDBrmgr(rec)) => match rec {
+                SerenDBrmgrRecord::ClearVmBits(clear_vm_bits) => {
                     self.ingest_clear_vm_bits(clear_vm_bits, modification, ctx)
                         .await?;
                 }
@@ -351,7 +351,7 @@ impl WalIngest {
                 // There are two cases through which we end up here:
                 // 1. The resource manager for the original PG WAL record
                 //    is [`pg_constants::RM_TBLSPC_ID`]. This is not a supported
-                //    record type within Neon.
+                //    record type within SerenDB.
                 // 2. The resource manager id was unknown to
                 //    [`wal_decoder::decoder::MetadataRecord::from_decoded`].
                 // TODO(vlad): Tighten this up more once we build confidence
@@ -463,7 +463,7 @@ impl WalIngest {
                 modification,
                 vm_rel,
                 new_vm_blk.unwrap(),
-                NeonWalRecord::ClearVisibilityMapFlags {
+                SerenDBWalRecord::ClearVisibilityMapFlags {
                     new_heap_blkno,
                     old_heap_blkno,
                     flags,
@@ -478,7 +478,7 @@ impl WalIngest {
                     modification,
                     vm_rel,
                     new_vm_blk,
-                    NeonWalRecord::ClearVisibilityMapFlags {
+                    SerenDBWalRecord::ClearVisibilityMapFlags {
                         new_heap_blkno,
                         old_heap_blkno: None,
                         flags,
@@ -492,7 +492,7 @@ impl WalIngest {
                     modification,
                     vm_rel,
                     old_vm_blk,
-                    NeonWalRecord::ClearVisibilityMapFlags {
+                    SerenDBWalRecord::ClearVisibilityMapFlags {
                         new_heap_blkno: None,
                         old_heap_blkno,
                         flags,
@@ -721,7 +721,7 @@ impl WalIngest {
                 modification.put_rel_wal_record(
                     rel,
                     vm_page_no,
-                    NeonWalRecord::TruncateVisibilityMap {
+                    SerenDBWalRecord::TruncateVisibilityMap {
                         trunc_byte,
                         trunc_offs,
                     },
@@ -771,7 +771,7 @@ impl WalIngest {
                     }
                     Err(e) => {
                         let delta_t = e.duration();
-                        // determined by prod victoriametrics query: 1000 * (timestamp(node_time_seconds{neon_service="pageserver"}) - node_time_seconds)
+                        // determined by prod victoriametrics query: 1000 * (timestamp(node_time_seconds{serendb_service="pageserver"}) - node_time_seconds)
                         // => https://www.robustperception.io/time-metric-from-the-node-exporter/
                         const IGNORED_DRIFT: Duration = Duration::from_millis(100);
                         if delta_t > IGNORED_DRIFT {
@@ -840,12 +840,12 @@ impl WalIngest {
                     segno,
                     rpageno,
                     if is_commit {
-                        NeonWalRecord::ClogSetCommitted {
+                        SerenDBWalRecord::ClogSetCommitted {
                             xids: page_xids,
                             timestamp: parsed.xact_time,
                         }
                     } else {
-                        NeonWalRecord::ClogSetAborted { xids: page_xids }
+                        SerenDBWalRecord::ClogSetAborted { xids: page_xids }
                     },
                 )?;
                 page_xids = Vec::new();
@@ -860,12 +860,12 @@ impl WalIngest {
             segno,
             rpageno,
             if is_commit {
-                NeonWalRecord::ClogSetCommitted {
+                SerenDBWalRecord::ClogSetCommitted {
                     xids: page_xids,
                     timestamp: parsed.xact_time,
                 }
             } else {
-                NeonWalRecord::ClogSetAborted { xids: page_xids }
+                SerenDBWalRecord::ClogSetAborted { xids: page_xids }
             },
         )?;
 
@@ -936,7 +936,7 @@ impl WalIngest {
 
         // In Postgres, oldestXid and oldestXidDB are updated in memory when the CLOG is
         // truncated, but a checkpoint record with the updated values isn't written until
-        // later. In Neon, a server can start at any LSN, not just on a checkpoint record,
+        // later. In SerenDB, a server can start at any LSN, not just on a checkpoint record,
         // so we keep the oldestXid and oldestXidDB up-to-date.
         enum_pgversion_dispatch!(&mut self.checkpoint, CheckPoint, cp, {
             cp.oldestXid = oldest_xid;
@@ -1026,7 +1026,7 @@ impl WalIngest {
             SlruKind::MultiXactOffsets,
             segno,
             rpageno,
-            NeonWalRecord::MultixactOffsetCreate {
+            SerenDBWalRecord::MultixactOffsetCreate {
                 mid: xlrec.mid,
                 moff: xlrec.moff,
             },
@@ -1060,7 +1060,7 @@ impl WalIngest {
                 SlruKind::MultiXactMembers,
                 pageno / pg_constants::SLRU_PAGES_PER_SEGMENT,
                 pageno % pg_constants::SLRU_PAGES_PER_SEGMENT,
-                NeonWalRecord::MultixactMembersCreate {
+                SerenDBWalRecord::MultixactMembersCreate {
                     moff: offset,
                     members: this_page_members,
                 },
@@ -1250,14 +1250,14 @@ impl WalIngest {
                 // end. Postgres startup code knows that, and allows hot standby to start
                 // immediately from a shutdown checkpoint.
                 //
-                // In Neon, Postgres hot standby startup always behaves as if starting from
+                // In SerenDB, Postgres hot standby startup always behaves as if starting from
                 // an online checkpoint. It needs a valid `oldestActiveXid` value, so
                 // instead of overwriting self.checkpoint.oldestActiveXid with
                 // InvalidTransactionid from the checkpoint WAL record, update it to a
                 // proper value, knowing that there are no in-progress transactions at this
                 // point, except for prepared transactions.
                 //
-                // See also the neon code changes in the InitWalRecovery() function.
+                // See also the SerenDB code changes in the InitWalRecovery() function.
                 if xlog_checkpoint.oldestActiveXid == pg_constants::INVALID_TRANSACTION_ID
                     && info == pg_constants::XLOG_CHECKPOINT_SHUTDOWN
                 {
@@ -1301,7 +1301,7 @@ impl WalIngest {
                 //
                 // To address both of those issues, we store 0 in the redo field if it's
                 // an online checkpoint record, and the record's *end* LSN if it's a
-                // shutdown checkpoint. We don't need the original redo pointer in neon,
+                // shutdown checkpoint. We don't need the original redo pointer in SerenDB,
                 // because we don't perform WAL replay at startup anyway, so we can get
                 // away with abusing the redo field like this.
                 //
@@ -1315,7 +1315,7 @@ impl WalIngest {
                 // persisted redo field at all. That means that old records have a bogus
                 // redo pointer that points to some old value, from the checkpoint record
                 // that was originally imported from the data directory. If it was a
-                // project created in Neon, that means it points to the first checkpoint
+                // project created in SerenDB, that means it points to the first checkpoint
                 // after initdb. That's OK for our purposes: all such old checkpoints are
                 // treated as old online checkpoints when the basebackup is created.
                 cp.redo = if info == pg_constants::XLOG_CHECKPOINT_SHUTDOWN {
@@ -1416,7 +1416,7 @@ impl WalIngest {
         modification: &mut DatadirModification<'_>,
         rel: RelTag,
         blknum: BlockNumber,
-        rec: NeonWalRecord,
+        rec: SerenDBWalRecord,
         ctx: &RequestContext,
     ) -> Result<(), WalIngestError> {
         self.handle_rel_extend(modification, rel, blknum, ctx)

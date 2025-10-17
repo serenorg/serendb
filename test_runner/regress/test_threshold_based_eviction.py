@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     last_flush_lsn_upload,
 )
@@ -24,15 +24,15 @@ def test_threshold_based_eviction(
     httpserver: HTTPServer,
     httpserver_listen_address: ListenAddress,
     pg_bin: PgBin,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # Start with metrics collection enabled, so that the eviction task
     # imitates its accesses. We'll use a non-existent endpoint to make it fail.
     # The synthetic size calculation will run regardless.
     host, port = httpserver_listen_address
-    neon_env_builder.pageserver_config_override = f"""
+    serendb_env_builder.pageserver_config_override = f"""
         metric_collection_interval="1s"
         synthetic_size_calculation_interval="2s"
         metric_collection_endpoint="http://{host}:{port}/nonexistent"
@@ -40,7 +40,7 @@ def test_threshold_based_eviction(
     metrics_refused_log_line = (
         ".*metrics_collection:.* upload consumption_metrics (still failed|failed, will retry).*"
     )
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(
         [
             metrics_refused_log_line,

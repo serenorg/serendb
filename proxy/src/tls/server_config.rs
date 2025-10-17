@@ -176,8 +176,8 @@ fn process_key_cert(
     // In scram-proxy we use wildcard certificates only, with the database endpoint as the wildcard subdomain, taken from SNI.
     // We need to remove the wildcard prefix for the purposes of certificate selection.
     //
-    // auth-broker does not use SNI and instead uses the Neon-Connection-String header.
-    // Auth broker has the subdomain `apiauth` we need to remove for the purposes of validating the Neon-Connection-String.
+    // auth-broker does not use SNI and instead uses the SerenDB-Connection-String header.
+    // Auth broker has the subdomain `apiauth` we need to remove for the purposes of validating the SerenDB-Connection-String.
     //
     // Console Redirect proxy does not use any wildcard domains and does not need any certificate selection or conn string
     // validation, so let's we can continue with any common-name

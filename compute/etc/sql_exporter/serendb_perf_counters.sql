@@ -1,4 +1,4 @@
-WITH c AS (SELECT pg_catalog.jsonb_object_agg(metric, value) jb FROM neon.neon_perf_counters)
+WITH c AS (SELECT pg_catalog.jsonb_object_agg(metric, value) jb FROM serendb.serendb_perf_counters)
 
 SELECT d.* FROM pg_catalog.jsonb_to_record((SELECT jb FROM c)) AS d(
   file_cache_read_wait_seconds_count numeric,

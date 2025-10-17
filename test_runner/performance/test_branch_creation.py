@@ -10,26 +10,26 @@ from contextlib import closing
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
 from fixtures.pageserver.utils import wait_for_last_record_lsn
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.compare_fixtures import NeonCompare
-    from fixtures.neon_fixtures import NeonPageserver
+    from fixtures.compare_fixtures import SerenDBCompare
+    from fixtures.serendb_fixtures import SerenDBPageserver
     from prometheus_client.samples import Sample
 
 
-def _record_branch_creation_durations(neon_compare: NeonCompare, durs: list[float]):
-    neon_compare.zenbenchmark.record(
+def _record_branch_creation_durations(serendb_compare: SerenDBCompare, durs: list[float]):
+    serendb_compare.zenbenchmark.record(
         "branch_creation_duration_max", max(durs), "s", MetricReport.LOWER_IS_BETTER
     )
-    neon_compare.zenbenchmark.record(
+    serendb_compare.zenbenchmark.record(
         "branch_creation_duration_avg", statistics.mean(durs), "s", MetricReport.LOWER_IS_BETTER
     )
-    neon_compare.zenbenchmark.record(
+    serendb_compare.zenbenchmark.record(
         "branch_creation_duration_stdev", statistics.stdev(durs), "s", MetricReport.LOWER_IS_BETTER
     )
 
@@ -40,9 +40,9 @@ def _record_branch_creation_durations(neon_compare: NeonCompare, durs: list[floa
 # [1]: to simulate a heavy workload, the test tweaks the GC and compaction settings
 # to increase the task's frequency. The test runs `pgbench` in each new branch.
 # Each branch is created from a randomly picked source branch.
-def test_branch_creation_heavy_write(neon_compare: NeonCompare, n_branches: int):
-    env = neon_compare.env
-    pg_bin = neon_compare.pg_bin
+def test_branch_creation_heavy_write(serendb_compare: SerenDBCompare, n_branches: int):
+    env = serendb_compare.env
+    pg_bin = serendb_compare.pg_bin
 
     # Use aggressive GC and checkpoint settings, so GC and compaction happen more often during the test
     tenant, _ = env.create_tenant(
@@ -94,17 +94,17 @@ def test_branch_creation_heavy_write(neon_compare: NeonCompare, n_branches: int)
     for thread in threads:
         thread.join()
 
-    _record_branch_creation_durations(neon_compare, branch_creation_durations)
+    _record_branch_creation_durations(serendb_compare, branch_creation_durations)
 
 
 @pytest.mark.timeout(1000)
 @pytest.mark.parametrize("n_branches", [500, 1024])
 @pytest.mark.parametrize("shape", ["one_ancestor", "random"])
-def test_branch_creation_many(neon_compare: NeonCompare, n_branches: int, shape: str):
+def test_branch_creation_many(serendb_compare: SerenDBCompare, n_branches: int, shape: str):
     """
     Test measures the latency of branch creation when creating a lot of branches.
     """
-    env = neon_compare.env
+    env = serendb_compare.env
 
     # seed the prng so we will measure the same structure every time
     rng = random.Random("2024-02-29")
@@ -112,7 +112,7 @@ def test_branch_creation_many(neon_compare: NeonCompare, n_branches: int, shape:
     env.create_branch("b0")
 
     endpoint = env.endpoints.create_start("b0")
-    neon_compare.pg_bin.run_capture(["pgbench", "-i", "-I", "dtGvp", "-s10", endpoint.connstr()])
+    serendb_compare.pg_bin.run_capture(["pgbench", "-i", "-I", "dtGvp", "-s10", endpoint.connstr()])
 
     branch_creation_durations = []
 
@@ -130,11 +130,11 @@ def test_branch_creation_many(neon_compare: NeonCompare, n_branches: int, shape:
         dur = timeit.default_timer() - timer
         branch_creation_durations.append(dur)
 
-    _record_branch_creation_durations(neon_compare, branch_creation_durations)
+    _record_branch_creation_durations(serendb_compare, branch_creation_durations)
 
     endpoint.stop_and_destroy()
 
-    with neon_compare.record_duration("shutdown"):
+    with serendb_compare.record_duration("shutdown"):
         # this sleeps 100ms between polls
         env.pageserver.stop()
 
@@ -163,7 +163,7 @@ def test_branch_creation_many(neon_compare: NeonCompare, n_branches: int, shape:
     )
     env.pageserver.quiesce_tenants()
 
-    wait_and_record_startup_metrics(env.pageserver, neon_compare.zenbenchmark, "restart_after")
+    wait_and_record_startup_metrics(env.pageserver, serendb_compare.zenbenchmark, "restart_after")
 
     # wait for compaction to complete, which most likely has already done so multiple times
     msg, _ = wait_until(
@@ -174,11 +174,11 @@ def test_branch_creation_many(neon_compare: NeonCompare, n_branches: int, shape:
     needle = re.search(" elapsed_ms=([0-9]+)", msg)
     assert needle is not None, "failed to find the elapsed time"
     duration = int(needle.group(1)) / 1000.0
-    neon_compare.zenbenchmark.record("compaction", duration, "s", MetricReport.LOWER_IS_BETTER)
+    serendb_compare.zenbenchmark.record("compaction", duration, "s", MetricReport.LOWER_IS_BETTER)
 
 
 def wait_and_record_startup_metrics(
-    pageserver: NeonPageserver, target: NeonBenchmarker, prefix: str
+    pageserver: SerenDBPageserver, target: SerenDBBenchmarker, prefix: str
 ):
     """
     Waits until all startup metrics have non-zero values on the pageserver, then records them on the target
@@ -221,8 +221,8 @@ def wait_and_record_startup_metrics(
 # 2. The ancestor branch is under a workload (busy)
 #
 # To simulate the workload, the test runs a concurrent insertion on the ancestor branch right before branching.
-def test_branch_creation_many_relations(neon_compare: NeonCompare):
-    env = neon_compare.env
+def test_branch_creation_many_relations(serendb_compare: SerenDBCompare):
+    env = serendb_compare.env
 
     timeline_id = env.create_branch("root")
 
@@ -239,7 +239,7 @@ def test_branch_creation_many_relations(neon_compare: NeonCompare):
         env.pageserver.http_client(), env.initial_tenant, timeline_id, flush_lsn
     )
 
-    with neon_compare.record_duration("create_branch_time_not_busy_root"):
+    with serendb_compare.record_duration("create_branch_time_not_busy_root"):
         env.create_branch("child_not_busy", ancestor_branch_name="root")
 
     # run a concurrent insertion to make the ancestor "busy" during the branch creation
@@ -248,7 +248,7 @@ def test_branch_creation_many_relations(neon_compare: NeonCompare):
     )
     thread.start()
 
-    with neon_compare.record_duration("create_branch_time_busy_root"):
+    with serendb_compare.record_duration("create_branch_time_busy_root"):
         env.create_branch("child_busy", ancestor_branch_name="root")
 
     thread.join()

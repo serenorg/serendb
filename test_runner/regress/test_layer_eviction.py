@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     flush_ep_to_pageserver,
     wait_for_last_flush_lsn,
 )
@@ -17,10 +17,10 @@ from fixtures.utils import skip_in_debug_build
 # Crates a few layers, ensures that we can evict them (removing locally but keeping track of them anyway)
 # and then download them back.
 @skip_in_debug_build("times out in debug builds")
-def test_basic_eviction(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_basic_eviction(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # disable gc and compaction background loops because they perform on-demand downloads
             "gc_period": "0s",
@@ -155,11 +155,11 @@ def test_basic_eviction(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_gc_of_remote_layers(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_gc_of_remote_layers(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # don't create initial tenant, we'll create it manually with custom config
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_config = {

@@ -12,7 +12,7 @@ from fixtures.pageserver.utils import (
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 def get_only_element(l):  # noqa: E741
@@ -21,9 +21,9 @@ def get_only_element(l):  # noqa: E741
 
 
 # Test that gc and compaction tenant tasks start and stop correctly
-def test_tenant_tasks(neon_env_builder: NeonEnvBuilder):
+def test_tenant_tasks(serendb_env_builder: SerenDBEnvBuilder):
     name = "test_tenant_tasks"
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     def get_state(tenant):

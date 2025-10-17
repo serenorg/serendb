@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     wait_for_commit_lsn,
     wait_for_last_flush_lsn,
 )
@@ -17,8 +17,8 @@ from fixtures.pageserver.utils import wait_for_last_record_lsn
 @pytest.mark.parametrize("fsync", [True, False], ids=["fsync", "nofsync"])
 def test_ingest_logical_message(
     request: pytest.FixtureRequest,
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     fsync: bool,
     size: int,
 ):
@@ -30,9 +30,9 @@ def test_ingest_logical_message(
     VOLUME = 10 * 1024**3
     count = VOLUME // size
 
-    neon_env_builder.safekeepers_enable_fsync = fsync
+    serendb_env_builder.safekeepers_enable_fsync = fsync
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[

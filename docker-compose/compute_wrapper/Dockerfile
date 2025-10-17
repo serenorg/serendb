@@ -1,4 +1,4 @@
-ARG REPOSITORY=ghcr.io/neondatabase
+ARG REPOSITORY=ghcr.io/serenorg
 ARG COMPUTE_IMAGE=compute-node-v14
 ARG TAG=latest
 

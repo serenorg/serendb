@@ -10,7 +10,7 @@ pub const DEFAULT_PG_LISTEN_PORT: u16 = 64000;
 pub const DEFAULT_PG_LISTEN_ADDR: &str = formatcp!("127.0.0.1:{DEFAULT_PG_LISTEN_PORT}");
 pub const DEFAULT_HTTP_LISTEN_PORT: u16 = 9898;
 pub const DEFAULT_HTTP_LISTEN_ADDR: &str = formatcp!("127.0.0.1:{DEFAULT_HTTP_LISTEN_PORT}");
-// TODO: gRPC is disabled by default for now, but the port is used in neon_local.
+// TODO: gRPC is disabled by default for now, but the port is used in serendb_local.
 pub const DEFAULT_GRPC_LISTEN_PORT: u16 = 51051; // storage-broker already uses 50051
 
 use std::collections::HashMap;
@@ -65,7 +65,7 @@ impl Display for NodeMetadata {
     }
 }
 
-/// PostHog integration config. This is used in pageserver, storcon, and neon_local.
+/// PostHog integration config. This is used in pageserver, storcon, and serendb_local.
 /// Ensure backward compatibility when adding new fields.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PostHogConfig {
@@ -168,7 +168,7 @@ impl PostHogConfig {
 /// will not roll back to old software whose behavior was dependent on config.
 /// Then we can remove the field from the templates in the internal infra repo.
 /// This process is [documented internally](
-/// https://docs.neon.build/storage/pageserver_configuration.html).
+/// https://docs.serendb.build/storage/pageserver_configuration.html).
 ///
 /// Note that above relaxed compatbility for the config format does NOT APPLY
 /// TO THE STORAGE FORMAT. As general guidance, when introducing storage format
@@ -177,7 +177,7 @@ impl PostHogConfig {
 /// any format version that exists in an environment must be compatible with the software that runs there.
 /// Use a pageserver.toml flag only to gate whether software _writes_ the new format.
 /// For more compatibility considerations, refer to [internal docs](
-/// https://docs.neon.build/storage/compat.html?highlight=compat#format-versions--compatibility)
+/// https://docs.serendb.build/storage/compat.html?highlight=compat#format-versions--compatibility)
 #[serde_as]
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -689,8 +689,8 @@ pub mod defaults {
 
     /// Soft limit for the maximum size of a vectored read.
     ///
-    /// This is determined by the largest NeonWalRecord that can exist (minus dbdir and reldir keys
-    /// which are bounded by the blob io limits only). As of this writing, that is a `NeonWalRecord::ClogSetCommitted` record,
+    /// This is determined by the largest SerenDBWalRecord that can exist (minus dbdir and reldir keys
+    /// which are bounded by the blob io limits only). As of this writing, that is a `SerenDBWalRecord::ClogSetCommitted` record,
     /// with 32k xids. That's the max number of XIDS on a single CLOG page. The size of such a record
     /// is `sizeof(Transactionid) * 32768 + (some fixed overhead from 'timestamp`, the Vec length and whatever extra serde serialization adds)`.
     /// That is, slightly above 128 kB.

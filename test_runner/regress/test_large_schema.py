@@ -7,18 +7,18 @@ from typing import TYPE_CHECKING
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 # This test creates large number of tables which cause large catalog.
-# Right now Neon serialize directory as single key-value storage entry and so
+# Right now SerenDB serialize directory as single key-value storage entry and so
 # it leads to layer filled mostly by one key.
-# Originally Neon implementation of checkpoint and compaction is not able to split key which leads
+# Originally SerenDB implementation of checkpoint and compaction is not able to split key which leads
 # to large (several gigabytes) layer files (both ephemeral and delta layers).
 # It may cause problems with uploading to S3 and also degrade performance because ephemeral file swapping.
 #
-def test_large_schema(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_large_schema(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main")
 

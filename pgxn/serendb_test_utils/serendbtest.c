@@ -1,16 +1,16 @@
 /*-------------------------------------------------------------------------
  *
- * neontest.c
- *	  Helpers for neon testing and debugging
+ * serendbtest.c
+ *	  Helpers for SerenDB testing and debugging
  *
  * IDENTIFICATION
- *	 contrib/neon_test_utils/neontest.c
+ *	 contrib/serendb_test_utils/serendbtest.c
  *
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
 
-#include "../neon/neon_pgversioncompat.h"
+#include "../serendb/serendb_pgversioncompat.h"
 
 #include "access/relation.h"
 #include "access/xact.h"
@@ -28,7 +28,7 @@
 #include "utils/rel.h"
 #include "utils/varlena.h"
 #include "utils/wait_event.h"
-#include "../neon/pagestore_client.h"
+#include "../serendb/pagestore_client.h"
 
 PG_MODULE_MAGIC;
 
@@ -42,18 +42,18 @@ PG_FUNCTION_INFO_V1(test_release_memory);
 PG_FUNCTION_INFO_V1(clear_buffer_cache);
 PG_FUNCTION_INFO_V1(get_raw_page_at_lsn);
 PG_FUNCTION_INFO_V1(get_raw_page_at_lsn_ex);
-PG_FUNCTION_INFO_V1(neon_xlogflush);
+PG_FUNCTION_INFO_V1(serendb_xlogflush);
 PG_FUNCTION_INFO_V1(trigger_panic);
 PG_FUNCTION_INFO_V1(trigger_segfault);
 
 /*
- * Linkage to functions in neon module.
+ * Linkage to functions in serendb module.
  * The signature here would need to be updated whenever function parameters change in pagestore_smgr.c
  */
-typedef void (*neon_read_at_lsn_type) (NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
-									   neon_request_lsns request_lsns, void *buffer);
+typedef void (*serendb_read_at_lsn_type) (NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
+									   serendb_request_lsns request_lsns, void *buffer);
 
-static neon_read_at_lsn_type neon_read_at_lsn_ptr;
+static serendb_read_at_lsn_type serendb_read_at_lsn_ptr;
 
 /*
  * Module initialize function: fetch function pointers for cross-module calls.
@@ -62,13 +62,13 @@ void
 _PG_init(void)
 {
 	/* Asserts verify that typedefs above match original declarations */
-	AssertVariableIsOfType(&neon_read_at_lsn, neon_read_at_lsn_type);
-	neon_read_at_lsn_ptr = (neon_read_at_lsn_type)
-		load_external_function("$libdir/neon", "neon_read_at_lsn",
+	AssertVariableIsOfType(&serendb_read_at_lsn, serendb_read_at_lsn_type);
+	serendb_read_at_lsn_ptr = (serendb_read_at_lsn_type)
+		load_external_function("$libdir/serendb", "serendb_read_at_lsn",
 							   true, NULL);
 }
 
-#define neon_read_at_lsn neon_read_at_lsn_ptr
+#define serendb_read_at_lsn serendb_read_at_lsn_ptr
 
 /*
  * test_consume_oids(int4), for rapidly consuming OIDs, to test wraparound.
@@ -233,16 +233,16 @@ test_release_memory(PG_FUNCTION_ARGS)
 Datum
 clear_buffer_cache(PG_FUNCTION_ARGS)
 {
-	bool		save_neon_test_evict;
+	bool		save_serendb_test_evict;
 
 	/*
-	 * Temporarily set the neon_test_evict GUC, so that when we pin and
+	 * Temporarily set the serendb_test_evict GUC, so that when we pin and
 	 * unpin a buffer, the buffer is evicted. We use that hack to evict all
 	 * buffers, as there is no explicit "evict this buffer" function in the
 	 * buffer manager.
 	 */
-	save_neon_test_evict = neon_test_evict;
-	neon_test_evict = true;
+	save_serendb_test_evict = serendb_test_evict;
+	serendb_test_evict = true;
 	PG_TRY();
 	{
 		/* Scan through all the buffers */
@@ -273,7 +273,7 @@ clear_buffer_cache(PG_FUNCTION_ARGS)
 
 			/*
 			 * Pin the buffer, and release it again. Because we have
-			 * neon_test_evict==true, this will evict the page from the
+			 * serendb_test_evict==true, this will evict the page from the
 			 * buffer cache if no one else is holding a pin on it.
 			 */
 			if (isvalid)
@@ -286,7 +286,7 @@ clear_buffer_cache(PG_FUNCTION_ARGS)
 	PG_FINALLY();
 	{
 		/* restore the GUC */
-		neon_test_evict = save_neon_test_evict;
+		serendb_test_evict = save_serendb_test_evict;
 	}
 	PG_END_TRY();
 
@@ -312,7 +312,7 @@ get_raw_page_at_lsn(PG_FUNCTION_ARGS)
 	text	   *relname;
 	text	   *forkname;
 	uint32		blkno;
-	neon_request_lsns	request_lsns;
+	serendb_request_lsns	request_lsns;
 
 	if (PG_NARGS() != 5)
 		elog(ERROR, "unexpected number of arguments in SQL function signature");
@@ -386,7 +386,7 @@ get_raw_page_at_lsn(PG_FUNCTION_ARGS)
 	SET_VARSIZE(raw_page, BLCKSZ + VARHDRSZ);
 	raw_page_data = VARDATA(raw_page);
 
-	neon_read_at_lsn(InfoFromRelation(rel), forknum, blkno, request_lsns,
+	serendb_read_at_lsn(InfoFromRelation(rel), forknum, blkno, request_lsns,
 					 raw_page_data);
 
 	relation_close(rel, AccessShareLock);
@@ -433,7 +433,7 @@ get_raw_page_at_lsn_ex(PG_FUNCTION_ARGS)
 
 		ForkNumber	forknum = PG_GETARG_UINT32(3);
 		uint32		blkno = PG_GETARG_UINT32(4);
-		neon_request_lsns	request_lsns;
+		serendb_request_lsns	request_lsns;
 
 		/* Initialize buffer to copy to */
 		bytea	   *raw_page = (bytea *) palloc(BLCKSZ + VARHDRSZ);
@@ -451,7 +451,7 @@ get_raw_page_at_lsn_ex(PG_FUNCTION_ARGS)
 		SET_VARSIZE(raw_page, BLCKSZ + VARHDRSZ);
 		raw_page_data = VARDATA(raw_page);
 
-		neon_read_at_lsn(rinfo, forknum, blkno, request_lsns, raw_page_data);
+		serendb_read_at_lsn(rinfo, forknum, blkno, request_lsns, raw_page_data);
 		PG_RETURN_BYTEA_P(raw_page);
 	}
 }
@@ -462,7 +462,7 @@ get_raw_page_at_lsn_ex(PG_FUNCTION_ARGS)
  * If 'lsn' is not specified (is NULL), flush all generated WAL.
  */
 Datum
-neon_xlogflush(PG_FUNCTION_ARGS)
+serendb_xlogflush(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	lsn;
 
@@ -509,7 +509,7 @@ neon_xlogflush(PG_FUNCTION_ARGS)
 Datum
 trigger_panic(PG_FUNCTION_ARGS)
 {
-    elog(PANIC, "neon_test_utils: panic");
+    elog(PANIC, "serendb_test_utils: panic");
     PG_RETURN_VOID();
 }
 

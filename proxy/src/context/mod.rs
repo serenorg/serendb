@@ -197,7 +197,7 @@ impl RequestContext {
         if let Some(options_str) = options.get("options") {
             // If not found directly, try to extract it from the options string
             for option in options_str.split_whitespace() {
-                if let Some(value) = option.strip_prefix("neon_query_id:") {
+                if let Some(value) = option.strip_prefix("serendb_query_id:") {
                     this.set_testodrome_id(value.into());
                     break;
                 }

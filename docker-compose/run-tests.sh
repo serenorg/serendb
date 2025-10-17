@@ -56,9 +56,9 @@ if [[ ${PARALLEL_COMPUTES} -gt 1 ]]; then
                   exit 1
                 fi
                 echo Running on \${PGHOST}
-                if [[ -f ${extdir}/{}/neon-test.sh ]]; then
+                if [[ -f ${extdir}/{}/serendb-test.sh ]]; then
                   echo Running from script
-                  ${extdir}/{}/neon-test.sh || echo {} >> ${FAILED_FILE};
+                  ${extdir}/{}/serendb-test.sh || echo {} >> ${FAILED_FILE};
                 else
                   echo Running using make;
                   USE_PGXS=1 make -C {} installcheck || echo {} >> ${FAILED_FILE};
@@ -76,8 +76,8 @@ else
         continue
       fi
 
-      if [ -f "${d}/neon-test.sh" ]; then
-        "${d}/neon-test.sh" || FAILED="${d} ${FAILED}"
+      if [ -f "${d}/serendb-test.sh" ]; then
+        "${d}/serendb-test.sh" || FAILED="${d} ${FAILED}"
       else
         USE_PGXS=1 make -C "${d}" installcheck || FAILED="${d} ${FAILED}"
       fi

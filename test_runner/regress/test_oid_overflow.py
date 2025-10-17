@@ -5,18 +5,18 @@ from typing import TYPE_CHECKING
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
-def test_oid_overflow(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_oid_overflow(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()
     cur = conn.cursor()
 
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     cur.execute("CREATE TABLE t1(x integer)")
     cur.execute("INSERT INTO t1 values (1)")

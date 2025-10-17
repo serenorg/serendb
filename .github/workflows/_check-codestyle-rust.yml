@@ -79,9 +79,9 @@ jobs:
       # #[cfg(debug_assertions)] blocks are not built. It's not worth building everything for second
       # time just for that, so skip "clippy --release".
       - run: |
-          CLIPPY_COMMON_ARGS="$( source .neon_clippy_args; echo "$CLIPPY_COMMON_ARGS")"
+          CLIPPY_COMMON_ARGS="$( source .serendb_clippy_args; echo "$CLIPPY_COMMON_ARGS")"
           if [ "$CLIPPY_COMMON_ARGS" = "" ]; then
-            echo "No clippy args found in .neon_clippy_args"
+            echo "No clippy args found in .serendb_clippy_args"
             exit 1
           fi
           echo "CLIPPY_COMMON_ARGS=${CLIPPY_COMMON_ARGS}" >> $GITHUB_ENV

@@ -1,4 +1,4 @@
-This is a copy from the [original Notion page](https://www.notion.so/neondatabase/Proposal-Pageserver-MVCC-S3-Storage-8a424c0c7ec5459e89d3e3f00e87657c?pvs=4), taken on 2023-08-16.
+This is a copy from the [original Notion page](https://www.notion.so/serendb/Proposal-Pageserver-MVCC-S3-Storage-8a424c0c7ec5459e89d3e3f00e87657c?pvs=4), taken on 2023-08-16.
 
 This is for archival mostly.
 The RFC that we're likely to go with is https://github.com/neondatabase/neon/pull/4919.
@@ -11,13 +11,13 @@ tl;dr: this proposal enables Control Plane to attach a tenant to a new pageserve
 
 # Problem Statement
 
-The current Neon architecture requires the Control Plane to guarantee that a tenant is only attached to one pageserver at a time. If a tenant is attached to multiple pageservers simultaneously, the pageservers will overwrite each other’s changes in S3 for that tenant, resulting in data loss for that tenant.
+The current SerenDB architecture requires the Control Plane to guarantee that a tenant is only attached to one pageserver at a time. If a tenant is attached to multiple pageservers simultaneously, the pageservers will overwrite each other’s changes in S3 for that tenant, resulting in data loss for that tenant.
 
 The above imposes limitations on tenant relocation and future designs for high availability. For instance, Control Plane cannot relocate a tenant to another pageserver before it is 100% certain that the tenant is detached from the source pageserver. If the source pageserver is unresponsive, the tenant detach procedure cannot proceed, and Control Plane has no choice but to wait for either the source to become responsive again, or rely on a node failure detection mechanism to detect that the source pageserver is dead, and give permission to skip the detachment step. Either way, the tenant is unavailable for an extended period, and we have no means to improve it in the current architecture.
 
 Note that there is no 100% correct node failure detection mechanism, and even techniques to accelerate failure detection, such as ********************************shoot-the-other-node-in-the-head,******************************** have their limits. So, we currently rely on humans as node failure detectors: they get alerted via PagerDuty, assess the situation under high stress, and make the decision. If they make the wrong call, or the apparent dead pageserver somehow resurrects later, we’ll have data loss.
 
-Also, by relying on humans, we’re [incurring needless unscalable toil](https://sre.google/sre-book/eliminating-toil/): as Neon grows, pageserver failures will become more and more frequent because our fleet grows. Each instance will need quick response time to minimize downtime for the affected tenants, which implies higher toil, higher resulting attrition, and/or higher personnel cost.
+Also, by relying on humans, we’re [incurring needless unscalable toil](https://sre.google/sre-book/eliminating-toil/): as SerenDB grows, pageserver failures will become more and more frequent because our fleet grows. Each instance will need quick response time to minimize downtime for the affected tenants, which implies higher toil, higher resulting attrition, and/or higher personnel cost.
 
 Lastly, there are foreseeable needs by operation and product such as zero-downtime relocation and automatic failover/HA. For such features, the ability to have a tenant purposefully or accidentally attached to more than one pageserver will greatly reduce risk of data loss, and improve availability.
 

@@ -1,4 +1,4 @@
--- create a schema that simulates Neon control plane operations table
+-- create a schema that simulates SerenDB control plane operations table
 -- however use partitioned operations tables with many (e.g. 500) child partition tables per table
 -- in summary we create multiple of these partitioned operations tables (with 500 childs each) - until we reach the requested number of tables
 

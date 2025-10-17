@@ -7,15 +7,15 @@ from pathlib import Path
 import psycopg2
 import pytest
 from fixtures.common_types import TenantId, TimelineId
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgProtocol,
 )
 from fixtures.pageserver.http import PageserverApiException, PageserverHttpClient
 
 
-def assert_client_authorized(env: NeonEnv, http_client: PageserverHttpClient):
+def assert_client_authorized(env: SerenDBEnv, http_client: PageserverHttpClient):
     http_client.timeline_create(
         pg_version=env.pg_version,
         tenant_id=env.initial_tenant,
@@ -24,7 +24,7 @@ def assert_client_authorized(env: NeonEnv, http_client: PageserverHttpClient):
     )
 
 
-def assert_client_not_authorized(env: NeonEnv, http_client: PageserverHttpClient):
+def assert_client_not_authorized(env: SerenDBEnv, http_client: PageserverHttpClient):
     with pytest.raises(
         PageserverApiException,
         match="Forbidden: JWT authentication error",
@@ -32,9 +32,9 @@ def assert_client_not_authorized(env: NeonEnv, http_client: PageserverHttpClient
         assert_client_authorized(env, http_client)
 
 
-def test_pageserver_auth(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_pageserver_auth(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
 
     ps = env.pageserver
 
@@ -72,10 +72,10 @@ def test_pageserver_auth(neon_env_builder: NeonEnvBuilder):
         env.pageserver.tenant_create(TenantId.generate(), auth_token=tenant_token)
 
 
-def test_compute_auth_to_pageserver(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_compute_auth_to_pageserver(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     branch = "test_compute_auth_to_pageserver"
     env.create_branch(branch)
@@ -91,9 +91,9 @@ def test_compute_auth_to_pageserver(neon_env_builder: NeonEnvBuilder):
             assert cur.fetchone() == (5000050000,)
 
 
-def test_pageserver_multiple_keys(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_pageserver_multiple_keys(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(
         [".*Authentication error: InvalidSignature.*", ".*Unauthorized: malformed jwt token.*"]
     )
@@ -104,7 +104,7 @@ def test_pageserver_multiple_keys(neon_env_builder: NeonEnvBuilder):
     pageserver_http_client_old.reload_auth_validation_keys()
 
     # This test is to ensure that the pageserver supports multiple keys.
-    # The neon_local tool generates one key pair at a hardcoded path by default.
+    # The serendb_local tool generates one key pair at a hardcoded path by default.
     # As a preparation for our test, move the public key of the key pair into a
     # directory at the same location as the hardcoded path by:
     # 1. moving the file at `configured_pub_key_path` to a temporary location
@@ -145,9 +145,9 @@ def test_pageserver_multiple_keys(neon_env_builder: NeonEnvBuilder):
     assert_client_authorized(env, pageserver_http_client_new)
 
 
-def test_pageserver_key_reload(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_pageserver_key_reload(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(
         [".*Authentication error: InvalidSignature.*", ".*Unauthorized: malformed jwt token.*"]
     )
@@ -183,9 +183,9 @@ def test_pageserver_key_reload(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.parametrize("auth_enabled", [False, True])
-def test_auth_failures(neon_env_builder: NeonEnvBuilder, auth_enabled: bool):
-    neon_env_builder.auth_enabled = auth_enabled
-    env = neon_env_builder.init_start()
+def test_auth_failures(serendb_env_builder: SerenDBEnvBuilder, auth_enabled: bool):
+    serendb_env_builder.auth_enabled = auth_enabled
+    env = serendb_env_builder.init_start()
 
     branch = f"test_auth_failures_auth_enabled_{auth_enabled}"
     timeline_id = env.create_branch(branch)

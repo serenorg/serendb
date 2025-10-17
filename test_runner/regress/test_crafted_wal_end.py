@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_cli import WalCraft
+from fixtures.serendb_cli import WalCraft
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 # Restart nodes with WAL end having specially crafted shape, like last record
 # crossing segment boundary, to test decoding issues.
@@ -24,10 +24,10 @@ if TYPE_CHECKING:
     ],
 )
 def test_crafted_wal_end(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     wal_type: str,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.create_branch("test_crafted_wal_end")
     env.pageserver.allowed_errors.extend(
         [
@@ -37,7 +37,7 @@ def test_crafted_wal_end(
     )
 
     endpoint = env.endpoints.create("test_crafted_wal_end")
-    wal_craft = WalCraft(extra_env=None, binpath=env.neon_binpath)
+    wal_craft = WalCraft(extra_env=None, binpath=env.serendb_binpath)
     endpoint.config(wal_craft.postgres_config())
     endpoint.start()
     res = endpoint.safe_psql_many(

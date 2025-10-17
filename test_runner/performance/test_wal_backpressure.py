@@ -7,11 +7,11 @@ import timeit
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.common_types import Lsn
-from fixtures.compare_fixtures import NeonCompare, PgCompare, VanillaCompare
+from fixtures.compare_fixtures import SerenDBCompare, PgCompare, VanillaCompare
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, PgBin, flush_ep_to_pageserver
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, PgBin, flush_ep_to_pageserver
 
 from performance.test_perf_pgbench import get_durations_matrix, get_scales_matrix
 
@@ -20,11 +20,11 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-@pytest.fixture(params=["vanilla", "neon_off", "neon_on"])
+@pytest.fixture(params=["vanilla", "serendb_off", "serendb_on"])
 # This fixture constructs multiple `PgCompare` interfaces using a builder pattern.
 # The builder parameters are encoded in the fixture's param.
-# For example, to build a `NeonCompare` interface, the corresponding fixture's param should have
-# a format of `neon_{safekeepers_enable_fsync}`.
+# For example, to build a `SerenDBCompare` interface, the corresponding fixture's param should have
+# a format of `serendb_{safekeepers_enable_fsync}`.
 # Note that, here "_" is used to separate builder parameters.
 def pg_compare(request) -> Generator[PgCompare, None, None]:
     x = request.param.split("_")
@@ -37,24 +37,24 @@ def pg_compare(request) -> Generator[PgCompare, None, None]:
         yield fixture
     else:
         assert len(x) == 2, (
-            f"request param ({request.param}) should have a format of `neon_{{safekeepers_enable_fsync}}`"
+            f"request param ({request.param}) should have a format of `serendb_{{safekeepers_enable_fsync}}`"
         )
 
-        # `NeonCompare` interface
-        neon_env_builder = request.getfixturevalue("neon_env_builder")
-        assert isinstance(neon_env_builder, NeonEnvBuilder)
+        # `SerenDBCompare` interface
+        serendb_env_builder = request.getfixturevalue("serendb_env_builder")
+        assert isinstance(serendb_env_builder, SerenDBEnvBuilder)
 
         zenbenchmark = request.getfixturevalue("zenbenchmark")
-        assert isinstance(zenbenchmark, NeonBenchmarker)
+        assert isinstance(zenbenchmark, SerenDBBenchmarker)
 
         pg_bin = request.getfixturevalue("pg_bin")
         assert isinstance(pg_bin, PgBin)
 
-        neon_env_builder.safekeepers_enable_fsync = x[1] == "on"
+        serendb_env_builder.safekeepers_enable_fsync = x[1] == "on"
 
-        env = neon_env_builder.init_start()
+        env = serendb_env_builder.init_start()
 
-        cmp = NeonCompare(zenbenchmark, env, pg_bin)
+        cmp = SerenDBCompare(zenbenchmark, env, pg_bin)
 
         yield cmp
 
@@ -205,7 +205,7 @@ def test_pgbench_intensive_init_workload(pg_compare: PgCompare, scale: int):
 
 
 def record_lsn_write_lag(env: PgCompare, run_cond: Callable[[], bool], pool_interval: float = 1.0):
-    if not isinstance(env, NeonCompare):
+    if not isinstance(env, SerenDBCompare):
         return
 
     lsn_write_lags: list[Any] = []
@@ -213,7 +213,7 @@ def record_lsn_write_lag(env: PgCompare, run_cond: Callable[[], bool], pool_inte
     last_pg_flush_lsn = Lsn(0)
 
     with env.pg.connect().cursor() as cur:
-        cur.execute("CREATE EXTENSION neon")
+        cur.execute("CREATE EXTENSION serendb")
 
         while run_cond():
             cur.execute(

@@ -37,7 +37,7 @@ use pageserver_api::keyspace::{KeySpace, KeySpaceRandomAccum};
 use tracing::{Instrument, info_span, trace};
 use utils::lsn::Lsn;
 use utils::sync::gate::GateGuard;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 use wal_decoder::models::value::Value;
 
 use self::inmemory_layer::InMemoryLayerFileId;
@@ -77,7 +77,7 @@ where
 ///
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ValueReconstructState {
-    pub(crate) records: Vec<(Lsn, NeonWalRecord)>,
+    pub(crate) records: Vec<(Lsn, SerenDBWalRecord)>,
     pub(crate) img: Option<(Lsn, Bytes)>,
 }
 
@@ -588,7 +588,7 @@ impl IoConcurrency {
             use once_cell::sync::Lazy;
             static TEST_OVERRIDE: Lazy<TestOverride> = Lazy::new(|| {
                 utils::env::var_serde_json_string(
-                    "NEON_PAGESERVER_UNIT_TEST_GET_VECTORED_CONCURRENT_IO",
+                    "SERENDB_PAGESERVER_UNIT_TEST_GET_VECTORED_CONCURRENT_IO",
                 )
                 .unwrap_or(TestOverride::SidecarTask)
             });

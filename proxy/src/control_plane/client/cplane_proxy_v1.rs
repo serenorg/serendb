@@ -37,7 +37,7 @@ use crate::{compute, http, scram};
 pub(crate) const X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
 #[derive(Clone)]
-pub struct NeonControlPlaneClient {
+pub struct SerenDBControlPlaneClient {
     endpoint: http::Endpoint,
     pub caches: &'static ApiCaches,
     pub(crate) locks: &'static ApiLocks<EndpointCacheKey>,
@@ -46,7 +46,7 @@ pub struct NeonControlPlaneClient {
     jwt: Arc<str>,
 }
 
-impl NeonControlPlaneClient {
+impl SerenDBControlPlaneClient {
     /// Construct an API object containing the auth parameters.
     pub fn new(
         endpoint: http::Endpoint,
@@ -336,7 +336,7 @@ impl NeonControlPlaneClient {
     }
 }
 
-impl super::ControlPlaneApi for NeonControlPlaneClient {
+impl super::ControlPlaneApi for SerenDBControlPlaneClient {
     #[tracing::instrument(skip_all)]
     async fn get_role_access_control(
         &self,

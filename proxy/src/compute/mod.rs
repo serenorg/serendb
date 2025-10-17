@@ -27,7 +27,7 @@ use crate::error::{ErrorKind, ReportableError, UserFacingError};
 use crate::metrics::{Metrics, NumDbConnectionsGuard};
 use crate::pqproto::StartupMessageParams;
 use crate::proxy::connect_compute::TlsNegotiation;
-use crate::proxy::neon_option;
+use crate::proxy::serendb_option;
 use crate::types::Host;
 
 pub const COULD_NOT_CONNECT: &str = "Couldn't connect to compute node";
@@ -53,7 +53,7 @@ impl UserFacingError for PostgresError {
                         || msg.starts_with("unsupported startup parameter in options: ")
                     {
                         format!(
-                            "{msg}. Please use unpooled connection or remove this parameter from the startup package. More details: https://neon.tech/docs/connect/connection-errors#unsupported-startup-parameter"
+                            "{msg}. Please use unpooled connection or remove this parameter from the startup package. More details: https://serendb.com/docs/connect/connection-errors#unsupported-startup-parameter"
                         )
                     } else {
                         msg.to_owned()
@@ -381,7 +381,7 @@ impl ConnectInfo {
 fn filtered_options(options: &str) -> Option<String> {
     #[allow(unstable_name_collisions)]
     let options: String = StartupMessageParams::parse_options_raw(options)
-        .filter(|opt| parse_endpoint_param(opt).is_none() && neon_option(opt).is_none())
+        .filter(|opt| parse_endpoint_param(opt).is_none() && serendb_option(opt).is_none())
         .intersperse(" ") // TODO: use impl from std once it's stabilized
         .collect();
 
@@ -417,7 +417,7 @@ mod tests {
         let params = "project = foo";
         assert_eq!(filtered_options(params).as_deref(), Some("project = foo"));
 
-        let params = "project = foo neon_endpoint_type:read_write   neon_lsn:0/2 neon_proxy_params_compat:true";
+        let params = "project = foo serendb_endpoint_type:read_write   serendb_lsn:0/2 serendb_proxy_params_compat:true";
         assert_eq!(filtered_options(params).as_deref(), Some("project = foo"));
     }
 }

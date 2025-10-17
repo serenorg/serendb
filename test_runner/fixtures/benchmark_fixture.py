@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from _pytest.terminal import TerminalReporter
 
     from fixtures.common_types import TenantId, TimelineId
-    from fixtures.neon_fixtures import NeonPageserver
+    from fixtures.serendb_fixtures import SerenDBPageserver
 
 
 """
@@ -37,8 +37,8 @@ To use, declare the `zenbenchmark` fixture in the test function. Run the
 bencmark, and then record the result by calling `zenbenchmark.record`. For example:
 
 >>> import timeit
->>> from fixtures.neon_fixtures import NeonEnv
->>> def test_mybench(neon_simple_env: NeonEnv, zenbenchmark):
+>>> from fixtures.serendb_fixtures import SerenDBEnv
+>>> def test_mybench(serendb_simple_env: SerenDBEnv, zenbenchmark):
 ...     # Initialize the test
 ...     ...
 ...     # Run the test, timing how long it takes
@@ -239,13 +239,13 @@ class MetricReport(StrEnum):  # str is a hack to make it json serializable
     LOWER_IS_BETTER = "lower_is_better"
 
 
-class NeonBenchmarker:
+class SerenDBBenchmarker:
     """
     An object for recording benchmark results. This is created for each test
     function by the zenbenchmark fixture
     """
 
-    PROPERTY_PREFIX = "neon_benchmarker_"
+    PROPERTY_PREFIX = "serendb_benchmarker_"
 
     def __init__(self, property_recorder: Callable[[str, object], None]):
         # property recorder here is a pytest fixture provided by junitxml module
@@ -258,7 +258,7 @@ class NeonBenchmarker:
         metric_value: float,
         unit: str,
         report: MetricReport,
-        # use this to associate additional key/value pairs in json format for associated Neon object IDs like project ID with the metric
+        # use this to associate additional key/value pairs in json format for associated SerenDB object IDs like project ID with the metric
         labels: dict[str, str] | None = None,
     ):
         """
@@ -405,7 +405,7 @@ class NeonBenchmarker:
                     f"{prefix}.{metric}", value, unit="s", report=MetricReport.LOWER_IS_BETTER
                 )
 
-    def get_io_writes(self, pageserver: NeonPageserver) -> int:
+    def get_io_writes(self, pageserver: SerenDBPageserver) -> int:
         """
         Fetch the "cumulative # of bytes written" metric from the pageserver
         """
@@ -413,7 +413,7 @@ class NeonBenchmarker:
             pageserver, "libmetrics_disk_io_bytes_total", {"io_operation": "write"}
         )
 
-    def get_peak_mem(self, pageserver: NeonPageserver) -> int:
+    def get_peak_mem(self, pageserver: SerenDBPageserver) -> int:
         """
         Fetch the "maxrss" metric from the pageserver
         """
@@ -421,7 +421,7 @@ class NeonBenchmarker:
 
     def get_int_counter_value(
         self,
-        pageserver: NeonPageserver,
+        pageserver: SerenDBPageserver,
         metric_name: str,
         label_filters: dict[str, str] | None = None,
     ) -> int:
@@ -447,7 +447,7 @@ class NeonBenchmarker:
 
     @contextmanager
     def record_pageserver_writes(
-        self, pageserver: NeonPageserver, metric_name: str
+        self, pageserver: SerenDBPageserver, metric_name: str
     ) -> Iterator[None]:
         """
         Record bytes written by the pageserver during a test.
@@ -468,16 +468,16 @@ class NeonBenchmarker:
 def zenbenchmark(
     request: FixtureRequest,
     record_property: Callable[[str, object], None],
-) -> Iterator[NeonBenchmarker]:
+) -> Iterator[SerenDBBenchmarker]:
     """
     This is a python decorator for benchmark fixtures. It contains functions for
     recording measurements, and prints them out at the end.
     """
-    benchmarker = NeonBenchmarker(record_property)
+    benchmarker = SerenDBBenchmarker(record_property)
     yield benchmarker
 
     results = {}
-    for _, recorded_property in NeonBenchmarker.records(request.node.user_properties):
+    for _, recorded_property in SerenDBBenchmarker.records(request.node.user_properties):
         name = recorded_property["name"]
         value = str(recorded_property["value"])
         unit = str(recorded_property["unit"]).strip()
@@ -530,7 +530,7 @@ def pytest_terminal_summary(
     for test_report in terminalreporter.stats.get("passed", []):
         result_entry = []
 
-        for _, recorded_property in NeonBenchmarker.records(test_report.user_properties):
+        for _, recorded_property in SerenDBBenchmarker.records(test_report.user_properties):
             if not is_header_printed:
                 terminalreporter.section("Benchmark results", "-")
                 is_header_printed = True

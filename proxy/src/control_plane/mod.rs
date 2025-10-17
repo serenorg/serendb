@@ -1,4 +1,4 @@
-//! Various stuff for dealing with the Neon Console.
+//! Various stuff for dealing with the SerenDB Console.
 //! Later we might move some API wrappers here.
 
 /// Payloads used in the console's APIs.

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, wait_for_last_flush_lsn
 from fixtures.utils import human_bytes, skip_in_debug_build
 
 if TYPE_CHECKING:
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 @skip_in_debug_build("debug run is unnecessarily slow")
-def test_ingesting_large_batches_of_images(neon_env_builder: NeonEnvBuilder):
+def test_ingesting_large_batches_of_images(serendb_env_builder: SerenDBEnvBuilder):
     """
     Build a non-small GIN index which includes similarly batched up images in WAL stream as does pgvector
     to show that we no longer create oversized layers.
@@ -35,7 +35,7 @@ def test_ingesting_large_batches_of_images(neon_env_builder: NeonEnvBuilder):
         "keep checkpoint_distance higher than the initdb size (find it by experimenting)"
     )
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "checkpoint_distance": f"{checkpoint_distance}",
             "compaction_target_size": f"{checkpoint_distance}",

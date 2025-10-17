@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PageserverTracingConfig,
     PgBin,
     wait_for_last_flush_lsn,
@@ -30,28 +30,28 @@ if TYPE_CHECKING:
 
 
 # For reference, the space usage of the snapshots:
-# sudo du -hs /instance_store/neon/test_output/shared-snapshots/*
-# 416G	/instance_store/neon/test_output/shared-snapshots/max_throughput_latest_lsn-500-13
+# sudo du -hs /instance_store/serendb/test_output/shared-snapshots/*
+# 416G	/instance_store/serendb/test_output/shared-snapshots/max_throughput_latest_lsn-500-13
 @pytest.mark.parametrize("duration", [60 * 60])
 @pytest.mark.parametrize("pgbench_scale", [get_scale_for_db(200)])
 @pytest.mark.parametrize("n_tenants", [500])
 @pytest.mark.timeout(10000)
 def test_pageserver_characterize_throughput_with_n_tenants(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     n_tenants: int,
     pgbench_scale: int,
     duration: int,
 ):
     setup_and_run_pagebench_benchmark(
-        neon_env_builder, zenbenchmark, pg_bin, n_tenants, pgbench_scale, duration, 1
+        serendb_env_builder, zenbenchmark, pg_bin, n_tenants, pgbench_scale, duration, 1
     )
 
 
 # For reference, the space usage of the snapshots:
-# sudo du -hs /instance_store/neon/test_output/shared-snapshots/*
-# 19G	/instance_store/neon/test_output/shared-snapshots/max_throughput_latest_lsn-1-136
+# sudo du -hs /instance_store/serendb/test_output/shared-snapshots/*
+# 19G	/instance_store/serendb/test_output/shared-snapshots/max_throughput_latest_lsn-1-136
 @pytest.mark.parametrize("duration", [20 * 60])
 @pytest.mark.parametrize("pgbench_scale", [get_scale_for_db(2048)])
 # we use 1 client to characterize latencies, and 64 clients to characterize throughput/scalability
@@ -62,8 +62,8 @@ def test_pageserver_characterize_throughput_with_n_tenants(
 @pytest.mark.parametrize("n_tenants", [1])
 @pytest.mark.timeout(2400)
 def test_pageserver_characterize_latencies_with_1_client_and_throughput_with_many_clients_one_tenant(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     n_tenants: int,
     pgbench_scale: int,
@@ -71,7 +71,7 @@ def test_pageserver_characterize_latencies_with_1_client_and_throughput_with_man
     n_clients: int,
 ):
     setup_and_run_pagebench_benchmark(
-        neon_env_builder,
+        serendb_env_builder,
         zenbenchmark,
         pg_bin,
         n_tenants,
@@ -82,8 +82,8 @@ def test_pageserver_characterize_latencies_with_1_client_and_throughput_with_man
 
 
 def setup_and_run_pagebench_benchmark(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     n_tenants: int,
     pgbench_scale: int,
@@ -111,7 +111,7 @@ def setup_and_run_pagebench_benchmark(
     # configure cache sizes like in prod
     page_cache_size = 16384
     max_file_descriptors = 500000
-    neon_env_builder.pageserver_config_override = f"page_cache_size={page_cache_size}; max_file_descriptors={max_file_descriptors}; disk_usage_based_eviction={{enabled = false}}"
+    serendb_env_builder.pageserver_config_override = f"page_cache_size={page_cache_size}; max_file_descriptors={max_file_descriptors}; disk_usage_based_eviction={{enabled = false}}"
 
     tracing_config = PageserverTracingConfig(
         sampling_ratio=(0, 1000),
@@ -119,7 +119,7 @@ def setup_and_run_pagebench_benchmark(
         protocol="http-binary",
         timeout="10s",
     )
-    neon_env_builder.pageserver_tracing_config = tracing_config
+    serendb_env_builder.pageserver_tracing_config = tracing_config
     ratio = tracing_config.sampling_ratio[0] / tracing_config.sampling_ratio[1]
     params.update(
         {
@@ -139,7 +139,7 @@ def setup_and_run_pagebench_benchmark(
         record(param, metric_value=value, report=MetricReport.TEST_PARAM, **kwargs)
 
     env = setup_pageserver_with_tenants(
-        neon_env_builder,
+        serendb_env_builder,
         f"max_throughput_latest_lsn-{n_tenants}-{pgbench_scale}",
         n_tenants,
         lambda env: setup_tenant_template(env, pg_bin, pgbench_scale),
@@ -157,7 +157,7 @@ def setup_and_run_pagebench_benchmark(
     run_pagebench_benchmark(env, pg_bin, record, duration, n_clients)
 
 
-def setup_tenant_template(env: NeonEnv, pg_bin: PgBin, scale: int):
+def setup_tenant_template(env: SerenDBEnv, pg_bin: PgBin, scale: int):
     """
     Set up a template tenant which will be replicated by the test infra.
     It's a pgbench tenant, initialized to a certain scale, and treated afterwards
@@ -206,7 +206,7 @@ def setup_tenant_template(env: NeonEnv, pg_bin: PgBin, scale: int):
 
 
 def run_pagebench_benchmark(
-    env: NeonEnv, pg_bin: PgBin, record, duration_secs: int, n_clients: int
+    env: SerenDBEnv, pg_bin: PgBin, record, duration_secs: int, n_clients: int
 ):
     """
     Benchmark `env.pageserver` for max throughput @ latest LSN and record results in `zenbenchmark`.
@@ -214,7 +214,7 @@ def run_pagebench_benchmark(
 
     ps_http = env.pageserver.http_client()
     cmd = [
-        str(env.neon_binpath / "pagebench"),
+        str(env.serendb_binpath / "pagebench"),
         "get-page-latest-lsn",
         "--mgmt-api-endpoint",
         ps_http.base_url,

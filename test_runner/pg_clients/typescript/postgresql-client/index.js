@@ -3,10 +3,10 @@
 import {Connection} from 'postgresql-client';
 
 const params = {
-    "host": process.env.NEON_HOST,
-    "database": process.env.NEON_DATABASE,
-    "user": process.env.NEON_USER,
-    "password": process.env.NEON_PASSWORD,
+    "host": process.env.SERENDB_HOST,
+    "database": process.env.SERENDB_DATABASE,
+    "user": process.env.SERENDB_USER,
+    "password": process.env.SERENDB_PASSWORD,
     "ssl": true,
 }
 for (const key in params) {

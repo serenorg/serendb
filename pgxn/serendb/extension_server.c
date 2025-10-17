@@ -12,7 +12,7 @@
 #include "utils/guc.h"
 
 #include "extension_server.h"
-#include "neon_utils.h"
+#include "serendb_utils.h"
 
 int	hadron_extension_server_port = 0;
 static int	extension_server_request_timeout = 60;
@@ -31,7 +31,7 @@ static download_extension_file_hook_type prev_download_extension_file_hook = NUL
   * curl -X POST http://localhost:8080/extension_server/postgis-3.so?is_library=true
   */
 static bool
-neon_download_extension_file_http(const char *filename, bool is_library)
+serendb_download_extension_file_http(const char *filename, bool is_library)
 {
 	CURLcode	res;
 	bool		ret = false;
@@ -68,7 +68,7 @@ neon_download_extension_file_http(const char *filename, bool is_library)
 		 * Don't error here because postgres will try to find the file and will
 		 * fail with some proper error message if it's not found.
 		 */
-		elog(WARNING, "neon_download_extension_file_http failed: %s\n", curl_easy_strerror(res));
+		elog(WARNING, "serendb_download_extension_file_http failed: %s\n", curl_easy_strerror(res));
 	}
 
 	return ret;
@@ -79,7 +79,7 @@ pg_init_extension_server()
 {
 	/* Port to connect to compute_ctl on localhost */
 	/* to request extension files. */
-	DefineCustomIntVariable("neon.extension_server_port",
+	DefineCustomIntVariable("serendb.extension_server_port",
 							"connection string to the compute_ctl",
 							NULL,
 							&hadron_extension_server_port,
@@ -88,7 +88,7 @@ pg_init_extension_server()
 							0,	/* no flags required */
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.extension_server_request_timeout",
+	DefineCustomIntVariable("serendb.extension_server_request_timeout",
 							"timeout for fetching extensions in seconds",
 							NULL,
 							&extension_server_request_timeout,
@@ -97,7 +97,7 @@ pg_init_extension_server()
 							GUC_UNIT_S,
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.extension_server_connect_timeout",
+	DefineCustomIntVariable("serendb.extension_server_connect_timeout",
 							"timeout for connecting to the extension server in seconds",
 							NULL,
 							&extension_server_connect_timeout,
@@ -108,5 +108,5 @@ pg_init_extension_server()
 
 	/* set download_extension_file_hook */
 	prev_download_extension_file_hook = download_extension_file_hook;
-	download_extension_file_hook = neon_download_extension_file_http;
+	download_extension_file_hook = serendb_download_extension_file_http;
 }

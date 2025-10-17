@@ -1,14 +1,14 @@
-# pgxs/neon_utils/Makefile
+# pgxs/serendb_utils/Makefile
 
 
-MODULE_big = neon_utils
+MODULE_big = serendb_utils
 OBJS = \
 	$(WIN32RES) \
-	neon_utils.o
+	serendb_utils.o
 
-EXTENSION = neon_utils
-DATA = neon_utils--1.0.sql
-PGFILEDESC = "neon_utils - small useful functions"
+EXTENSION = serendb_utils
+DATA = serendb_utils--1.0.sql
+PGFILEDESC = "serendb_utils - small useful functions"
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

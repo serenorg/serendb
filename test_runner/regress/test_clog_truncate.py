@@ -7,16 +7,16 @@ from fixtures.log_helper import log
 from fixtures.utils import query_scalar, wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Test compute node start after clog truncation
 #
-def test_clog_truncate(neon_env_builder: NeonEnvBuilder):
+def test_clog_truncate(serendb_env_builder: SerenDBEnvBuilder):
     # Use a multi-sharded tenant because WAL ingest logic is shard-dependent, and
     # this test is one of the very few that exercises a CLogTruncate WAL record.
-    env = neon_env_builder.init_start(initial_tenant_shard_count=2)
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=2)
 
     # set aggressive autovacuum to make sure that truncation will happen
     config = [
@@ -32,7 +32,7 @@ def test_clog_truncate(neon_env_builder: NeonEnvBuilder):
     endpoint = env.endpoints.create_start("main", config_lines=config)
 
     # Install extension containing function needed for test
-    endpoint.safe_psql("CREATE EXTENSION neon_test_utils")
+    endpoint.safe_psql("CREATE EXTENSION serendb_test_utils")
 
     # Consume many xids to advance clog
     log.info("Consuming xids...")

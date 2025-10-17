@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     check_restored_datadir_content,
     tenant_get_shards,
 )
@@ -23,7 +23,7 @@ from fixtures.utils import skip_in_debug_build
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.serendb_fixtures import PgBin
     from pytest import CaptureFixture
 
 
@@ -41,7 +41,7 @@ TENANT_CONF = {
 #     pageserver.http_client().timeline_checkpoint(env.initial_tenant, env.initial_timeline, force_repartition=True, force_image_layer_creation=True)
 
 
-def post_checks(env: NeonEnv, test_output_dir: Path, db_name: str, endpoint: Endpoint):
+def post_checks(env: SerenDBEnv, test_output_dir: Path, db_name: str, endpoint: Endpoint):
     """
     After running some opaque tests that create interesting content in a timeline, run
     some generic integrity checks that the storage stack is able to reproduce the written
@@ -50,7 +50,7 @@ def post_checks(env: NeonEnv, test_output_dir: Path, db_name: str, endpoint: End
 
     ignored_files: list[str] | None = None
 
-    # Neon handles unlogged relations in a special manner. During a
+    # SerenDB handles unlogged relations in a special manner. During a
     # basebackup, we ship the init fork as the main fork. This presents a
     # problem in that the endpoint's data directory and the basebackup will
     # have differences and will fail the eventual file comparison.
@@ -135,7 +135,7 @@ def patch_tenant_conf(tenant_conf: dict[str, Any], reldir_type: str) -> dict[str
 @pytest.mark.parametrize("shard_count", [None, 4])
 @pytest.mark.parametrize("reldir_type", ["v1", "v2"])
 def test_pg_regress(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_bin: PgBin,
     capsys: CaptureFixture[str],
@@ -151,10 +151,10 @@ def test_pg_regress(
                         many shards.
     """
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
+        serendb_env_builder.num_pageservers = shard_count
 
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    env = neon_env_builder.init_start(
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=patch_tenant_conf(TENANT_CONF, reldir_type),
         initial_tenant_shard_count=shard_count,
     )
@@ -164,7 +164,7 @@ def test_pg_regress(
         "main",
         config_lines=[
             # Enable the test mode, so that we don't need to patch the test cases.
-            "neon.regress_test_mode = true",
+            "serendb.regress_test_mode = true",
         ],
     )
     endpoint.safe_psql(f"CREATE DATABASE {DBNAME}")
@@ -215,7 +215,7 @@ def test_pg_regress(
 @pytest.mark.parametrize("shard_count", [None, 4])
 @pytest.mark.parametrize("reldir_type", ["v1", "v2"])
 def test_isolation(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_bin: PgBin,
     capsys: CaptureFixture[str],
@@ -227,9 +227,9 @@ def test_isolation(
     DBNAME = "isolation_regression"
 
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    env = neon_env_builder.init_start(
+        serendb_env_builder.num_pageservers = shard_count
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=patch_tenant_conf(TENANT_CONF, reldir_type),
         initial_tenant_shard_count=shard_count,
     )
@@ -241,10 +241,10 @@ def test_isolation(
         config_lines=[
             "max_prepared_transactions=100",
             # Enable the test mode, so that we don't need to patch the test cases.
-            "neon.regress_test_mode = true",
+            "serendb.regress_test_mode = true",
             # Stack size should be increased for tests to pass with asan.
             "max_stack_depth = 4MB",
-            # Neon extensiosn starts 2 BGW so decreasing number of parallel workers which can affect deadlock-parallel test if it hits max_worker_processes.
+            # SerenDB extensiosn starts 2 BGW so decreasing number of parallel workers which can affect deadlock-parallel test if it hits max_worker_processes.
             "max_worker_processes = 16",
         ],
     )
@@ -290,12 +290,12 @@ def test_isolation(
     post_checks(env, test_output_dir, DBNAME, endpoint)
 
 
-# Run extra Neon-specific pg_regress-based tests. The tests and their
+# Run extra SerenDB-specific pg_regress-based tests. The tests and their
 # schedule file are in the sql_regress/ directory.
 @pytest.mark.parametrize("shard_count", [None, 4])
 @pytest.mark.parametrize("reldir_type", ["v1", "v2"])
 def test_sql_regress(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_bin: PgBin,
     capsys: CaptureFixture[str],
@@ -307,9 +307,9 @@ def test_sql_regress(
     DBNAME = "regression"
 
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    env = neon_env_builder.init_start(
+        serendb_env_builder.num_pageservers = shard_count
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=patch_tenant_conf(TENANT_CONF, reldir_type),
         initial_tenant_shard_count=shard_count,
     )
@@ -357,12 +357,12 @@ def test_sql_regress(
     post_checks(env, test_output_dir, DBNAME, endpoint)
 
 
-def test_max_wal_rate(neon_simple_env: NeonEnv):
+def test_max_wal_rate(serendb_simple_env: SerenDBEnv):
     """
     Test the databricks.max_wal_mb_per_second GUC and how it affects WAL rate
     limiting.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     DBNAME = "regression"
     superuser_name = "databricks_superuser"
@@ -372,7 +372,7 @@ def test_max_wal_rate(neon_simple_env: NeonEnv):
         "main",
         config_lines=[
             # we need this option because default max_cluster_size < 0 will disable throttling completely
-            "neon.max_cluster_size=10GB",
+            "serendb.max_cluster_size=10GB",
         ],
     )
 
@@ -380,7 +380,7 @@ def test_max_wal_rate(neon_simple_env: NeonEnv):
         [
             f"CREATE ROLE {superuser_name}",
             f"CREATE DATABASE {DBNAME}",
-            "CREATE EXTENSION neon",
+            "CREATE EXTENSION serendb",
         ]
     )
 
@@ -418,7 +418,7 @@ def test_max_wal_rate(neon_simple_env: NeonEnv):
 @skip_in_debug_build("only run with release build")
 @pytest.mark.parametrize("reldir_type", ["v1", "v2"])
 def test_tx_abort_with_many_relations(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     reldir_type: str,
 ):
     """
@@ -428,7 +428,7 @@ def test_tx_abort_with_many_relations(
     Reproducer for https://github.com/neondatabase/neon/issues/9505
     """
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=patch_tenant_conf({}, reldir_type),
     )
     ep = env.endpoints.create_start(

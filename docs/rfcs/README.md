@@ -1,4 +1,4 @@
-# Neon RFCs
+# SerenDB RFCs
 
 ## Overview
 

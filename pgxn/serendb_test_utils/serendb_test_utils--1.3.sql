@@ -1,5 +1,5 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION neon_test_utils" to load this file. \quit
+\echo Use "CREATE EXTENSION serendb_test_utils" to load this file. \quit
 
 CREATE FUNCTION test_consume_xids(nxids int)
 RETURNS VOID
@@ -47,9 +47,9 @@ RETURNS bytea
 AS 'MODULE_PATHNAME', 'get_raw_page_at_lsn_ex'
 LANGUAGE C PARALLEL UNSAFE;
 
-CREATE FUNCTION neon_xlogflush(lsn pg_lsn DEFAULT NULL)
+CREATE FUNCTION serendb_xlogflush(lsn pg_lsn DEFAULT NULL)
 RETURNS VOID
-AS 'MODULE_PATHNAME', 'neon_xlogflush'
+AS 'MODULE_PATHNAME', 'serendb_xlogflush'
 LANGUAGE C PARALLEL UNSAFE;
 
 CREATE FUNCTION trigger_panic()

@@ -3,7 +3,7 @@
 #
 # This is used in two different ways:
 #
-# 1. The main makefile calls this, when you invoke the `make neon-pg-ext-%`
+# 1. The main makefile calls this, when you invoke the `make serendb-pg-ext-%`
 #    target. It passes PG_CONFIG pointing to pg_install/%/bin/pg_config.
 #    This is a VPATH build; the current directory is build/pgxn-%, and
 #    the path to the Makefile is passed with the -f argument.
@@ -16,12 +16,12 @@ srcdir = $(dir $(firstword $(MAKEFILE_LIST)))
 
 PG_CONFIG = pg_config
 
-subdirs = neon neon_rmgr neon_walredo neon_utils neon_test_utils
+subdirs = serendb serendb_rmgr serendb_walredo serendb_utils serendb_test_utils
 
 .PHONY: install install-compute install-storage $(subdirs)
 install: $(subdirs)
-install-compute: neon neon_utils neon_test_utils neon_rmgr
-install-storage: neon_rmgr neon_walredo
+install-compute: serendb serendb_utils serendb_test_utils serendb_rmgr
+install-storage: serendb_rmgr serendb_walredo
 
 $(subdirs): %:
 	mkdir -p $*

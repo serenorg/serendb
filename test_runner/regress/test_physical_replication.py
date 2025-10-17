@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import wait_replica_caughtup
+from fixtures.serendb_fixtures import wait_replica_caughtup
 from fixtures.utils import shared_buffers_for_max_cu
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_physical_replication(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_physical_replication(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     with env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",
@@ -49,7 +49,7 @@ def test_physical_replication(neon_simple_env: NeonEnv):
                                 )
 
 
-def test_physical_replication_config_mismatch_max_connections(neon_simple_env: NeonEnv):
+def test_physical_replication_config_mismatch_max_connections(serendb_simple_env: SerenDBEnv):
     """
     Test for primary and replica with different configuration settings (max_connections).
     PostgreSQL enforces that settings that affect how many transactions can be open at the same time
@@ -63,11 +63,11 @@ def test_physical_replication_config_mismatch_max_connections(neon_simple_env: N
     away with smaller settings, because we allocate space for 64 subtransactions per
     transaction too. If you get unlucky and you run out of space, WAL redo dies with
     "ERROR: too many KnownAssignedXids". It's better to take the chances than refuse
-    to start up, especially in Neon: if the WAL redo dies, the server is restarted, which is
+    to start up, especially in SerenDB: if the WAL redo dies, the server is restarted, which is
     no worse than refusing to start up in the first place. Furthermore, the control plane
     tries to ensure that on restart, the settings are set high enough, so most likely it will
     work after restart. Because of that, we have patched Postgres to disable to checks when
-    the `recovery_pause_on_misconfig` setting is set to `false` (which is the default on neon).
+    the `recovery_pause_on_misconfig` setting is set to `false` (which is the default on SerenDB).
 
     This test tests all those cases of running out of space in known-assigned XIDs array that
     we can hit with `recovery_pause_on_misconfig=false`, which are unreachable in unpatched
@@ -79,7 +79,7 @@ def test_physical_replication_config_mismatch_max_connections(neon_simple_env: N
     when there are no read-only queries holding locks in the replica, but you can still run out if you have
     those.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     with env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",
@@ -113,12 +113,12 @@ def test_physical_replication_config_mismatch_max_connections(neon_simple_env: N
                     assert s_cur.fetchall()[0][0] == 10
 
 
-def test_physical_replication_config_mismatch_max_prepared(neon_simple_env: NeonEnv):
+def test_physical_replication_config_mismatch_max_prepared(serendb_simple_env: SerenDBEnv):
     """
     Test for primary and replica with different configuration settings (max_prepared_transactions).
     If number of transactions at primary exceeds its limit at replica then WAL replay is terminated.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",
@@ -169,13 +169,13 @@ def connect(ep):
             time.sleep(1)
 
 
-def test_physical_replication_config_mismatch_too_many_known_xids(neon_simple_env: NeonEnv):
+def test_physical_replication_config_mismatch_too_many_known_xids(serendb_simple_env: SerenDBEnv):
     """
     Test for primary and replica with different configuration settings (max_connections).
     In this case large difference in this setting and larger number of concurrent transactions at primary
     # cause too many known xids error  at replica.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",
@@ -225,13 +225,13 @@ def test_physical_replication_config_mismatch_too_many_known_xids(neon_simple_en
     assert secondary.log_contains("too many KnownAssignedXids")
 
 
-def test_physical_replication_config_mismatch_max_locks_per_transaction(neon_simple_env: NeonEnv):
+def test_physical_replication_config_mismatch_max_locks_per_transaction(serendb_simple_env: SerenDBEnv):
     """
     Test for primary and replica with different configuration settings (max_locks_per_transaction).
     In  conjunction with different number of max_connections at primary and standby it can cause "out of shared memory"
     error if the primary obtains more AccessExclusiveLocks than the standby can hold.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",

@@ -1,35 +1,35 @@
 """
 Script to creates a stack of L0 deltas each of which should have 1 Value::Delta per page in `data`,
-in your running neon_local setup.
+in your running serendb_local setup.
 
-Use this bash setup to reset your neon_local environment.
+Use this bash setup to reset your serendb_local environment.
 The last line of this bash snippet will run this file here.
 ```
- export NEON_REPO_DIR=$PWD/.neon
- export NEON_BIN_DIR=$PWD/target/release
- $NEON_BIN_DIR/neon_local stop
- rm -rf $NEON_REPO_DIR
- $NEON_BIN_DIR/neon_local init
- cat >>  $NEON_REPO_DIR/pageserver_1/pageserver.toml <<"EOF"
+ export SERENDB_REPO_DIR=$PWD/.serendb
+ export SERENDB_BIN_DIR=$PWD/target/release
+ $SERENDB_BIN_DIR/serendb_local stop
+ rm -rf $SERENDB_REPO_DIR
+ $SERENDB_BIN_DIR/serendb_local init
+ cat >>  $SERENDB_REPO_DIR/pageserver_1/pageserver.toml <<"EOF"
  # customizations
  virtual_file_io_mode = "direct-rw"
  page_service_pipelining={mode="pipelined", max_batch_size=32, execution="concurrent-futures"}
  get_vectored_concurrent_io={mode="sidecar-task"}
 EOF
- $NEON_BIN_DIR/neon_local start
+ $SERENDB_BIN_DIR/serendb_local start
 
  psql 'postgresql://localhost:1235/storage_controller' -c 'DELETE FROM tenant_shards'
- sed 's/.*get_vectored_concurrent_io.*/get_vectored_concurrent_io={mode="sidecar-task"}/' -i $NEON_REPO_DIR/pageserver_1/pageserver.toml
- $NEON_BIN_DIR/neon_local pageserver restart
+ sed 's/.*get_vectored_concurrent_io.*/get_vectored_concurrent_io={mode="sidecar-task"}/' -i $SERENDB_REPO_DIR/pageserver_1/pageserver.toml
+ $SERENDB_BIN_DIR/serendb_local pageserver restart
  sleep 2
- $NEON_BIN_DIR/neon_local tenant create --set-default
- ./target/debug/neon_local endpoint stop foo
- rm -rf  $NEON_REPO_DIR/endpoints/foo
- ./target/debug/neon_local endpoint create foo
- echo 'full_page_writes=off' >>  $NEON_REPO_DIR/endpoints/foo/postgresql.conf
- ./target/debug/neon_local endpoint start foo
+ $SERENDB_BIN_DIR/serendb_local tenant create --set-default
+ ./target/debug/serendb_local endpoint stop foo
+ rm -rf  $SERENDB_REPO_DIR/endpoints/foo
+ ./target/debug/serendb_local endpoint create foo
+ echo 'full_page_writes=off' >>  $SERENDB_REPO_DIR/endpoints/foo/postgresql.conf
+ ./target/debug/serendb_local endpoint start foo
 
-  pushd test_runner; poetry run python3 -m bin.neon_local_create_deep_l0_stack 10; popd
+  pushd test_runner; poetry run python3 -m bin.serendb_local_create_deep_l0_stack 10; popd
 ```
 """
 

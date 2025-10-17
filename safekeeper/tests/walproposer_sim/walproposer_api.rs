@@ -12,7 +12,7 @@ use tracing::debug;
 use utils::lsn::Lsn;
 use walproposer::api_bindings::Level;
 use walproposer::bindings::{
-    NeonWALReadResult, SafekeeperStateDesiredEvents, WL_SOCKET_READABLE, WL_SOCKET_WRITEABLE,
+    SerenDBWALReadResult, SafekeeperStateDesiredEvents, WL_SOCKET_READABLE, WL_SOCKET_WRITEABLE,
 };
 use walproposer::walproposer::{ApiImpl, Config};
 
@@ -368,9 +368,9 @@ impl ApiImpl for SimulationApi {
         walproposer::bindings::PGAsyncWriteResult_PG_ASYNC_WRITE_SUCCESS
     }
 
-    fn wal_reader_allocate(&self, _: &mut walproposer::bindings::Safekeeper) -> NeonWALReadResult {
+    fn wal_reader_allocate(&self, _: &mut walproposer::bindings::Safekeeper) -> SerenDBWALReadResult {
         debug!("wal_reader_allocate");
-        walproposer::bindings::NeonWALReadResult_NEON_WALREAD_SUCCESS
+        walproposer::bindings::SerenDBWALReadResult_SERENDB_WALREAD_SUCCESS
     }
 
     fn wal_read(
@@ -378,9 +378,9 @@ impl ApiImpl for SimulationApi {
         _sk: &mut walproposer::bindings::Safekeeper,
         buf: &mut [u8],
         startpos: u64,
-    ) -> NeonWALReadResult {
+    ) -> SerenDBWALReadResult {
         self.disk.lock().read(startpos, buf);
-        walproposer::bindings::NeonWALReadResult_NEON_WALREAD_SUCCESS
+        walproposer::bindings::SerenDBWALReadResult_SERENDB_WALREAD_SUCCESS
     }
 
     fn init_event_set(&self, _: &mut walproposer::bindings::WalProposer) {

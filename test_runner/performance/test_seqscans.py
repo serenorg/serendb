@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     [
         # Run on all envs. Use 200x larger table on remote cluster to make sure
         # it doesn't fit in shared buffers, which are larger on remote than local.
-        pytest.param(lazy_fixture("neon_compare"), 1, id="neon"),
+        pytest.param(lazy_fixture("serendb_compare"), 1, id="serendb"),
         pytest.param(lazy_fixture("vanilla_compare"), 1, id="vanilla"),
         # Reenable after switching per-test projects created via API
         # pytest.param(

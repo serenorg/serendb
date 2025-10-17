@@ -11,7 +11,7 @@
 #ifndef PAGESTORE_CLIENT_h
 #define PAGESTORE_CLIENT_h
 
-#include "neon_pgversioncompat.h"
+#include "serendb_pgversioncompat.h"
 
 #include "access/slru.h"
 #include "access/xlogdefs.h"
@@ -26,37 +26,37 @@
 typedef enum
 {
 	/* pagestore_client -> pagestore */
-	T_NeonExistsRequest = 0,
-	T_NeonNblocksRequest,
-	T_NeonGetPageRequest,
-	T_NeonDbSizeRequest,
-	T_NeonGetSlruSegmentRequest,
+	T_SerenDBExistsRequest = 0,
+	T_SerenDBNblocksRequest,
+	T_SerenDBGetPageRequest,
+	T_SerenDBSizeRequest,
+	T_SerenDBGetSlruSegmentRequest,
 	/* future tags above this line */
-	T_NeonTestRequest = 99, /* only in cfg(feature = "testing") */
+	T_SerenDBTestRequest = 99, /* only in cfg(feature = "testing") */
 
 	/* pagestore -> pagestore_client */
-	T_NeonExistsResponse = 100,
-	T_NeonNblocksResponse,
-	T_NeonGetPageResponse,
-	T_NeonErrorResponse,
-	T_NeonDbSizeResponse,
-	T_NeonGetSlruSegmentResponse,
+	T_SerenDBExistsResponse = 100,
+	T_SerenDBNblocksResponse,
+	T_SerenDBGetPageResponse,
+	T_SerenDBErrorResponse,
+	T_SerenDBSizeResponse,
+	T_SerenDBGetSlruSegmentResponse,
 	/* future tags above this line */
-	T_NeonTestResponse = 199, /* only in cfg(feature = "testing") */
-} NeonMessageTag;
+	T_SerenDBTestResponse = 199, /* only in cfg(feature = "testing") */
+} SerenDBMessageTag;
 
-typedef uint64 NeonRequestId;
+typedef uint64 SerenDBRequestId;
 
 /* base struct for c-style inheritance */
 typedef struct
 {
-	NeonMessageTag tag;
-	NeonRequestId reqid;
+	SerenDBMessageTag tag;
+	SerenDBRequestId reqid;
 	XLogRecPtr	lsn;
 	XLogRecPtr	not_modified_since;
-} NeonMessage;
+} SerenDBMessage;
 
-#define messageTag(m) (((const NeonMessage *)(m))->tag)
+#define messageTag(m) (((const SerenDBMessage *)(m))->tag)
 
 /* SLRUs downloadable from page server */
 typedef enum {
@@ -66,7 +66,7 @@ typedef enum {
 } SlruKind;
 
 /*--
- * supertype of all the Neon*Request structs below.
+ * supertype of all the SerenDB*Request structs below.
  *
  * All requests contain two LSNs:
  *
@@ -91,91 +91,91 @@ typedef enum {
  * We copy fields from request to response to make checking more reliable: request ID is formed from process ID
  * and local counter, so in principle there can be duplicated requests IDs if process PID is reused.
  */
-typedef NeonMessage NeonRequest;
+typedef SerenDBMessage SerenDBRequest;
 
 typedef struct
 {
-	NeonRequest hdr;
+	SerenDBRequest hdr;
 	NRelFileInfo rinfo;
 	ForkNumber	forknum;
-} NeonExistsRequest;
+} SerenDBExistsRequest;
 
 typedef struct
 {
-	NeonRequest hdr;
+	SerenDBRequest hdr;
 	NRelFileInfo rinfo;
 	ForkNumber	forknum;
-} NeonNblocksRequest;
+} SerenDBNblocksRequest;
 
 typedef struct
 {
-	NeonRequest hdr;
+	SerenDBRequest hdr;
 	Oid			dbNode;
-} NeonDbSizeRequest;
+} SerenDBSizeRequest;
 
 typedef struct
 {
-	NeonRequest hdr;
+	SerenDBRequest hdr;
 	NRelFileInfo rinfo;
 	ForkNumber	forknum;
 	BlockNumber blkno;
-} NeonGetPageRequest;
+} SerenDBGetPageRequest;
 
 typedef struct
 {
-	NeonRequest hdr;
+	SerenDBRequest hdr;
 	SlruKind	kind;
 	int			segno;
-} NeonGetSlruSegmentRequest;
+} SerenDBGetSlruSegmentRequest;
 
 
-/* supertype of all the Neon*Response structs below */
-typedef NeonMessage NeonResponse;
+/* supertype of all the SerenDB*Response structs below */
+typedef SerenDBMessage SerenDBResponse;
 
 typedef struct
 {
-	NeonExistsRequest req;
+	SerenDBExistsRequest req;
 	bool		exists;
-} NeonExistsResponse;
+} SerenDBExistsResponse;
 
 typedef struct
 {
-	NeonNblocksRequest req;
+	SerenDBNblocksRequest req;
 	uint32		n_blocks;
-} NeonNblocksResponse;
+} SerenDBNblocksResponse;
 
 typedef struct
 {
-	NeonGetPageRequest req;
+	SerenDBGetPageRequest req;
 	char		page[FLEXIBLE_ARRAY_MEMBER];
-} NeonGetPageResponse;
+} SerenDBGetPageResponse;
 
-#define PS_GETPAGERESPONSE_SIZE (MAXALIGN(offsetof(NeonGetPageResponse, page) + BLCKSZ))
+#define PS_GETPAGERESPONSE_SIZE (MAXALIGN(offsetof(SerenDBGetPageResponse, page) + BLCKSZ))
 
 typedef struct
 {
-	NeonDbSizeRequest req;
+	SerenDBSizeRequest req;
 	int64		db_size;
-} NeonDbSizeResponse;
+} SerenDBSizeResponse;
 
 typedef struct
 {
-	NeonResponse req;
+	SerenDBResponse req;
 	char		message[FLEXIBLE_ARRAY_MEMBER]; /* null-terminated error
 												 * message */
-} NeonErrorResponse;
+} SerenDBErrorResponse;
 
 typedef struct
 {
-	NeonGetSlruSegmentRequest req;
+	SerenDBGetSlruSegmentRequest req;
 	int			n_blocks;
 	char		data[BLCKSZ * SLRU_PAGES_PER_SEGMENT];
-} NeonGetSlruSegmentResponse;
+} SerenDBGetSlruSegmentResponse;
 
 
-extern StringInfoData nm_pack_request(NeonRequest *msg);
-extern NeonResponse *nm_unpack_response(StringInfo s);
-extern char *nm_to_string(NeonMessage *msg);
+extern StringInfoData nm_pack_request(SerenDBRequest *msg);
+extern SerenDBResponse *nm_unpack_response(StringInfo s);
+extern char *nm_to_string(SerenDBMessage *msg);
 
 /*
  * If debug_compare_local>DEBUG_COMPARE_LOCAL_NONE, we pass through all the SMGR API
@@ -205,14 +205,14 @@ typedef struct
 	 * Send this request to the PageServer associated with this shard.
 	 * This function assigns request_id to the request which can be extracted by caller from request struct.
 	 */
-	bool		(*send) (shardno_t  shard_no, NeonRequest * request);
+	bool		(*send) (shardno_t  shard_no, SerenDBRequest * request);
 	/*
 	 * Blocking read for the next response of this shard.
 	 *
 	 * When a CANCEL signal is handled, the connection state will be
 	 * unmodified.
 	 */
-	NeonResponse *(*receive) (shardno_t shard_no);
+	SerenDBResponse *(*receive) (shardno_t shard_no);
 	/*
 	 * Try get the next response from the TCP buffers, if any.
 	 * Returns NULL when the data is not yet available.
@@ -221,7 +221,7 @@ typedef struct
 	 * back into connection). All other error conditions are soft errors and
 	 * return NULL as "no response available".
 	 */
-	NeonResponse *(*try_receive) (shardno_t shard_no);
+	SerenDBResponse *(*try_receive) (shardno_t shard_no);
 	/*
 	 * Make sure all requests are sent to PageServer.
 	 */
@@ -239,15 +239,15 @@ extern page_server_api *page_server;
 extern char *pageserver_connstring;
 extern int	flush_every_n_requests;
 extern int	readahead_buffer_size;
-extern char *neon_timeline;
-extern char *neon_tenant;
+extern char *serendb_timeline;
+extern char *serendb_tenant;
 extern int32 max_cluster_size;
-extern int  neon_protocol_version;
+extern int  serendb_protocol_version;
 
 extern shardno_t get_shard_number(BufferTag* tag);
 
-extern const f_smgr *smgr_neon(ProcNumber backend, NRelFileInfo rinfo);
-extern void smgr_init_neon(void);
+extern const f_smgr *smgr_serendb(ProcNumber backend, NRelFileInfo rinfo);
+extern void smgr_init_serendb(void);
 extern void readahead_buffer_resize(int newsize, void *extra);
 
 
@@ -281,17 +281,17 @@ typedef struct
 	 * to a prefetched request is still valid.
 	 */
 	XLogRecPtr effective_request_lsn;
-} neon_request_lsns;
+} serendb_request_lsns;
 
-extern PGDLLEXPORT void neon_read_at_lsn(NRelFileInfo rnode, ForkNumber forkNum, BlockNumber blkno,
-										 neon_request_lsns request_lsns, void *buffer);
-extern int64 neon_dbsize(Oid dbNode);
+extern PGDLLEXPORT void serendb_read_at_lsn(NRelFileInfo rnode, ForkNumber forkNum, BlockNumber blkno,
+										 serendb_request_lsns request_lsns, void *buffer);
+extern int64 serendb_dbsize(Oid dbNode);
 
-extern void neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum,
-								  BlockNumber blkno, neon_request_lsns *output,
+extern void serendb_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum,
+								  BlockNumber blkno, serendb_request_lsns *output,
 								  BlockNumber nblocks);
 
-/* utils for neon relsize cache */
+/* utils for SerenDB relsize cache */
 extern void relsize_hash_init(void);
 extern bool get_cached_relsize(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber *size);
 extern void set_cached_relsize(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber size);

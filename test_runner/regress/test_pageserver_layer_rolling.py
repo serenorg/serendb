@@ -8,9 +8,9 @@ import psutil
 import pytest
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     tenant_get_shards,
 )
 from fixtures.pageserver.utils import wait_for_last_record_lsn, wait_for_upload
@@ -25,7 +25,7 @@ CHECKPOINT_TIMEOUT_SECONDS = 60
 
 
 async def run_worker_for_tenant(
-    env: NeonEnv,
+    env: SerenDBEnv,
     entries: int,
     tenant: TenantId,
     offset: int | None = None,
@@ -51,7 +51,7 @@ async def run_worker_for_tenant(
         return last_flush_lsn
 
 
-async def run_worker(env: NeonEnv, tenant_conf, entries: int) -> tuple[TenantId, TimelineId, Lsn]:
+async def run_worker(env: SerenDBEnv, tenant_conf, entries: int) -> tuple[TenantId, TimelineId, Lsn]:
     loop = asyncio.get_running_loop()
     # capture tenant_conf by specifying `tenant_conf=tenant_conf`, otherwise it will be evaluated to some random value
     tenant, timeline = await loop.run_in_executor(
@@ -62,14 +62,14 @@ async def run_worker(env: NeonEnv, tenant_conf, entries: int) -> tuple[TenantId,
 
 
 async def workload(
-    env: NeonEnv, tenant_conf, timelines: int, entries: int
+    env: SerenDBEnv, tenant_conf, timelines: int, entries: int
 ) -> list[tuple[TenantId, TimelineId, Lsn]]:
     workers = [asyncio.create_task(run_worker(env, tenant_conf, entries)) for _ in range(timelines)]
     return await asyncio.gather(*workers)
 
 
 def wait_until_pageserver_is_caught_up(
-    env: NeonEnv, last_flush_lsns: list[tuple[TenantId, TimelineId, Lsn]]
+    env: SerenDBEnv, last_flush_lsns: list[tuple[TenantId, TimelineId, Lsn]]
 ):
     for tenant, timeline, last_flush_lsn in last_flush_lsns:
         shards = tenant_get_shards(env, tenant)
@@ -81,7 +81,7 @@ def wait_until_pageserver_is_caught_up(
 
 
 def wait_until_pageserver_has_uploaded(
-    env: NeonEnv, last_flush_lsns: list[tuple[TenantId, TimelineId, Lsn]]
+    env: SerenDBEnv, last_flush_lsns: list[tuple[TenantId, TimelineId, Lsn]]
 ):
     for tenant, timeline, last_flush_lsn in last_flush_lsns:
         shards = tenant_get_shards(env, tenant)
@@ -121,7 +121,7 @@ def assert_dirty_bytes_nonzero(env):
 
 @pytest.mark.parametrize("immediate_shutdown", [True, False])
 def test_pageserver_small_inmemory_layers(
-    neon_env_builder: NeonEnvBuilder, immediate_shutdown: bool
+    serendb_env_builder: SerenDBEnvBuilder, immediate_shutdown: bool
 ):
     """
     Test that open layers get flushed after the `checkpoint_timeout` config
@@ -138,7 +138,7 @@ def test_pageserver_small_inmemory_layers(
         "compaction_period": "1s",
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     last_flush_lsns = asyncio.run(workload(env, tenant_conf, TIMELINE_COUNT, ENTRIES_PER_TIMELINE))
@@ -175,7 +175,7 @@ def test_pageserver_small_inmemory_layers(
     assert total_wal_ingested_after_restart == 0
 
 
-def test_idle_checkpoints(neon_env_builder: NeonEnvBuilder):
+def test_idle_checkpoints(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that `checkpoint_timeout` is enforced even if there is no safekeeper input.
     """
@@ -187,7 +187,7 @@ def test_idle_checkpoints(neon_env_builder: NeonEnvBuilder):
         "compaction_period": "1s",
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     last_flush_lsns = asyncio.run(workload(env, tenant_conf, TIMELINE_COUNT, ENTRIES_PER_TIMELINE))
@@ -238,7 +238,7 @@ def test_idle_checkpoints(neon_env_builder: NeonEnvBuilder):
 # We have to use at least ~100MB of data to hit the lowest limit we can configure, which is
 # prohibitively slow in debug mode
 @skip_in_debug_build("Avoid running bulkier ingest tests in debug mode")
-def test_total_size_limit(neon_env_builder: NeonEnvBuilder):
+def test_total_size_limit(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that checkpoints are done based on total ephemeral layer size, even if no one timeline is
     individually exceeding checkpoint thresholds.
@@ -252,7 +252,7 @@ def test_total_size_limit(neon_env_builder: NeonEnvBuilder):
     ephemeral_bytes_per_memory_kb = (max_dirty_data * 1024) // system_memory
     assert ephemeral_bytes_per_memory_kb > 0
 
-    neon_env_builder.pageserver_config_override = f"""
+    serendb_env_builder.pageserver_config_override = f"""
         ephemeral_bytes_per_memory_kb={ephemeral_bytes_per_memory_kb}
         """
 
@@ -266,7 +266,7 @@ def test_total_size_limit(neon_env_builder: NeonEnvBuilder):
         "compaction_period": f"{compaction_period_s}s",
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     timeline_count = 10

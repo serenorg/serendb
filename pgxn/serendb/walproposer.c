@@ -39,9 +39,9 @@
 
 #include "postgres.h"
 #include "libpq/pqformat.h"
-#include "neon.h"
+#include "serendb.h"
 #include "walproposer.h"
-#include "neon_utils.h"
+#include "serendb_utils.h"
 
 /* Prototypes for private functions */
 static void WalProposerLoop(WalProposer *wp);
@@ -104,7 +104,7 @@ WalProposerCreate(WalProposerConfig *config, walproposer_api api)
 	wp->mconf.members.len = 0;
 	wp->mconf.new_members.len = 0;
 
-	wp_log(LOG, "neon.safekeepers=%s", wp->config->safekeepers_list);
+	wp_log(LOG, "serendb.safekeepers=%s", wp->config->safekeepers_list);
 
 	/*
 	 * If safekeepers list starts with g# parse generation number followed by
@@ -118,11 +118,11 @@ WalProposerCreate(WalProposerConfig *config, walproposer_api api)
 		wp->safekeepers_generation = strtoul(wp->config->safekeepers_list + 2, &endptr, 10);
 		if (errno != 0)
 		{
-			wp_log(FATAL, "failed to parse neon.safekeepers generation number: %m");
+			wp_log(FATAL, "failed to parse serendb.safekeepers generation number: %m");
 		}
 		if (*endptr != ':')
 		{
-			wp_log(FATAL, "failed to parse neon.safekeepers: no colon after generation");
+			wp_log(FATAL, "failed to parse serendb.safekeepers: no colon after generation");
 		}
 		/* Skip past : to the first hostname. */
 		host = endptr + 1;
@@ -164,7 +164,7 @@ WalProposerCreate(WalProposerConfig *config, walproposer_api api)
 			written = snprintf((char *) &sk->conninfo, MAXCONNINFO,
 							   "%s host=%s port=%s dbname=replication options='-c timeline_id=%s tenant_id=%s'",
 							   wp->config->safekeeper_conninfo_options, sk->host, sk->port,
-							   wp->config->neon_timeline, wp->config->neon_tenant);
+							   wp->config->serendb_timeline, wp->config->serendb_tenant);
 			if (written > MAXCONNINFO || written < 0)
 				wp_log(FATAL, "could not create connection string for safekeeper %s:%s", sk->host, sk->port);
 		}
@@ -192,12 +192,12 @@ WalProposerCreate(WalProposerConfig *config, walproposer_api api)
 
 	/* Fill the greeting package */
 	wp->greetRequest.pam.tag = 'g';
-	if (!wp->config->neon_tenant)
-		wp_log(FATAL, "neon.tenant_id is not provided");
-	wp->greetRequest.tenant_id = wp->config->neon_tenant;
-	if (!wp->config->neon_timeline)
-		wp_log(FATAL, "neon.timeline_id is not provided");
-	wp->greetRequest.timeline_id = wp->config->neon_timeline;
+	if (!wp->config->serendb_tenant)
+		wp_log(FATAL, "serendb.tenant_id is not provided");
+	wp->greetRequest.tenant_id = wp->config->serendb_tenant;
+	if (!wp->config->serendb_timeline)
+		wp_log(FATAL, "serendb.timeline_id is not provided");
+	wp->greetRequest.timeline_id = wp->config->serendb_timeline;
 	wp->greetRequest.pg_version = PG_VERSION_NUM;
 	wp->greetRequest.system_id = wp->config->systemId;
 	wp->greetRequest.wal_seg_size = wp->config->wal_segment_size;
@@ -963,7 +963,7 @@ RecvAcceptorGreeting(Safekeeper *sk)
 		 * would allow sync-safekeepers not to die here if it intersected with
 		 * sk migration (as well as remove 1s delay).
 		 *
-		 * Note that assign_neon_safekeepers also currently restarts the
+		 * Note that assign_serendb_safekeepers also currently restarts the
 		 * process, so during normal migration walproposer may restart twice.
 		 */
 		if (wp->state >= WPS_CAMPAIGN)
@@ -1250,7 +1250,7 @@ HandleElectedProposer(WalProposer *wp)
 	/*
 	 * Synchronously download WAL from the most advanced safekeeper. We do
 	 * that only for logical replication (and switching logical walsenders to
-	 * neon_walreader is a todo.)
+	 * serendb_walreader is a todo.)
 	 */
 	if (!wp->api.recovery_download(wp, wp->donor))
 	{
@@ -1623,7 +1623,7 @@ HandleActiveState(Safekeeper *sk, uint32 events)
 	/* expected never to happen, c.f. walprop_pg_active_state_update_event_set */
 	if (events & WL_SOCKET_CLOSED)
 	{
-		wp_log(WARNING, "connection to %s:%s in active state failed, got WL_SOCKET_CLOSED on neon_walreader socket",
+		wp_log(WARNING, "connection to %s:%s in active state failed, got WL_SOCKET_CLOSED on serendb_walreader socket",
 			   sk->host, sk->port);
 		ShutdownConnection(sk);
 		return;
@@ -1636,7 +1636,7 @@ HandleActiveState(Safekeeper *sk, uint32 events)
 
 /*
  * Send WAL messages starting from sk->streamingAt until the end or non-writable
- * socket or neon_walreader blocks, whichever comes first; active_state is
+ * socket or serendb_walreader blocks, whichever comes first; active_state is
  * updated accordingly. Caller should take care of updating event set. Even if
  * no unsent WAL is available, at least one empty message will be sent as a
  * heartbeat, if socket is ready.
@@ -1721,11 +1721,11 @@ SendAppendRequests(Safekeeper *sk)
 										 req_len,
 										 &errmsg))
 				{
-					case NEON_WALREAD_SUCCESS:
+					case SERENDB_WALREAD_SUCCESS:
 						break;
-					case NEON_WALREAD_WOULDBLOCK:
+					case SERENDB_WALREAD_WOULDBLOCK:
 						return true;
-					case NEON_WALREAD_ERROR:
+					case SERENDB_WALREAD_ERROR:
 						wp_log(WARNING, "WAL reading for node %s:%s failed: %s",
 							   sk->host, sk->port, errmsg);
 						ShutdownConnection(sk);
@@ -2304,10 +2304,10 @@ PAMessageSerialize(WalProposer *wp, ProposerAcceptorMessage *msg, StringInfo buf
 					greetRequestV2.systemId = wp->config->systemId;
 					if (*m->timeline_id != '\0' &&
 						!HexDecodeString(greetRequestV2.timeline_id, m->timeline_id, 16))
-						wp_log(FATAL, "could not parse neon.timeline_id, %s", m->timeline_id);
+						wp_log(FATAL, "could not parse serendb.timeline_id, %s", m->timeline_id);
 					if (*m->tenant_id != '\0' &&
 						!HexDecodeString(greetRequestV2.tenant_id, m->tenant_id, 16))
-						wp_log(FATAL, "could not parse neon.tenant_id, %s", m->tenant_id);
+						wp_log(FATAL, "could not parse serendb.tenant_id, %s", m->tenant_id);
 
 					greetRequestV2.timeline = wp->config->pgTimeline;
 					greetRequestV2.walSegSize = wp->config->wal_segment_size;
@@ -2840,7 +2840,7 @@ AssertEventsOkForState(uint32 events, Safekeeper *sk)
 	}
 }
 
-/* Returns the set of events for both safekeeper (sk_events) and neon_walreader
+/* Returns the set of events for both safekeeper (sk_events) and serendb_walreader
  * (nwr_events) sockets a safekeeper in this state should be waiting on.
  *
  * This will return WL_NO_EVENTS (= 0) for some events. */
@@ -2904,7 +2904,7 @@ SafekeeperStateDesiredEvents(Safekeeper *sk, uint32 *sk_events, uint32 *nwr_even
 					return;
 
 					/*
-					 * Waiting for neon_walreader socket, but we still read
+					 * Waiting for serendb_walreader socket, but we still read
 					 * responses from sk socket.
 					 */
 				case SS_ACTIVE_READ_WAL:
@@ -2913,7 +2913,7 @@ SafekeeperStateDesiredEvents(Safekeeper *sk, uint32 *sk_events, uint32 *nwr_even
 					return;
 
 					/*
-					 * Need to flush the sk socket, so ignore neon_walreader
+					 * Need to flush the sk socket, so ignore serendb_walreader
 					 * one and set write interest on sk.
 					 */
 				case SS_ACTIVE_FLUSH:

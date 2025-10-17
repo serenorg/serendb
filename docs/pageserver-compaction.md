@@ -1,6 +1,6 @@
 # Pageserver Compaction
 
-Lifted from <https://www.notion.so/neondatabase/Rough-Notes-on-Compaction-1baf189e004780859e65ef63b85cfa81?pvs=4>.
+Lifted from <https://www.notion.so/serendb/Rough-Notes-on-Compaction-1baf189e004780859e65ef63b85cfa81?pvs=4>.
 
 Updated 2025-03-26.
 
@@ -35,7 +35,7 @@ As part of this, it may combine several page deltas into a single page image whe
 
 ## Compaction: How?
 
-Neon uses a non-standard variant of an LSM tree made up of two levels of layer files: L0 and L1.
+SerenDB uses a non-standard variant of an LSM tree made up of two levels of layer files: L0 and L1.
 
 Compaction runs in two phases: L0→L1 compaction, and L1 image compaction.
 

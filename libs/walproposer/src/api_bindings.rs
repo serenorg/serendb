@@ -6,7 +6,7 @@
 use std::ffi::{CStr, CString};
 
 use crate::bindings::{
-    NeonWALReadResult, PGAsyncReadResult, PGAsyncWriteResult, Safekeeper, Size, StringInfoData,
+    SerenDBWALReadResult, PGAsyncReadResult, PGAsyncWriteResult, Safekeeper, Size, StringInfoData,
     TimestampTz, WalProposer, WalProposerConnStatusType, WalProposerConnectPollStatusType,
     WalProposerExecStatusType, WalproposerShmemState, XLogRecPtr, uint32, walproposer_api,
 };
@@ -201,7 +201,7 @@ extern "C" fn wal_read(
     startptr: XLogRecPtr,
     count: Size,
     _errmsg: *mut *mut ::std::os::raw::c_char,
-) -> NeonWALReadResult {
+) -> SerenDBWALReadResult {
     unsafe {
         let buf = std::slice::from_raw_parts_mut(buf as *mut u8, count);
         let callback_data = (*(*(*sk).wp).config).callback_data;

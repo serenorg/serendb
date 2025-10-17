@@ -6,7 +6,7 @@ use std::io::Write;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-/// Directory within .neon which will be used by default for LocalFs remote storage.
+/// Directory within .serendb which will be used by default for LocalFs remote storage.
 pub const ENDPOINT_STORAGE_REMOTE_STORAGE_DIR: &str = "local_fs_remote_storage/endpoint_storage";
 pub const ENDPOINT_STORAGE_DEFAULT_ADDR: SocketAddr =
     SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 9993);

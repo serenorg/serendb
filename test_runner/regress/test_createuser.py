@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING
 from fixtures.utils import query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 #
 # Test CREATE USER to check shared catalog restore
 #
-def test_createuser(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_createuser(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     with endpoint.cursor() as cur:

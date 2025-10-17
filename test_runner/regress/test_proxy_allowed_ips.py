@@ -6,17 +6,17 @@ import psycopg2
 import pytest
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
-        NeonProxy,
+    from fixtures.serendb_fixtures import (
+        SerenDBProxy,
         VanillaPostgres,
     )
 
-TABLE_NAME = "neon_control_plane.endpoints"
+TABLE_NAME = "serendb_control_plane.endpoints"
 
 
 # Proxy uses the same logic for psql and websockets.
 @pytest.mark.asyncio
-async def test_proxy_psql_allowed_ips(static_proxy: NeonProxy, vanilla_pg: VanillaPostgres):
+async def test_proxy_psql_allowed_ips(static_proxy: SerenDBProxy, vanilla_pg: VanillaPostgres):
     # Shouldn't be able to connect to this project
     vanilla_pg.safe_psql(
         f"INSERT INTO {TABLE_NAME} (endpoint_id, allowed_ips) VALUES ('private-project', '8.8.8.8')",
@@ -43,7 +43,7 @@ async def test_proxy_psql_allowed_ips(static_proxy: NeonProxy, vanilla_pg: Vanil
     check_cannot_connect(query="select 1", sslsni=0, options="endpoint=private-project")
 
     # with SNI
-    check_cannot_connect(query="select 1", host="private-project.local.neon.build")
+    check_cannot_connect(query="select 1", host="private-project.local.serendb.build")
 
     # no SNI, deprecated `options=project` syntax (before we had several endpoint in project)
     out = static_proxy.safe_psql(query="select 1", sslsni=0, options="project=generic-project")
@@ -54,12 +54,12 @@ async def test_proxy_psql_allowed_ips(static_proxy: NeonProxy, vanilla_pg: Vanil
     assert out[0][0] == 1
 
     # with SNI
-    out = static_proxy.safe_psql(query="select 1", host="generic-project.local.neon.build")
+    out = static_proxy.safe_psql(query="select 1", host="generic-project.local.serendb.build")
     assert out[0][0] == 1
 
 
 @pytest.mark.asyncio
-async def test_proxy_http_allowed_ips(static_proxy: NeonProxy, vanilla_pg: VanillaPostgres):
+async def test_proxy_http_allowed_ips(static_proxy: SerenDBProxy, vanilla_pg: VanillaPostgres):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     # Shouldn't be able to connect to this project

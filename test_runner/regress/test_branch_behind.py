@@ -9,15 +9,15 @@ from fixtures.pageserver.http import TimelineCreate406
 from fixtures.utils import print_gc_result, query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Create a couple of branches off the main branch, at a historical point in time.
 #
-def test_branch_behind(neon_env_builder: NeonEnvBuilder):
+def test_branch_behind(serendb_env_builder: SerenDBEnvBuilder):
     # Disable pitr, because here we want to test branch creation after GC
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={"pitr_interval": "0 sec", "lsn_lease_length": "0s"}
     )
 
@@ -34,7 +34,7 @@ def test_branch_behind(neon_env_builder: NeonEnvBuilder):
 
     main_cur = endpoint_main.connect().cursor()
 
-    timeline = TimelineId(query_scalar(main_cur, "SHOW neon.timeline_id"))
+    timeline = TimelineId(query_scalar(main_cur, "SHOW serendb.timeline_id"))
 
     # Create table, and insert the first 100 rows
     main_cur.execute("CREATE TABLE foo (t text)")

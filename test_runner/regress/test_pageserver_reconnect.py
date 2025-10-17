@@ -9,16 +9,16 @@ import psycopg2.errors
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnv, PgBin
 
 
-# Test updating neon.pageserver_connstring setting on the fly.
+# Test updating serendb.pageserver_connstring setting on the fly.
 #
 # This merely changes some whitespace in the connection string, so
 # this doesn't prove that the new string actually takes effect. But at
 # least the code gets exercised.
-def test_pageserver_reconnect(neon_simple_env: NeonEnv, pg_bin: PgBin):
-    env = neon_simple_env
+def test_pageserver_reconnect(serendb_simple_env: SerenDBEnv, pg_bin: PgBin):
+    env = serendb_simple_env
     env.create_branch("test_pageserver_restarts")
     endpoint = env.endpoints.create_start("test_pageserver_restarts")
     n_reconnects = 1000
@@ -35,12 +35,12 @@ def test_pageserver_reconnect(neon_simple_env: NeonEnv, pg_bin: PgBin):
 
     with closing(endpoint.connect()) as con:
         with con.cursor() as c:
-            c.execute("SELECT setting FROM pg_settings WHERE name='neon.pageserver_connstring'")
+            c.execute("SELECT setting FROM pg_settings WHERE name='serendb.pageserver_connstring'")
             connstring = c.fetchall()[0][0]
             for i in range(n_reconnects):
                 time.sleep(timeout)
                 c.execute(
-                    "alter system set neon.pageserver_connstring=%s",
+                    "alter system set serendb.pageserver_connstring=%s",
                     (connstring + (" " * (i % 2)),),
                 )
                 c.execute("select pg_reload_conf()")
@@ -49,8 +49,8 @@ def test_pageserver_reconnect(neon_simple_env: NeonEnv, pg_bin: PgBin):
 
 
 # Test handling errors during page server reconnect
-def test_pageserver_reconnect_failure(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_pageserver_reconnect_failure(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     env.create_branch("test_pageserver_reconnect")
     endpoint = env.endpoints.create_start("test_pageserver_reconnect")
 
@@ -58,10 +58,10 @@ def test_pageserver_reconnect_failure(neon_simple_env: NeonEnv):
     cur = con.cursor()
 
     cur.execute("set statement_timeout='2s'")
-    cur.execute("SELECT setting FROM pg_settings WHERE name='neon.pageserver_connstring'")
+    cur.execute("SELECT setting FROM pg_settings WHERE name='serendb.pageserver_connstring'")
     connstring = cur.fetchall()[0][0]
     cur.execute(
-        f"alter system set neon.pageserver_connstring='{connstring}?some_invalid_param=xyz'"
+        f"alter system set serendb.pageserver_connstring='{connstring}?some_invalid_param=xyz'"
     )
     cur.execute("select pg_reload_conf()")
     try:

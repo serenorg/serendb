@@ -11,14 +11,14 @@ from typing import TYPE_CHECKING
 import psycopg2
 import pytest
 import requests
-from fixtures.neon_fixtures import PSQL, NeonProxy, VanillaPostgres
+from fixtures.serendb_fixtures import PSQL, SerenDBProxy, VanillaPostgres
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.mark.asyncio
-async def test_http_pool_begin_1(static_proxy: NeonProxy):
+async def test_http_pool_begin_1(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     def query(*args) -> Any:
@@ -40,7 +40,7 @@ async def test_http_pool_begin_1(static_proxy: NeonProxy):
     print(results)
 
 
-def test_proxy_select_1(static_proxy: NeonProxy):
+def test_proxy_select_1(static_proxy: SerenDBProxy):
     """
     A simplest smoke test: check proxy against a local postgres instance.
     """
@@ -54,11 +54,11 @@ def test_proxy_select_1(static_proxy: NeonProxy):
     assert out[0][0] == 1
 
     # with SNI
-    out = static_proxy.safe_psql("select 42", host="generic-project-name.local.neon.build")
+    out = static_proxy.safe_psql("select 42", host="generic-project-name.local.serendb.build")
     assert out[0][0] == 42
 
 
-def test_password_hack(static_proxy: NeonProxy):
+def test_password_hack(static_proxy: SerenDBProxy):
     """
     Check the PasswordHack auth flow: an alternative to SCRAM auth for
     clients which can't provide the project/endpoint name via SNI or `options`.
@@ -84,7 +84,7 @@ def test_password_hack(static_proxy: NeonProxy):
 
 
 @pytest.mark.asyncio
-async def test_link_auth(vanilla_pg: VanillaPostgres, link_proxy: NeonProxy):
+async def test_link_auth(vanilla_pg: VanillaPostgres, link_proxy: SerenDBProxy):
     """
     Check the Link auth flow: a lightweight auth method which delegates
     all necessary checks to the console by sending client an auth URL.
@@ -93,10 +93,10 @@ async def test_link_auth(vanilla_pg: VanillaPostgres, link_proxy: NeonProxy):
     psql = await PSQL(host=link_proxy.host, port=link_proxy.proxy_port).run("select 42")
 
     base_uri = link_proxy.link_auth_uri
-    link = await NeonProxy.find_auth_link(base_uri, psql)
+    link = await SerenDBProxy.find_auth_link(base_uri, psql)
 
-    psql_session_id = NeonProxy.get_session_id(base_uri, link)
-    await NeonProxy.activate_link_auth(vanilla_pg, link_proxy, psql_session_id)
+    psql_session_id = SerenDBProxy.get_session_id(base_uri, link)
+    await SerenDBProxy.activate_link_auth(vanilla_pg, link_proxy, psql_session_id)
 
     assert psql.stdout is not None
     out = (await psql.stdout.read()).decode("utf-8").strip()
@@ -104,7 +104,7 @@ async def test_link_auth(vanilla_pg: VanillaPostgres, link_proxy: NeonProxy):
 
 
 @pytest.mark.parametrize("option_name", ["project", "endpoint"])
-def test_proxy_options(static_proxy: NeonProxy, option_name: str):
+def test_proxy_options(static_proxy: SerenDBProxy, option_name: str):
     """
     Check that we pass extra `options` to the PostgreSQL server:
     * `project=...` and `endpoint=...` shouldn't be passed at all
@@ -130,14 +130,14 @@ def test_proxy_options(static_proxy: NeonProxy, option_name: str):
 
 
 @pytest.mark.asyncio
-async def test_proxy_arbitrary_params(static_proxy: NeonProxy):
+async def test_proxy_arbitrary_params(static_proxy: SerenDBProxy):
     with closing(
         await static_proxy.connect_async(server_settings={"IntervalStyle": "iso_8601"})
     ) as conn:
         out = await conn.fetchval("select to_json('0 seconds'::interval)")
         assert out == '"00:00:00"'
 
-    options = "neon_proxy_params_compat:true"
+    options = "serendb_proxy_params_compat:true"
     with closing(
         await static_proxy.connect_async(
             server_settings={"IntervalStyle": "iso_8601", "options": options}
@@ -147,7 +147,7 @@ async def test_proxy_arbitrary_params(static_proxy: NeonProxy):
         assert out == '"PT0S"'
 
 
-def test_auth_errors(static_proxy: NeonProxy):
+def test_auth_errors(static_proxy: SerenDBProxy):
     """
     Check that we throw very specific errors in some unsuccessful auth scenarios.
     """
@@ -179,7 +179,7 @@ def test_auth_errors(static_proxy: NeonProxy):
         pass
 
 
-def test_forward_params_to_client(static_proxy: NeonProxy):
+def test_forward_params_to_client(static_proxy: SerenDBProxy):
     """
     Check that we forward all necessary PostgreSQL server params to client.
     """
@@ -213,7 +213,7 @@ def test_forward_params_to_client(static_proxy: NeonProxy):
                 assert conn.get_parameter_status(name) == value
 
 
-def test_close_on_connections_exit(static_proxy: NeonProxy):
+def test_close_on_connections_exit(static_proxy: SerenDBProxy):
     # Open two connections, send SIGTERM, then ensure that proxy doesn't exit
     # until after connections close.
     with static_proxy.connect(), static_proxy.connect():
@@ -226,14 +226,14 @@ def test_close_on_connections_exit(static_proxy: NeonProxy):
     static_proxy.wait_for_exit()
 
 
-def test_sql_over_http_serverless_driver(static_proxy: NeonProxy):
+def test_sql_over_http_serverless_driver(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     connstr = f"postgresql://http:http@{static_proxy.domain}:{static_proxy.proxy_port}/postgres"
     response = requests.post(
-        f"https://api.local.neon.build:{static_proxy.external_http_port}/sql",
+        f"https://api.local.serendb.build:{static_proxy.external_http_port}/sql",
         data=json.dumps({"query": "select 42 as answer", "params": []}),
-        headers={"Content-Type": "application/sql", "Neon-Connection-String": connstr},
+        headers={"Content-Type": "application/sql", "SerenDB-Connection-String": connstr},
         verify=str(static_proxy.test_output_dir / "proxy.crt"),
     )
     assert response.status_code == 200, response.text
@@ -241,7 +241,7 @@ def test_sql_over_http_serverless_driver(static_proxy: NeonProxy):
     assert rows == [{"answer": 42}]
 
 
-def test_sql_over_http(static_proxy: NeonProxy):
+def test_sql_over_http(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     def q(sql: str, params: list[Any] | None = None) -> Any:
@@ -250,7 +250,7 @@ def test_sql_over_http(static_proxy: NeonProxy):
         response = requests.post(
             f"https://{static_proxy.domain}:{static_proxy.external_http_port}/sql",
             data=json.dumps({"query": sql, "params": params}),
-            headers={"Content-Type": "application/sql", "Neon-Connection-String": connstr},
+            headers={"Content-Type": "application/sql", "SerenDB-Connection-String": connstr},
             verify=str(static_proxy.test_output_dir / "proxy.crt"),
         )
         assert response.status_code == 200, response.text
@@ -298,7 +298,7 @@ def test_sql_over_http(static_proxy: NeonProxy):
     assert res["rowCount"] is None
 
 
-def test_sql_over_http_db_name_with_space(static_proxy: NeonProxy):
+def test_sql_over_http_db_name_with_space(static_proxy: SerenDBProxy):
     db = "db with spaces"
     static_proxy.safe_psql_many(
         (
@@ -313,7 +313,7 @@ def test_sql_over_http_db_name_with_space(static_proxy: NeonProxy):
         response = requests.post(
             f"https://{static_proxy.domain}:{static_proxy.external_http_port}/sql",
             data=json.dumps({"query": sql, "params": params}),
-            headers={"Content-Type": "application/sql", "Neon-Connection-String": connstr},
+            headers={"Content-Type": "application/sql", "SerenDB-Connection-String": connstr},
             verify=str(static_proxy.test_output_dir / "proxy.crt"),
         )
         assert response.status_code == 200, response.text
@@ -323,7 +323,7 @@ def test_sql_over_http_db_name_with_space(static_proxy: NeonProxy):
     assert rows == [{"answer": 42}]
 
 
-def test_sql_over_http_output_options(static_proxy: NeonProxy):
+def test_sql_over_http_output_options(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http2 with login password 'http2' superuser")
 
     def q(sql: str, raw_text: bool, array_mode: bool, params: list[Any] | None = None) -> Any:
@@ -336,9 +336,9 @@ def test_sql_over_http_output_options(static_proxy: NeonProxy):
             data=json.dumps({"query": sql, "params": params}),
             headers={
                 "Content-Type": "application/sql",
-                "Neon-Connection-String": connstr,
-                "Neon-Raw-Text-Output": "true" if raw_text else "false",
-                "Neon-Array-Mode": "true" if array_mode else "false",
+                "SerenDB-Connection-String": connstr,
+                "SerenDB-Raw-Text-Output": "true" if raw_text else "false",
+                "SerenDB-Array-Mode": "true" if array_mode else "false",
             },
             verify=str(static_proxy.test_output_dir / "proxy.crt"),
         )
@@ -358,7 +358,7 @@ def test_sql_over_http_output_options(static_proxy: NeonProxy):
     assert rows == [["1", "a", "{1,2,3}"]]
 
 
-def test_sql_over_http_batch(static_proxy: NeonProxy):
+def test_sql_over_http_batch(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     def qq(
@@ -374,10 +374,10 @@ def test_sql_over_http_batch(static_proxy: NeonProxy):
             ),
             headers={
                 "Content-Type": "application/sql",
-                "Neon-Connection-String": connstr,
-                "Neon-Batch-Isolation-Level": "Serializable",
-                "Neon-Batch-Read-Only": "true" if read_only else "false",
-                "Neon-Batch-Deferrable": "true" if deferrable else "false",
+                "SerenDB-Connection-String": connstr,
+                "SerenDB-Batch-Isolation-Level": "Serializable",
+                "SerenDB-Batch-Read-Only": "true" if read_only else "false",
+                "SerenDB-Batch-Deferrable": "true" if deferrable else "false",
             },
             verify=str(static_proxy.test_output_dir / "proxy.crt"),
         )
@@ -399,9 +399,9 @@ def test_sql_over_http_batch(static_proxy: NeonProxy):
         ]
     )
 
-    assert headers["Neon-Batch-Isolation-Level"] == "Serializable"
-    assert "Neon-Batch-Read-Only" not in headers
-    assert "Neon-Batch-Deferrable" not in headers
+    assert headers["SerenDB-Batch-Isolation-Level"] == "Serializable"
+    assert "SerenDB-Batch-Read-Only" not in headers
+    assert "SerenDB-Batch-Deferrable" not in headers
 
     assert result[0]["rows"] == [{"answer": 42}]
     assert result[1]["rows"] == [{"answer": "42"}]
@@ -431,14 +431,14 @@ def test_sql_over_http_batch(static_proxy: NeonProxy):
         True,
         True,
     )
-    assert headers["Neon-Batch-Isolation-Level"] == "Serializable"
-    assert headers["Neon-Batch-Read-Only"] == "true"
-    assert headers["Neon-Batch-Deferrable"] == "true"
+    assert headers["SerenDB-Batch-Isolation-Level"] == "Serializable"
+    assert headers["SerenDB-Batch-Read-Only"] == "true"
+    assert headers["SerenDB-Batch-Deferrable"] == "true"
 
     assert result[0]["rows"] == [{"answer": 42}]
 
 
-def test_sql_over_http_batch_output_options(static_proxy: NeonProxy):
+def test_sql_over_http_batch_output_options(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     connstr = f"postgresql://http:http@{static_proxy.domain}:{static_proxy.proxy_port}/postgres"
@@ -454,10 +454,10 @@ def test_sql_over_http_batch_output_options(static_proxy: NeonProxy):
         ),
         headers={
             "Content-Type": "application/sql",
-            "Neon-Connection-String": connstr,
-            "Neon-Batch-Isolation-Level": "Serializable",
-            "Neon-Batch-Read-Only": "false",
-            "Neon-Batch-Deferrable": "false",
+            "SerenDB-Connection-String": connstr,
+            "SerenDB-Batch-Isolation-Level": "Serializable",
+            "SerenDB-Batch-Read-Only": "false",
+            "SerenDB-Batch-Deferrable": "false",
         },
         verify=str(static_proxy.test_output_dir / "proxy.crt"),
     )
@@ -471,7 +471,7 @@ def test_sql_over_http_batch_output_options(static_proxy: NeonProxy):
     assert results[1]["rows"] == [{"answer": "42"}]
 
 
-def test_sql_over_http_pool(static_proxy: NeonProxy):
+def test_sql_over_http_pool(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     def get_pid(status: int, pw: str, user="http_auth") -> Any:
@@ -510,7 +510,7 @@ def test_sql_over_http_pool(static_proxy: NeonProxy):
     assert "password authentication failed for user" in res["message"]
 
 
-def test_sql_over_http_pool_settings(static_proxy: NeonProxy):
+def test_sql_over_http_pool_settings(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     def multiquery(*queries) -> Any:
@@ -539,7 +539,7 @@ def test_sql_over_http_pool_settings(static_proxy: NeonProxy):
     assert result[0][0]["interval"] == "00:00:00", "interval is expected in postgres format"
 
 
-def test_sql_over_http_urlencoding(static_proxy: NeonProxy):
+def test_sql_over_http_urlencoding(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user \"http+auth$$\" with password '%+$^&*@!' superuser")
 
     static_proxy.http_query(
@@ -553,7 +553,7 @@ def test_sql_over_http_urlencoding(static_proxy: NeonProxy):
 
 # Beginning a transaction should not impact the next query,
 # which might come from a completely different client.
-def test_http_pool_begin(static_proxy: NeonProxy):
+def test_http_pool_begin(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     def query(status: int, query: str, *args) -> Any:
@@ -570,7 +570,7 @@ def test_http_pool_begin(static_proxy: NeonProxy):
     query(200, "SELECT 1;")  # Query that should succeed regardless of the transaction
 
 
-def test_sql_over_http_pool_tx_reuse(static_proxy: NeonProxy):
+def test_sql_over_http_pool_tx_reuse(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth2 with password 'http' superuser")
 
     def query(status: int, query: str, *args) -> Any:
@@ -604,7 +604,7 @@ def test_sql_over_http_pool_tx_reuse(static_proxy: NeonProxy):
 
 
 @pytest.mark.timeout(60)
-def test_sql_over_http_pool_dos(static_proxy: NeonProxy):
+def test_sql_over_http_pool_dos(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     static_proxy.safe_psql("CREATE TYPE foo AS ENUM ('foo')")
@@ -626,7 +626,7 @@ def test_sql_over_http_pool_dos(static_proxy: NeonProxy):
     assert "response is too large (max is 10485760 bytes)" in response["message"]
 
 
-def test_sql_over_http_pool_custom_types(static_proxy: NeonProxy):
+def test_sql_over_http_pool_custom_types(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create user http_auth with password 'http' superuser")
 
     static_proxy.safe_psql("CREATE TYPE foo AS ENUM ('foo','bar','baz')")
@@ -648,7 +648,7 @@ def test_sql_over_http_pool_custom_types(static_proxy: NeonProxy):
 
 
 @pytest.mark.asyncio
-async def test_sql_over_http2(static_proxy: NeonProxy):
+async def test_sql_over_http2(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     resp = await static_proxy.http2_query(
@@ -657,7 +657,7 @@ async def test_sql_over_http2(static_proxy: NeonProxy):
     assert resp["rows"] == [{"answer": 42}]
 
 
-def test_sql_over_http_connection_cancel(static_proxy: NeonProxy):
+def test_sql_over_http_connection_cancel(static_proxy: SerenDBProxy):
     static_proxy.safe_psql("create role http with login password 'http' superuser")
 
     static_proxy.safe_psql("create table test_table ( id int primary key )")

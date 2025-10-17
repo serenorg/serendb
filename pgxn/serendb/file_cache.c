@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "neon_pgversioncompat.h"
+#include "serendb_pgversioncompat.h"
 
 #include "access/parallel.h"
 #include "access/xlog.h"
@@ -46,10 +46,10 @@
 #include "hll.h"
 #include "bitmap.h"
 #include "file_cache.h"
-#include "neon.h"
-#include "neon_lwlsncache.h"
-#include "neon_perf_counters.h"
-#include "neon_utils.h"
+#include "serendb.h"
+#include "serendb_lwlsncache.h"
+#include "serendb_perf_counters.h"
+#include "serendb_utils.h"
 #include "pagestore_client.h"
 #include "communicator.h"
 
@@ -72,9 +72,9 @@
  * ## Holes
  *
  * The LFC can be resized on the fly, up to a maximum size that's determined
- * at server startup (neon.max_file_cache_size). After server startup, we
+ * at server startup (serendb.max_file_cache_size). After server startup, we
  * expand the underlying file when needed, until it reaches the soft limit
- * (neon.file_cache_size_limit). If the soft limit is later reduced, we shrink
+ * (serendb.file_cache_size_limit). If the soft limit is later reduced, we shrink
  * the LFC by punching holes in the underlying file with a
  * fallocate(FALLOC_FL_PUNCH_HOLE) call. The nominal size of the file doesn't
  * shrink, but the disk space it uses does.
@@ -247,7 +247,7 @@ lfc_close_file(void)
 }
 
 /*
- * Local file cache is optional and Neon can work without it.
+ * Local file cache is optional and SerenDB can work without it.
  * In case of any any errors with this cache, we should disable it but to not throw error.
  * Also we should allow  re-enable it if source of failure (lack of disk space, permissions,...) is fixed.
  * All cache content should be invalidated to avoid reading of stale or corrupted data
@@ -441,7 +441,7 @@ lfc_check_limit_hook(int *newval, void **extra, GucSource source)
 {
 	if (*newval > lfc_max_size)
 	{
-		elog(ERROR, "LFC: neon.file_cache_size_limit can not be larger than neon.max_file_cache_size");
+		elog(ERROR, "LFC: serendb.file_cache_size_limit can not be larger than serendb.max_file_cache_size");
 		return false;
 	}
 	return true;
@@ -493,7 +493,7 @@ lfc_change_limit_hook(int newval, void *extra)
 		CriticalAssert(victim->access_count == 0);
 #ifdef FALLOC_FL_PUNCH_HOLE
 		if (fallocate(lfc_desc, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, (off_t) victim->offset * lfc_blocks_per_chunk * BLCKSZ, lfc_blocks_per_chunk * BLCKSZ) < 0)
-			neon_log(LOG, "Failed to punch hole in file: %m");
+			serendb_log(LOG, "Failed to punch hole in file: %m");
 #endif
 		/* We remove the old entry, and re-enter a hole to the hash table */
 		for (int i = 0; i < lfc_blocks_per_chunk; i++)
@@ -521,7 +521,7 @@ lfc_change_limit_hook(int newval, void *extra)
 	else
 		lfc_ctl->limit = new_size;
 
-	neon_log(DEBUG1, "set local file cache limit to %d", new_size);
+	serendb_log(DEBUG1, "set local file cache limit to %d", new_size);
 
 	LWLockRelease(lfc_lock);
 }
@@ -534,10 +534,10 @@ lfc_init(void)
 	 * shared_preload_libraries.
 	 */
 	if (!process_shared_preload_libraries_in_progress)
-		neon_log(ERROR, "Neon module should be loaded via shared_preload_libraries");
+		serendb_log(ERROR, "SerenDB module should be loaded via shared_preload_libraries");
 
 
-	DefineCustomBoolVariable("neon.store_prefetch_result_in_lfc",
+	DefineCustomBoolVariable("serendb.store_prefetch_result_in_lfc",
 							"Immediately store received prefetch result in LFC",
 							NULL,
 							&lfc_store_prefetch_result,
@@ -548,7 +548,7 @@ lfc_init(void)
 							NULL,
 							NULL);
 
-	DefineCustomBoolVariable("neon.prewarm_update_ws_estimation",
+	DefineCustomBoolVariable("serendb.prewarm_update_ws_estimation",
 							"Consider prewarmed pages for working set estimation",
 							NULL,
 							&lfc_prewarm_update_ws_estimation,
@@ -559,8 +559,8 @@ lfc_init(void)
 							NULL,
 							NULL);
 
-	DefineCustomIntVariable("neon.max_file_cache_size",
-							"Maximal size of Neon local file cache",
+	DefineCustomIntVariable("serendb.max_file_cache_size",
+							"Maximal size of SerenDB local file cache",
 							NULL,
 							&lfc_max_size,
 							0,	/* disabled by default */
@@ -572,8 +572,8 @@ lfc_init(void)
 							NULL,
 							NULL);
 
-	DefineCustomIntVariable("neon.file_cache_size_limit",
-							"Current limit for size of Neon local file cache",
+	DefineCustomIntVariable("serendb.file_cache_size_limit",
+							"Current limit for size of SerenDB local file cache",
 							NULL,
 							&lfc_size_limit,
 							0,	/* disabled by default */
@@ -585,7 +585,7 @@ lfc_init(void)
 							lfc_change_limit_hook,
 							NULL);
 
-	DefineCustomStringVariable("neon.file_cache_path",
+	DefineCustomStringVariable("serendb.file_cache_path",
 							   "Path to local file cache (can be raw device)",
 							   NULL,
 							   &lfc_path,
@@ -596,7 +596,7 @@ lfc_init(void)
 							   NULL,
 							   NULL);
 
-	DefineCustomIntVariable("neon.file_cache_chunk_size",
+	DefineCustomIntVariable("serendb.file_cache_chunk_size",
 							"LFC chunk size in blocks (should be power of two)",
 							NULL,
 							&lfc_blocks_per_chunk,
@@ -609,7 +609,7 @@ lfc_init(void)
 							lfc_change_chunk_size,
 							NULL);
 
-	DefineCustomIntVariable("neon.file_cache_prewarm_limit",
+	DefineCustomIntVariable("serendb.file_cache_prewarm_limit",
 							"Maximal number of prewarmed chunks",
 							NULL,
 							&lfc_prewarm_limit,
@@ -622,7 +622,7 @@ lfc_init(void)
 							NULL,
 							NULL);
 
-	DefineCustomIntVariable("neon.file_cache_prewarm_batch",
+	DefineCustomIntVariable("serendb.file_cache_prewarm_batch",
 							"Number of pages retrivied by prewarm from page server",
 							NULL,
 							&lfc_prewarm_batch,
@@ -803,7 +803,7 @@ lfc_prewarm(FileCacheState* fcs, uint32 n_workers)
 		worker.bgw_flags = BGWORKER_SHMEM_ACCESS;
 		worker.bgw_start_time = BgWorkerStart_ConsistentState;
 		worker.bgw_restart_time = BGW_NEVER_RESTART;
-		strcpy(worker.bgw_library_name, "neon");
+		strcpy(worker.bgw_library_name, "serendb");
 		strcpy(worker.bgw_function_name, "lfc_prewarm_main");
 		snprintf(worker.bgw_name, BGW_MAXLEN, "LFC prewarm worker %d", i+1);
 		strcpy(worker.bgw_type, "LFC prewarm worker");
@@ -1308,7 +1308,7 @@ lfc_readv_select(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
 					sleeping = true;
 				}
 				LWLockRelease(lfc_lock);
-				ConditionVariableTimedSleep(cv, CV_WAIT_TIMEOUT, WAIT_EVENT_NEON_LFC_CV_WAIT);
+				ConditionVariableTimedSleep(cv, CV_WAIT_TIMEOUT, WAIT_EVENT_SERENDB_LFC_CV_WAIT);
 				LWLockAcquire(lfc_lock, LW_EXCLUSIVE);
 			}
 			if (sleeping)
@@ -1336,7 +1336,7 @@ lfc_readv_select(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
 			/* offset of first IOV */
 			first_read_offset += chunk_offs + first_block_in_chunk_read;
 
-			pgstat_report_wait_start(WAIT_EVENT_NEON_LFC_READ);
+			pgstat_report_wait_start(WAIT_EVENT_SERENDB_LFC_READ);
 
 			/* Read only the blocks we're interested in, limiting */
 			rc = preadv(lfc_desc, &iov[first_block_in_chunk_read],
@@ -1472,7 +1472,7 @@ lfc_init_new_entry(FileCacheEntry* entry, uint32 hash)
 		entry->offset = victim->offset; /* grab victim's chunk */
 		hash_search_with_hash_value(lfc_hash, &victim->key,
 									victim->hash, HASH_REMOVE, NULL);
-		neon_log(DEBUG2, "Swap file cache page");
+		serendb_log(DEBUG2, "Swap file cache page");
 	}
 	else
 	{
@@ -1560,7 +1560,7 @@ lfc_prefetch(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 		return false;
 	}
 
-	lwlsn = neon_get_lwlsn(rinfo, forknum, blkno);
+	lwlsn = serendb_get_lwlsn(rinfo, forknum, blkno);
 
 	if (lwlsn > lsn)
 	{
@@ -1609,7 +1609,7 @@ lfc_prefetch(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 
 	LWLockRelease(lfc_lock);
 
-	pgstat_report_wait_start(WAIT_EVENT_NEON_LFC_WRITE);
+	pgstat_report_wait_start(WAIT_EVENT_SERENDB_LFC_WRITE);
 	INSTR_TIME_SET_CURRENT(io_start);
 	rc = pwrite(lfc_desc, buffer, BLCKSZ,
 				((off_t) entry_offset * lfc_blocks_per_chunk + chunk_offs) * BLCKSZ);
@@ -1782,7 +1782,7 @@ lfc_writev(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
 					sleeping = true;
 				}
 				LWLockRelease(lfc_lock);
-				ConditionVariableTimedSleep(cv, CV_WAIT_TIMEOUT, WAIT_EVENT_NEON_LFC_CV_WAIT);
+				ConditionVariableTimedSleep(cv, CV_WAIT_TIMEOUT, WAIT_EVENT_SERENDB_LFC_CV_WAIT);
 				LWLockAcquire(lfc_lock, LW_EXCLUSIVE);
 			}
 			if (sleeping)
@@ -1792,7 +1792,7 @@ lfc_writev(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
 		}
 		LWLockRelease(lfc_lock);
 
-		pgstat_report_wait_start(WAIT_EVENT_NEON_LFC_WRITE);
+		pgstat_report_wait_start(WAIT_EVENT_SERENDB_LFC_WRITE);
 		INSTR_TIME_SET_CURRENT(io_start);
 		rc = pwritev(lfc_desc, iov, blocks_in_chunk,
 					 ((off_t) entry_offset * lfc_blocks_per_chunk + chunk_offs) * BLCKSZ);

@@ -123,7 +123,7 @@ The files are called "layer files". Each layer file covers a range of keys, and
 a range of LSNs (or a single LSN, in case of image layers). You can think of it
 as a rectangle in the two-dimensional key-LSN space. The layer files for each
 timeline are stored in the timeline's subdirectory under
-`.neon/tenants/<tenant_id>/timelines`.
+`.serendb/tenants/<tenant_id>/timelines`.
 
 There are two kind of layer files: images, and delta layers. An image file
 contains a snapshot of all keys at a particular LSN, whereas a delta file
@@ -178,7 +178,7 @@ version, and how branching and GC works is still valid.
 The full path of a delta file looks like this:
 
 ```
-    .neon/tenants/941ddc8604413b88b3d208bddf90396c/timelines/4af489b06af8eed9e27a841775616962/rel_1663_13990_2609_0_10_000000000169C348_0000000001702000
+    .serendb/tenants/941ddc8604413b88b3d208bddf90396c/timelines/4af489b06af8eed9e27a841775616962/rel_1663_13990_2609_0_10_000000000169C348_0000000001702000
 ```
 
 For simplicity, the examples below use a simplified notation for the
@@ -351,7 +351,7 @@ branch.
 Note: It doesn't make any difference if the child branch is created
 when the end of the main branch was at LSN 250, or later when the tip of
 the main branch had already moved on. The latter case, creating a
-branch at a historic LSN, is how we support PITR in Neon.
+branch at a historic LSN, is how we support PITR in SerenDB.
 
 
 # Garbage collection

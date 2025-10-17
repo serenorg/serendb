@@ -3,16 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 # Test safekeeper sync and pageserver catch up
 # while initial compute node is down and pageserver is lagging behind safekeepers.
 # Ensure that basebackup after restart of all components is correct
 # and new compute node contains all data.
-def test_pageserver_catchup_while_compute_down(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_pageserver_catchup_while_compute_down(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_pageserver_catchup_while_compute_down")
     # Make shared_buffers large to ensure we won't query pageserver while it is down.

@@ -30,14 +30,14 @@ sudo chown -R "$(id -u)":"$(id -g)" "$MOUNTPOINT"
 TEST_OUTPUT="$MOUNTPOINT/test_output"
 mkdir "$TEST_OUTPUT"
 
-NEON_REPO_DIR="$MOUNTPOINT/repo_dir"
-mkdir "$NEON_REPO_DIR"
+SERENDB_REPO_DIR="$MOUNTPOINT/repo_dir"
+mkdir "$SERENDB_REPO_DIR"
 
 cat <<EOF
 SETUP COMPLETE
 
-To run your local neon.git build on the instance store volume,
-run the following commands from the top of the neon.git checkout
+To run your local SerenDB build on the instance store volume,
+run the following commands from the top of the SerenDB checkout
 
     # raise file descriptor limit of your shell and its child processes
     sudo prlimit -p \$\$ --nofile=800000:800000
@@ -47,9 +47,9 @@ run the following commands from the top of the neon.git checkout
     DEFAULT_PG_VERSION=16 BUILD_TYPE=release ./scripts/pytest test_runner/performance/test_latency.py
 
     # for interactive use
-    export NEON_REPO_DIR="$NEON_REPO_DIR"
+    export SERENDB_REPO_DIR="$SERENDB_REPO_DIR"
     cargo build_testing --release
-    ./target/release/neon_local init --force empty-dir-ok
+    ./target/release/serendb_local init --force empty-dir-ok
 EOF
 
 

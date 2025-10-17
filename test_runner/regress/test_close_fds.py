@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 def lsof_path() -> str:
@@ -24,8 +24,8 @@ def lsof_path() -> str:
 
 # Makes sure that `pageserver.pid` is only held by `pageserve` command, not other commands.
 # This is to test the changes in https://github.com/neondatabase/neon/pull/1834.
-def test_lsof_pageserver_pid(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_lsof_pageserver_pid(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     def start_workload():
         env.create_branch("test_lsof_pageserver_pid")

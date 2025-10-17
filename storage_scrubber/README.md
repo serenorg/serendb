@@ -1,6 +1,6 @@
-# Neon Storage Scrubber
+# SerenDB Storage Scrubber
 
-This tool directly accesses the S3 buckets used by the Neon `pageserver`
+This tool directly accesses the S3 buckets used by the SerenDB `pageserver`
 and `safekeeper`, and does housekeeping such as cleaning up objects for tenants & timelines that no longer exist.
 
 ## Usage
@@ -19,7 +19,7 @@ Also, set the following environment variables:
 
 #### Console API
 
-_This section is only relevant if using a command that requires access to Neon's internal control plane_
+_This section is only relevant if using a command that requires access to SerenDB's internal control plane_
 
 - `CLOUD_ADMIN_API_URL`: The URL base to use for checking tenant/timeline for existence via the Cloud API.  e.g. `https://<admin host>/admin`
 
@@ -47,9 +47,9 @@ Example:
 
 `env AWS_PROFILE=dev REGION=eu-west-1 BUCKET=my-dev-bucket CLOUD_ADMIN_API_TOKEN=[client_key] CLOUD_ADMIN_API_URL=[url] cargo run --release -- find-garbage --node-kind=pageserver --depth=tenant --output-path=eu-west-1-garbage.json`
 
-Note that `CLOUD_ADMIN_API_TOKEN` can be obtained from https://console-stage.neon.build/app/settings/api-keys (for staging) or https://console.neon.tech/app/settings/api-keys for production. This is not the control plane admin JWT key. The env var name is confusing. Though anyone can generate that API key, you still need admin permission in order to access all projects in the region.
+Note that `CLOUD_ADMIN_API_TOKEN` can be obtained from https://console-stage.serendb.build/app/settings/api-keys (for staging) or https://console.serendb.com/app/settings/api-keys for production. This is not the control plane admin JWT key. The env var name is confusing. Though anyone can generate that API key, you still need admin permission in order to access all projects in the region.
 
-And note that `CLOUD_ADMIN_API_URL` should include the region in the admin URL due to the control plane / console split. For example, `https://console-stage.neon.build/regions/aws-us-east-2/api/v1/admin` for the staging us-east-2 region.
+And note that `CLOUD_ADMIN_API_URL` should include the region in the admin URL due to the control plane / console split. For example, `https://console-stage.serendb.build/regions/aws-us-east-2/api/v1/admin` for the staging us-east-2 region.
 
 #### `purge-garbage`
 
@@ -78,7 +78,7 @@ Errors are logged to stderr and summary to stdout.
 
 For pageserver:
 ```
-env AWS_PROFILE=dev REGION=eu-west-1 BUCKET=my-dev-bucket CLOUD_ADMIN_API_TOKEN=${NEON_CLOUD_ADMIN_API_STAGING_KEY} CLOUD_ADMIN_API_URL=[url] cargo run --release -- scan-metadata --node-kind pageserver
+env AWS_PROFILE=dev REGION=eu-west-1 BUCKET=my-dev-bucket CLOUD_ADMIN_API_TOKEN=${SERENDB_CLOUD_ADMIN_API_STAGING_KEY} CLOUD_ADMIN_API_URL=[url] cargo run --release -- scan-metadata --node-kind pageserver
 
 Timelines: 31106
 With errors: 3
@@ -102,7 +102,7 @@ First, we need to group pageservers by buckets, `https://<admin host>/admin/page
 
 Per bucket, for every pageserver id related, find deleted tenants:
 
-`curl -X POST "https://<admin_host>/admin/check_pageserver/{id}" -H "Accept: application/json" -H "Authorization: Bearer ${NEON_CLOUD_ADMIN_API_STAGING_KEY}" | jq`
+`curl -X POST "https://<admin_host>/admin/check_pageserver/{id}" -H "Accept: application/json" -H "Authorization: Bearer ${SERENDB_CLOUD_ADMIN_API_STAGING_KEY}" | jq`
 
 use `?check_timelines=true` to find deleted timelines, but the check runs a separate query on every alive tenant, so that could be long and time out for big pageservers.
 

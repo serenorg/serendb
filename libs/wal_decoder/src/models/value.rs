@@ -10,7 +10,7 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use crate::models::record::NeonWalRecord;
+use crate::models::record::SerenDBWalRecord;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Value {
@@ -20,7 +20,7 @@ pub enum Value {
     /// replayed get the full value. Replaying the WAL record
     /// might need a previous version of the value (if will_init()
     /// returns false), or it may be replayed stand-alone (true).
-    WalRecord(NeonWalRecord),
+    WalRecord(SerenDBWalRecord),
 }
 
 impl Value {
@@ -41,14 +41,14 @@ impl Value {
     pub fn estimated_size(&self) -> usize {
         match self {
             Value::Image(image) => image.len(),
-            Value::WalRecord(NeonWalRecord::AuxFile {
+            Value::WalRecord(SerenDBWalRecord::AuxFile {
                 content: Some(content),
                 ..
             }) => content.len(),
-            Value::WalRecord(NeonWalRecord::Postgres { rec, .. }) => rec.len(),
-            Value::WalRecord(NeonWalRecord::ClogSetAborted { xids }) => xids.len() * 4,
-            Value::WalRecord(NeonWalRecord::ClogSetCommitted { xids, .. }) => xids.len() * 4,
-            Value::WalRecord(NeonWalRecord::MultixactMembersCreate { members, .. }) => {
+            Value::WalRecord(SerenDBWalRecord::Postgres { rec, .. }) => rec.len(),
+            Value::WalRecord(SerenDBWalRecord::ClogSetAborted { xids }) => xids.len() * 4,
+            Value::WalRecord(SerenDBWalRecord::ClogSetCommitted { xids, .. }) => xids.len() * 4,
+            Value::WalRecord(SerenDBWalRecord::MultixactMembersCreate { members, .. }) => {
                 members.len() * 8
             }
             _ => 8192, /* use image size as the estimation */
@@ -88,7 +88,7 @@ impl ValueBytes {
         let walrecord_discriminator = &raw[4..8];
 
         if walrecord_discriminator != [0, 0, 0, 0] {
-            // only NeonWalRecord::Postgres can have will_init
+            // only SerenDBWalRecord::Postgres can have will_init
             return Ok(false);
         }
 
@@ -144,7 +144,7 @@ mod test {
 
     #[test]
     fn walrecord_postgres_roundtrip() {
-        let rec = NeonWalRecord::Postgres {
+        let rec = SerenDBWalRecord::Postgres {
             will_init: true,
             rec: Bytes::from_static(b"foobar"),
         };
@@ -193,7 +193,7 @@ mod test {
 
     #[test]
     fn bytes_inspection_too_short_postgres_record() {
-        let rec = NeonWalRecord::Postgres {
+        let rec = SerenDBWalRecord::Postgres {
             will_init: false,
             rec: Bytes::from_static(b""),
         };
@@ -230,7 +230,7 @@ mod test {
 
     #[test]
     fn clear_visibility_map_flags_example() {
-        let rec = NeonWalRecord::ClearVisibilityMapFlags {
+        let rec = SerenDBWalRecord::ClearVisibilityMapFlags {
             new_heap_blkno: Some(0x11),
             old_heap_blkno: None,
             flags: 0x03,

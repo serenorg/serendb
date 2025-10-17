@@ -1,17 +1,17 @@
-# pgxs/neon/Makefile
+# pgxs/serendb/Makefile
 
 
-MODULE_big = neon_rmgr
+MODULE_big = serendb_rmgr
 OBJS = \
 	$(WIN32RES) \
-	neon_rmgr.o \
-	neon_rmgr_decode.o \
-	neon_rmgr_desc.o
+	serendb_rmgr.o \
+	serendb_rmgr_decode.o \
+	serendb_rmgr_desc.o
 
 
-EXTENSION = neon_rmgr
+EXTENSION = serendb_rmgr
 DATA = 
-PGFILEDESC = "Neon WAL Resource Manager - custom WAL records used to make Neon work (since PG 16)"
+PGFILEDESC = "SerenDB WAL Resource Manager - custom WAL records used to make SerenDB work (since PG 16)"
 
 
 PG_CONFIG = pg_config

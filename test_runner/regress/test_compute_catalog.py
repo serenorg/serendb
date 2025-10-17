@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 
 import requests
-from fixtures.neon_fixtures import NeonEnv, logical_replication_sync
+from fixtures.serendb_fixtures import SerenDBEnv, logical_replication_sync
 
 TEST_ROLE_NAMES = [
-    {"name": "neondb_owner"},
+    {"name": "serendb_owner"},
     {"name": "role with spaces"},
     {"name": "role with%20spaces "},
     {"name": "role with whitespaces	"},
@@ -33,8 +33,8 @@ TEST_ROLE_NAMES = [
 
 TEST_DB_NAMES = [
     {
-        "name": "neondb",
-        "owner": "neondb_owner",
+        "name": "serendb",
+        "owner": "serendb_owner",
     },
     {
         "name": "db with spaces",
@@ -124,12 +124,12 @@ TEST_DB_NAMES = [
 ]
 
 
-def test_compute_catalog(neon_simple_env: NeonEnv):
+def test_compute_catalog(serendb_simple_env: SerenDBEnv):
     """
     Create a bunch of databases with tricky names and test that we can list them
     and dump via API.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 
@@ -189,7 +189,7 @@ def test_compute_catalog(neon_simple_env: NeonEnv):
         )
 
 
-def test_compute_create_drop_dbs_and_roles(neon_simple_env: NeonEnv):
+def test_compute_create_drop_dbs_and_roles(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can create and work with databases and roles
     with special characters (whitespaces, %, tabs, etc.) in the name.
@@ -198,9 +198,9 @@ def test_compute_create_drop_dbs_and_roles(neon_simple_env: NeonEnv):
     i) simulates the case when we create a second dev branch together with
     a new project creation, and ii) just generally stresses more code paths.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
-    # Create and start endpoint so that neon_local put all the generated
+    # Create and start endpoint so that serendb_local put all the generated
     # stuff into the spec.json file.
     endpoint = env.endpoints.create_start("main")
 
@@ -278,13 +278,13 @@ def test_compute_create_drop_dbs_and_roles(neon_simple_env: NeonEnv):
             assert catalog_role is None
 
 
-def test_dropdb_with_subscription(neon_simple_env: NeonEnv):
+def test_dropdb_with_subscription(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can drop a database that has a logical replication subscription.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
-    # Create and start endpoint so that neon_local put all the generated
+    # Create and start endpoint so that serendb_local put all the generated
     # stuff into the spec.json file.
     endpoint = env.endpoints.create_start("main")
 
@@ -292,7 +292,7 @@ def test_dropdb_with_subscription(neon_simple_env: NeonEnv):
     PUB_DB_NAME = "publisher_db"
     TEST_DB_NAMES = [
         {
-            "name": "neondb",
+            "name": "serendb",
             "owner": "cloud_admin",
         },
         {
@@ -355,7 +355,7 @@ def test_dropdb_with_subscription(neon_simple_env: NeonEnv):
     # Drop the SUB_DB_NAME from the list
     TEST_DB_NAMES_NEW = [
         {
-            "name": "neondb",
+            "name": "serendb",
             "owner": "cloud_admin",
         },
         {
@@ -401,15 +401,15 @@ def test_dropdb_with_subscription(neon_simple_env: NeonEnv):
         assert curr_db[0] == PUB_DB_NAME
 
 
-def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: NeonEnv):
+def test_drop_role_with_table_privileges_from_serendb_superuser(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can drop a role even if it has some depending objects
     like permissions in one of the databases that were granted by
-    neon_superuser.
+    serendb_superuser.
 
     Reproduction test for https://github.com/neondatabase/cloud/issues/13582
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     TEST_DB_NAME = "db_with_permissions"
     TEST_GRANTEE = "'); MALFORMED SQL $$ $x$ $/;5%$ %I"
 
@@ -425,7 +425,7 @@ def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: Ne
                             # We need to create role via compute_ctl, because in this case it will receive
                             # additional grants equivalent to our real environment, so we can repro some
                             # issues.
-                            "name": "neon",
+                            "name": "serendb",
                             # Some autocomplete-suggested hash, no specific meaning.
                             "encrypted_password": "SCRAM-SHA-256$4096:hBT22QjqpydQWqEulorfXA==$miBogcoj68JWYdsNB5PW1X6PjSLBEcNuctuhtGkb4PY=:hxk2gxkwxGo6P7GCtfpMlhA9zwHvPMsCz+NQf2HfvWk=",
                             "options": [],
@@ -434,7 +434,7 @@ def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: Ne
                     "databases": [
                         {
                             "name": TEST_DB_NAME,
-                            "owner": "neon",
+                            "owner": "serendb",
                         },
                     ],
                 },
@@ -449,9 +449,9 @@ def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: Ne
         cursor.execute("create table test_table (id int)")
         cursor.execute("create view test_view as select * from test_table")
 
-    with endpoint.cursor(dbname=TEST_DB_NAME, user="neon") as cursor:
+    with endpoint.cursor(dbname=TEST_DB_NAME, user="serendb") as cursor:
         cursor.execute(f'create role "{TEST_GRANTEE}"')
-        # We (`compute_ctl`) make 'neon' the owner of schema 'public' in the owned database.
+        # We (`compute_ctl`) make 'serendb' the owner of schema 'public' in the owned database.
         # Postgres has all sorts of permissions and grants that we may not handle well,
         # but this is the shortest repro grant for the issue
         # https://github.com/neondatabase/cloud/issues/13582
@@ -475,7 +475,7 @@ def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: Ne
         res = cursor.fetchall()
         assert len(res) == 2, f"Expected 2 table grants, got {len(res)}"
         for row in res:
-            assert row[0] == "neon_superuser"
+            assert row[0] == "serendb_superuser"
 
     # Drop role via compute_ctl
     endpoint.respec_deep(
@@ -530,16 +530,16 @@ def test_drop_role_with_table_privileges_from_neon_superuser(neon_simple_env: Ne
         assert role is None
 
 
-def test_drop_role_with_table_privileges_from_non_neon_superuser(neon_simple_env: NeonEnv):
+def test_drop_role_with_table_privileges_from_non_serendb_superuser(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can drop a role if the role has previously been
-    granted table privileges by a role other than neon_superuser.
+    granted table privileges by a role other than serendb_superuser.
     """
-    TEST_DB_NAME = "neondb"
+    TEST_DB_NAME = "serendb"
     TEST_GRANTOR = "; RAISE EXCEPTION 'SQL injection detected;"
     TEST_GRANTEE = "'$$; RAISE EXCEPTION 'SQL injection detected;'"
 
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
     endpoint.respec_deep(
@@ -599,13 +599,13 @@ def test_drop_role_with_table_privileges_from_non_neon_superuser(neon_simple_env
         assert role is None
 
 
-def test_db_with_custom_settings(neon_simple_env: NeonEnv):
+def test_db_with_custom_settings(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can work with databases that have some custom settings.
     For example, role=some_other_role, default_transaction_read_only=on,
     search_path=non_public_schema, statement_timeout=1 (1ms).
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 

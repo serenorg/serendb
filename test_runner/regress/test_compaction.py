@@ -9,8 +9,8 @@ from enum import StrEnum
 import pytest
 from fixtures.common_types import TenantShardId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     generate_uploads_and_deletions,
 )
 from fixtures.pageserver.http import PageserverApiException
@@ -70,7 +70,7 @@ PREEMPT_GC_COMPACTION_TENANT_CONF = {
 @skip_in_debug_build("only run with release build")
 @pytest.mark.timeout(900)
 def test_pageserver_compaction_smoke(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     This is a smoke test that compaction kicks in. The workload repeatedly churns
@@ -82,12 +82,12 @@ def test_pageserver_compaction_smoke(
 
     # Effectively disable the page cache to rely only on image layers
     # to shorten reads.
-    neon_env_builder.pageserver_config_override = """
+    serendb_env_builder.pageserver_config_override = """
 page_cache_size=10
 """
 
     conf = AGGRESSIVE_COMPACTION_TENANT_CONF.copy()
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -148,13 +148,13 @@ page_cache_size=10
 
 @skip_in_debug_build("only run with release build")
 def test_pageserver_compaction_preempt(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     # Ideally we should be able to do unit tests for this, but we need real Postgres
     # WALs in order to do unit testing...
 
     conf = PREEMPT_COMPACTION_TENANT_CONF.copy()
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
 
     env.pageserver.allowed_errors.append(".*The timeline or pageserver is shutting down.*")
 
@@ -186,13 +186,13 @@ def test_pageserver_compaction_preempt(
 @skip_in_debug_build("only run with release build")
 @pytest.mark.timeout(600)
 def test_pageserver_gc_compaction_preempt(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     # Ideally we should be able to do unit tests for this, but we need real Postgres
     # WALs in order to do unit testing...
 
     conf = PREEMPT_GC_COMPACTION_TENANT_CONF.copy()
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
 
     env.pageserver.allowed_errors.append(".*The timeline or pageserver is shutting down.*")
     env.pageserver.allowed_errors.append(".*flush task cancelled.*")
@@ -229,7 +229,7 @@ def test_pageserver_gc_compaction_preempt(
     "with_branches",
     ["with_branches", "no_branches"],
 )
-def test_pageserver_gc_compaction_smoke(neon_env_builder: NeonEnvBuilder, with_branches: str):
+def test_pageserver_gc_compaction_smoke(serendb_env_builder: SerenDBEnvBuilder, with_branches: str):
     SMOKE_CONF = {
         # Run both gc and gc-compaction.
         "gc_period": "5s",
@@ -240,7 +240,7 @@ def test_pageserver_gc_compaction_smoke(neon_env_builder: NeonEnvBuilder, with_b
         "lsn_lease_length": "0s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -313,7 +313,7 @@ def test_pageserver_gc_compaction_smoke(neon_env_builder: NeonEnvBuilder, with_b
     ["before_restart", "after_restart"],
 )
 def test_pageserver_gc_compaction_idempotent(
-    neon_env_builder: NeonEnvBuilder, compaction_mode: str
+    serendb_env_builder: SerenDBEnvBuilder, compaction_mode: str
 ):
     """
     Do gc-compaction twice without writing any new data and see if anything breaks.
@@ -331,7 +331,7 @@ def test_pageserver_gc_compaction_idempotent(
         "lsn_lease_length": "0s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -423,7 +423,7 @@ def test_pageserver_gc_compaction_idempotent(
 
 
 @skip_in_debug_build("only run with release build")
-def test_pageserver_gc_compaction_interrupt(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_gc_compaction_interrupt(serendb_env_builder: SerenDBEnvBuilder):
     """
     Force interrupt a gc-compaction and see if anything breaks.
     """
@@ -437,7 +437,7 @@ def test_pageserver_gc_compaction_interrupt(neon_env_builder: NeonEnvBuilder):
         "lsn_lease_length": "0s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -531,7 +531,7 @@ def test_pageserver_gc_compaction_interrupt(neon_env_builder: NeonEnvBuilder):
 
 
 @skip_in_debug_build("only run with release build")
-def test_pageserver_gc_compaction_trigger(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_gc_compaction_trigger(serendb_env_builder: SerenDBEnvBuilder):
     SMOKE_CONF = {
         # Run both gc and gc-compaction.
         "gc_period": "5s",
@@ -547,7 +547,7 @@ def test_pageserver_gc_compaction_trigger(neon_env_builder: NeonEnvBuilder):
         "image_layer_creation_check_threshold": "100",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -583,7 +583,7 @@ def test_pageserver_gc_compaction_trigger(neon_env_builder: NeonEnvBuilder):
     workload.validate(env.pageserver.id)
 
 
-def test_pageserver_small_tenant_compaction(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_small_tenant_compaction(serendb_env_builder: SerenDBEnvBuilder):
     """
     Create a small tenant that rarely needs compaction and ensure that everything works.
     """
@@ -597,7 +597,7 @@ def test_pageserver_small_tenant_compaction(neon_env_builder: NeonEnvBuilder):
         "lsn_lease_length": "0s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -634,7 +634,7 @@ LARGE_STRIPES = 32768
     ],
 )
 def test_sharding_compaction(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     stripe_size: int,
     shard_count: int | None,
     gc_compaction: bool,
@@ -669,10 +669,10 @@ def test_sharding_compaction(
 
     # Disable compression, as we can't estimate the size of layers with compression enabled
     # TODO: implement eager layer cutting during compaction
-    neon_env_builder.pageserver_config_override = "image_compression='disabled'"
+    serendb_env_builder.pageserver_config_override = "image_compression='disabled'"
 
-    neon_env_builder.num_pageservers = 1 if shard_count is None else shard_count
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = 1 if shard_count is None else shard_count
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=TENANT_CONF,
         initial_tenant_shard_count=shard_count,
         initial_tenant_shard_stripe_size=stripe_size,
@@ -754,7 +754,7 @@ class CompactionAlgorithm(StrEnum):
     "compaction_algorithm", [CompactionAlgorithm.LEGACY, CompactionAlgorithm.TIERED]
 )
 def test_uploads_and_deletions(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     compaction_algorithm: CompactionAlgorithm,
 ):
     """
@@ -777,7 +777,7 @@ def test_uploads_and_deletions(
         "compaction_algorithm": json.dumps({"kind": compaction_algorithm.value}),
         "lsn_lease_length": "0s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
 
     # TODO remove these allowed errors
     # https://github.com/neondatabase/neon/issues/7707
@@ -804,7 +804,7 @@ def test_uploads_and_deletions(
             raise Exception("None of the allowed_errors occured in the log")
 
 
-def test_pageserver_compaction_circuit_breaker(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_compaction_circuit_breaker(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that repeated failures in compaction result in a circuit breaker breaking
     """
@@ -821,7 +821,7 @@ def test_pageserver_compaction_circuit_breaker(neon_env_builder: NeonEnvBuilder)
     FAILPOINT = "delta-layer-writer-fail-before-finish"
     BROKEN_LOG = ".*Circuit breaker broken!.*"
 
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     workload = Workload(env, env.initial_tenant, env.initial_timeline)
     workload.init()
@@ -863,7 +863,7 @@ def test_pageserver_compaction_circuit_breaker(neon_env_builder: NeonEnvBuilder)
     assert not env.pageserver.log_contains(".*Circuit breaker failure ended.*")
 
 
-def test_ps_corruption_detection_feedback(neon_env_builder: NeonEnvBuilder):
+def test_ps_corruption_detection_feedback(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that when the pageserver detects corruption during image layer creation,
     it sends corruption feedback to the safekeeper which gets recorded in its
@@ -882,7 +882,7 @@ def test_ps_corruption_detection_feedback(neon_env_builder: NeonEnvBuilder):
         "compaction_period": "1s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
     # We are simulating compaction failures so we should allow these error messages.
     env.pageserver.allowed_errors.append(".*Compaction failed.*")
     tenant_id = env.initial_tenant
@@ -890,7 +890,7 @@ def test_ps_corruption_detection_feedback(neon_env_builder: NeonEnvBuilder):
 
     pageserver_http = env.pageserver.http_client()
     workload = Workload(
-        env, tenant_id, timeline_id, endpoint_opts={"config_lines": ["neon.lakebase_mode=true"]}
+        env, tenant_id, timeline_id, endpoint_opts={"config_lines": ["serendb.lakebase_mode=true"]}
     )
     workload.init()
 
@@ -924,13 +924,13 @@ def test_ps_corruption_detection_feedback(neon_env_builder: NeonEnvBuilder):
         raise Exception("Corruption detection feedback not found in any safekeeper metrics")
 
     # Returns True if the corruption signal from PS is propagated to the PG according to the "ps_corruption_detected" metric
-    # in "neon_perf_counters".
+    # in "serendb_perf_counters".
     # Raises an exception otherwise.
     def check_corruption_signal_propagated_to_pg():
         endpoint = workload.endpoint()
-        results = endpoint.safe_psql("CREATE EXTENSION IF NOT EXISTS neon")
+        results = endpoint.safe_psql("CREATE EXTENSION IF NOT EXISTS serendb")
         results = endpoint.safe_psql(
-            "SELECT value FROM neon_perf_counters WHERE metric = 'ps_corruption_detected'"
+            "SELECT value FROM serendb_perf_counters WHERE metric = 'ps_corruption_detected'"
         )
         log.info("Query corruption detection metric, results: %s", results)
         if results[0][0] == 1:
@@ -947,7 +947,7 @@ def test_ps_corruption_detection_feedback(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.parametrize("enabled", [True, False])
-def test_image_layer_compression(neon_env_builder: NeonEnvBuilder, enabled: bool):
+def test_image_layer_compression(serendb_env_builder: SerenDBEnvBuilder, enabled: bool):
     tenant_conf = {
         # small checkpointing and compaction targets to ensure we generate many upload operations
         "checkpoint_distance": f"{128 * 1024}",
@@ -965,11 +965,11 @@ def test_image_layer_compression(neon_env_builder: NeonEnvBuilder, enabled: bool
 
     # Explicitly enable/disable compression, rather than using default
     if enabled:
-        neon_env_builder.pageserver_config_override = "image_compression='zstd'"
+        serendb_env_builder.pageserver_config_override = "image_compression='zstd'"
     else:
-        neon_env_builder.pageserver_config_override = "image_compression='disabled'"
+        serendb_env_builder.pageserver_config_override = "image_compression='disabled'"
 
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -1044,7 +1044,7 @@ def get_layer_map(env, tenant_shard_id, timeline_id, ps_id):
     return image_layer_count, delta_layer_count
 
 
-def test_image_layer_creation_time_threshold(neon_env_builder: NeonEnvBuilder):
+def test_image_layer_creation_time_threshold(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests that image layers can be created when the time threshold is reached on non-0 shards.
     """
@@ -1063,13 +1063,13 @@ def test_image_layer_creation_time_threshold(neon_env_builder: NeonEnvBuilder):
     }
 
     # consider every tenant large to run the image layer generation check more eagerly
-    neon_env_builder.pageserver_config_override = (
+    serendb_env_builder.pageserver_config_override = (
         "image_layer_generation_large_timeline_threshold=0"
     )
 
-    neon_env_builder.num_pageservers = 1
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = 1
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=tenant_conf,
         initial_tenant_shard_count=2,
         initial_tenant_shard_stripe_size=1,
@@ -1105,7 +1105,7 @@ def test_image_layer_creation_time_threshold(neon_env_builder: NeonEnvBuilder):
     endpoint.stop_and_destroy()
 
 
-def test_image_layer_force_creation_period(neon_env_builder: NeonEnvBuilder):
+def test_image_layer_force_creation_period(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests that page server can force creating new images if image_layer_force_creation_period is enabled
     """
@@ -1124,13 +1124,13 @@ def test_image_layer_force_creation_period(neon_env_builder: NeonEnvBuilder):
     }
 
     # consider every tenant large to run the image layer generation check more eagerly
-    neon_env_builder.pageserver_config_override = (
+    serendb_env_builder.pageserver_config_override = (
         "image_layer_generation_large_timeline_threshold=0"
     )
 
-    neon_env_builder.num_pageservers = 1
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    serendb_env_builder.num_pageservers = 1
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -1163,7 +1163,7 @@ def test_image_layer_force_creation_period(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_image_consistent_lsn(neon_env_builder: NeonEnvBuilder):
+def test_image_consistent_lsn(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test the /v1/tenant/<tenant_id>/timeline/<timeline_id> endpoint and the computation of image_consistent_lsn
     """
@@ -1181,9 +1181,9 @@ def test_image_consistent_lsn(neon_env_builder: NeonEnvBuilder):
         "lsn_lease_length": "1s",
     }
 
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=tenant_conf,
         initial_tenant_shard_count=4,
         initial_tenant_shard_stripe_size=1,

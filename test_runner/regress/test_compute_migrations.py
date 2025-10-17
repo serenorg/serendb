@@ -10,15 +10,15 @@ from fixtures.utils import wait_until
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_compute_migrations_retry(neon_simple_env: NeonEnv, compute_migrations_dir: Path):
+def test_compute_migrations_retry(serendb_simple_env: SerenDBEnv, compute_migrations_dir: Path):
     """
     Test that compute_ctl can recover from migration failures next time it
     starts, and that the persisted migration ID is correct in such cases.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create("main")
     endpoint.respec(skip_pg_catalog_updates=False)
@@ -49,9 +49,9 @@ def test_compute_migrations_retry(neon_simple_env: NeonEnv, compute_migrations_d
         endpoint.wait_for_migrations(wait_for=i - 1)
 
         # Confirm that we correctly recorded that in the
-        # neon_migration.migration_id table
+        # serendb_migration.migration_id table
         with endpoint.cursor() as cur:
-            cur.execute("SELECT id FROM neon_migration.migration_id")
+            cur.execute("SELECT id FROM serendb_migration.migration_id")
             migration_id = cast("int", cur.fetchall()[0][0])
             assert migration_id == i - 1
 
@@ -63,7 +63,7 @@ def test_compute_migrations_retry(neon_simple_env: NeonEnv, compute_migrations_d
     endpoint.wait_for_migrations()
 
     with endpoint.cursor() as cur:
-        cur.execute("SELECT id FROM neon_migration.migration_id")
+        cur.execute("SELECT id FROM serendb_migration.migration_id")
         migration_id = cast("int", cur.fetchall()[0][0])
         assert migration_id == NUM_COMPUTE_MIGRATIONS
 
@@ -82,7 +82,7 @@ def test_compute_migrations_retry(neon_simple_env: NeonEnv, compute_migrations_d
     (pytest.param((i, m), id=str(i)) for i, m in enumerate(COMPUTE_MIGRATIONS, start=1)),
 )
 def test_compute_migrations_e2e(
-    neon_simple_env: NeonEnv,
+    serendb_simple_env: SerenDBEnv,
     compute_migrations_dir: Path,
     compute_migrations_test_dir: Path,
     migration: tuple[int, str],
@@ -90,7 +90,7 @@ def test_compute_migrations_e2e(
     """
     Test that the migrations perform as advertised.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     migration_id = migration[0]
     migration_filename = migration[1]

@@ -10,10 +10,10 @@ import pytest
 import toml
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import getLogger
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     Safekeeper,
 )
 from fixtures.remote_storage import RemoteStorageKind
@@ -158,7 +158,7 @@ async def wait_for_lsn(
 # background workers execute transactions. In the end, state should remain
 # consistent.
 async def run_restarts_under_load(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     acceptors: list[Safekeeper],
     n_workers=10,
@@ -173,8 +173,8 @@ async def run_restarts_under_load(
     test_timeout_at = time.monotonic() + 5 * 60
 
     pg_conn = await endpoint.connect_async()
-    tenant_id = TenantId(await pg_conn.fetchval("show neon.tenant_id"))
-    timeline_id = TimelineId(await pg_conn.fetchval("show neon.timeline_id"))
+    tenant_id = TenantId(await pg_conn.fetchval("show serendb.tenant_id"))
+    timeline_id = TimelineId(await pg_conn.fetchval("show serendb.timeline_id"))
 
     bank = BankClient(pg_conn, n_accounts=n_accounts, init_amount=init_amount)
     # create tables and initial balances
@@ -225,10 +225,10 @@ async def run_restarts_under_load(
 
 
 # Restart acceptors one by one, while executing and validating bank transactions
-def test_restarts_under_load(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+def test_restarts_under_load(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_safekeeper_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_safekeepers_restarts_under_load")
     # Enable backpressure with 1MB maximal lag, because we don't want to block on `wait_for_lsn()` for too long
@@ -242,9 +242,9 @@ def test_restarts_under_load(neon_env_builder: NeonEnvBuilder):
 # Restart acceptors one by one and test that everything is working as expected
 # when checkpoins are triggered frequently by max_wal_size=32MB. Because we have
 # wal_keep_size=0, there will be aggressive WAL segments recycling.
-def test_restarts_frequent_checkpoints(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_restarts_frequent_checkpoints(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_restarts_frequent_checkpoints")
     # Enable backpressure with 1MB maximal lag, because we don't want to block on `wait_for_lsn()` for too long
@@ -266,7 +266,7 @@ def test_restarts_frequent_checkpoints(neon_env_builder: NeonEnvBuilder):
 
 
 def endpoint_create_start(
-    env: NeonEnv, branch: str, pgdir_name: str | None, allow_multiple: bool = False
+    env: SerenDBEnv, branch: str, pgdir_name: str | None, allow_multiple: bool = False
 ):
     endpoint = Endpoint(
         env,
@@ -290,7 +290,7 @@ def endpoint_create_start(
 
 
 async def exec_compute_query(
-    env: NeonEnv,
+    env: SerenDBEnv,
     branch: str,
     query: str,
     pgdir_name: str | None = None,
@@ -309,7 +309,7 @@ async def exec_compute_query(
 
 
 async def run_compute_restarts(
-    env: NeonEnv, queries=16, batch_insert=10000, branch="test_compute_restarts"
+    env: SerenDBEnv, queries=16, batch_insert=10000, branch="test_compute_restarts"
 ):
     cnt = 0
     sum = 0
@@ -334,9 +334,9 @@ async def run_compute_restarts(
 
 
 # Add a test which creates compute for every query, and then destroys it right after.
-def test_compute_restarts(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_compute_restarts(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_compute_restarts")
     asyncio.run(run_compute_restarts(env))
@@ -345,7 +345,7 @@ def test_compute_restarts(neon_env_builder: NeonEnvBuilder):
 class BackgroundCompute:
     MAX_QUERY_GAP_SECONDS = 2
 
-    def __init__(self, index: int, env: NeonEnv, branch: str):
+    def __init__(self, index: int, env: SerenDBEnv, branch: str):
         self.index = index
         self.env = env
         self.branch = branch
@@ -388,7 +388,7 @@ class BackgroundCompute:
 
 
 async def run_concurrent_computes(
-    env: NeonEnv, num_computes=10, run_seconds=20, branch="test_concurrent_computes"
+    env: SerenDBEnv, num_computes=10, run_seconds=20, branch="test_concurrent_computes"
 ):
     await exec_compute_query(
         env, branch, "CREATE TABLE query_log (t timestamp default now(), index int, verify_key int)"
@@ -444,9 +444,9 @@ async def run_concurrent_computes(
 # Run multiple computes concurrently, creating-destroying them after single
 # query. Ensure we don't lose any xacts reported as committed and be able to
 # progress once only one compute remains.
-def test_concurrent_computes(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_concurrent_computes(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_concurrent_computes")
     asyncio.run(run_concurrent_computes(env))
@@ -476,7 +476,7 @@ async def check_unavailability(sk: Safekeeper, ep: Endpoint, key: int, start_del
     assert bg_query.done()
 
 
-async def run_unavailability(env: NeonEnv, endpoint: Endpoint):
+async def run_unavailability(env: SerenDBEnv, endpoint: Endpoint):
     conn = await endpoint.connect_async()
 
     # check basic work with table
@@ -497,9 +497,9 @@ async def run_unavailability(env: NeonEnv, endpoint: Endpoint):
 
 
 # When majority of acceptors is offline, commits are expected to be frozen
-def test_unavailability(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 2
-    env = neon_env_builder.init_start()
+def test_unavailability(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 2
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_safekeepers_unavailability")
     endpoint = env.endpoints.create_start("test_safekeepers_unavailability")
@@ -507,7 +507,7 @@ def test_unavailability(neon_env_builder: NeonEnvBuilder):
     asyncio.run(run_unavailability(env, endpoint))
 
 
-async def run_recovery_uncommitted(env: NeonEnv):
+async def run_recovery_uncommitted(env: SerenDBEnv):
     (sk1, sk2, _) = env.safekeepers
 
     env.create_branch("test_recovery_uncommitted")
@@ -532,21 +532,21 @@ async def run_recovery_uncommitted(env: NeonEnv):
 
 
 # Test pulling uncommitted WAL (up to flush_lsn) during recovery.
-def test_recovery_uncommitted(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_recovery_uncommitted(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     asyncio.run(run_recovery_uncommitted(env))
 
 
-async def run_wal_truncation(env: NeonEnv, safekeeper_proto_version: int):
+async def run_wal_truncation(env: SerenDBEnv, safekeeper_proto_version: int):
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
     (sk1, sk2, sk3) = env.safekeepers
 
     config_lines = [
-        f"neon.safekeeper_proto_version = {safekeeper_proto_version}",
+        f"serendb.safekeeper_proto_version = {safekeeper_proto_version}",
     ]
     ep = env.endpoints.create_start("main", config_lines=config_lines)
     ep.safe_psql("create table t (key int, value text)")
@@ -588,22 +588,22 @@ async def run_wal_truncation(env: NeonEnv, safekeeper_proto_version: int):
 # truncated when majority without this sk elects walproposer starting earlier.
 # Test both proto versions until we fully migrate.
 @pytest.mark.parametrize("safekeeper_proto_version", [2, 3])
-def test_wal_truncation(neon_env_builder: NeonEnvBuilder, safekeeper_proto_version: int):
-    neon_env_builder.num_safekeepers = 3
+def test_wal_truncation(serendb_env_builder: SerenDBEnvBuilder, safekeeper_proto_version: int):
+    serendb_env_builder.num_safekeepers = 3
     if safekeeper_proto_version == 2:
         # On the legacy protocol, we don't support generations, which are part of
         # `timelines_onto_safekeepers`
-        neon_env_builder.storage_controller_config = {
+        serendb_env_builder.storage_controller_config = {
             "timelines_onto_safekeepers": False,
         }
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     asyncio.run(run_wal_truncation(env, safekeeper_proto_version))
 
 
 async def quorum_sanity_single(
-    env: NeonEnv,
+    env: SerenDBEnv,
     compute_sks_ids: list[int],
     members_sks_ids: list[int],
     new_members_sks_ids: list[int] | None,
@@ -673,7 +673,7 @@ async def quorum_sanity_single(
 
 # It's a bit tempting to iterate over all possible combinations, but let's stick
 # with this for now.
-async def run_quorum_sanity(env: NeonEnv):
+async def run_quorum_sanity(env: SerenDBEnv):
     # 3 members, all up, should work
     await quorum_sanity_single(env, [1, 2, 3], [1, 2, 3], None, [], True)
     # 3 members, 2/3 up, should work
@@ -714,23 +714,23 @@ async def run_quorum_sanity(env: NeonEnv):
     await quorum_sanity_single(env, [2, 3, 4], [1, 2, 3], [2, 3, 4], [2], False)
 
 
-# Test various combinations of membership configurations / neon.safekeepers
+# Test various combinations of membership configurations / serendb.safekeepers
 # (list of safekeepers endpoint connects to) values / up & down safekeepers and
 # check that endpont can start and write data when we have quorum and can't when
 # we don't.
-def test_quorum_sanity(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 4
+def test_quorum_sanity(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 4
 
     # The test fails basically always on the new mode.
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": False,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     asyncio.run(run_quorum_sanity(env))
 
 
-async def run_segment_init_failure(env: NeonEnv):
+async def run_segment_init_failure(env: SerenDBEnv):
     env.create_branch("test_segment_init_failure")
     ep = env.endpoints.create_start("test_segment_init_failure")
     ep.safe_psql("create table t(key int, value text)")
@@ -762,9 +762,9 @@ async def run_segment_init_failure(env: NeonEnv):
 # Test (injected) failure during WAL segment init.
 # https://github.com/neondatabase/neon/issues/6401
 # https://github.com/neondatabase/neon/issues/6402
-def test_segment_init_failure(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 1
-    env = neon_env_builder.init_start()
+def test_segment_init_failure(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 1
+    env = serendb_env_builder.init_start()
 
     asyncio.run(run_segment_init_failure(env))
 
@@ -795,7 +795,7 @@ async def xmas_garland(safekeepers: list[Safekeeper], data: RaceConditionTest):
         await asyncio.sleep(1)
 
 
-async def run_race_conditions(env: NeonEnv, endpoint: Endpoint):
+async def run_race_conditions(env: SerenDBEnv, endpoint: Endpoint):
     conn = await endpoint.connect_async()
     await conn.execute("CREATE TABLE t(key int primary key, value text)")
 
@@ -822,9 +822,9 @@ async def run_race_conditions(env: NeonEnv, endpoint: Endpoint):
 
 
 # do inserts while concurrently getting up/down subsets of acceptors
-def test_race_conditions(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_race_conditions(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_safekeepers_race_conditions")
     endpoint = env.endpoints.create_start("test_safekeepers_race_conditions")
@@ -834,8 +834,8 @@ def test_race_conditions(neon_env_builder: NeonEnvBuilder):
 
 # Check that pageserver can select safekeeper with largest commit_lsn
 # and switch if LSN is not updated for some time (NoWalTimeout).
-async def run_wal_lagging(env: NeonEnv, endpoint: Endpoint, test_output_dir: Path):
-    def adjust_safekeepers(env: NeonEnv, active_sk: list[bool]):
+async def run_wal_lagging(env: SerenDBEnv, endpoint: Endpoint, test_output_dir: Path):
+    def adjust_safekeepers(env: SerenDBEnv, active_sk: list[bool]):
         # Change the pg ports of the inactive safekeepers in the config file to be
         # invalid, to make them unavailable to the endpoint.  We use
         # ports 10, 11 and 12 to simulate unavailable safekeepers.
@@ -897,9 +897,9 @@ async def run_wal_lagging(env: NeonEnv, endpoint: Endpoint, test_output_dir: Pat
 # see https://github.com/neondatabase/neon/issues/5305
 @pytest.mark.timeout(600)
 @skip_in_debug_build("times out in debug builds")
-def test_wal_lagging(neon_env_builder: NeonEnvBuilder, test_output_dir: Path, build_type: str):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_wal_lagging(serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path, build_type: str):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_wal_lagging")
     endpoint = env.endpoints.create_start("test_wal_lagging")

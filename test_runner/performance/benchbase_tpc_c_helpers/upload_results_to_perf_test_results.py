@@ -412,7 +412,7 @@ def main():
     )
     parser.add_argument("--min-cu", type=float, required=True, help="Minimum compute units")
     parser.add_argument("--max-cu", type=float, required=True, help="Maximum compute units")
-    parser.add_argument("--project-id", type=str, required=True, help="Neon project ID")
+    parser.add_argument("--project-id", type=str, required=True, help="SerenDB project ID")
     parser.add_argument(
         "--revision", type=str, required=True, help="Git commit hash (40 characters)"
     )
@@ -500,7 +500,7 @@ def main():
         # Print Grafana dashboard link for cross-service endpoint debugging
         if start_timestamp_ms and current_timestamp_ms:
             grafana_url = (
-                f"https://neonprod.grafana.net/d/cdya0okb81zwga/cross-service-endpoint-debugging"
+                f"https://serendbprod.grafana.net/d/cdya0okb81zwga/cross-service-endpoint-debugging"
                 f"?orgId=1&from={int(start_timestamp_ms)}&to={int(current_timestamp_ms)}"
                 f"&timezone=utc&var-env=prod&var-input_project_id={args.project_id}"
             )

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from psycopg2.extensions import cursor
 
     from fixtures.common_types import TimelineId
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.serendb_fixtures import PgBin
 
     WaitUntilRet = TypeVar("WaitUntilRet")
 
@@ -312,7 +312,7 @@ def allure_attach_from_dir(dir: Path, preserve_database_files: bool = False):
             allure.attach.file(source, name, attachment_type, extension)
 
 
-GRAFANA_URL = "https://neonprod.grafana.net"
+GRAFANA_URL = "https://serendbprod.grafana.net"
 GRAFANA_DASHBOARD_URL = f"{GRAFANA_URL}/d/cdya0okb81zwga/cross-service-endpoint-debugging"
 
 
@@ -333,10 +333,10 @@ def allure_add_grafana_link(host: str, timeline_id: TimelineId, start_ms: int, e
         timeline_id = '996926d1f5ddbe7381b8840083f8fc9a'
 
         The generated link would be something like:
-        https://neonprod.grafana.net/d/cdya0okb81zwga/cross-service-endpoint-debugging?orgId=1&from=2025-02-17T21:10:00.000Z&to=2025-02-17T21:20:00.000Z&timezone=utc&var-env=dev%7Cstaging&var-input_endpoint_id=ep-holy-mouse-w2u462gi
+        https://serendbprod.grafana.net/d/cdya0okb81zwga/cross-service-endpoint-debugging?orgId=1&from=2025-02-17T21:10:00.000Z&to=2025-02-17T21:20:00.000Z&timezone=utc&var-env=dev%7Cstaging&var-input_endpoint_id=ep-holy-mouse-w2u462gi
 
     """
-    # We expect host to be in format like ep-holy-mouse-w2u462gi.us-east-2.aws.neon.build
+    # We expect host to be in format like ep-holy-mouse-w2u462gi.us-east-2.aws.serendb.build
     endpoint_id, region_id, _ = host.split(".", 2)
     # Remove "-pooler" suffix if present
     endpoint_id = endpoint_id.removesuffix("-pooler")
@@ -634,7 +634,7 @@ def human_bytes(amt: float) -> str:
 def allpairs_versions():
     """
     Returns a dictionary with arguments for pytest parametrize
-    to test the compatibility with the previous version of Neon components
+    to test the compatibility with the previous version of SerenDB components
     combinations were pre-computed to test all the pairs of the components with
     the different versions.
     """
@@ -642,7 +642,7 @@ def allpairs_versions():
     argvalues = []
     compat_not_defined = (
         os.getenv("COMPATIBILITY_POSTGRES_DISTRIB_DIR") is None
-        or os.getenv("COMPATIBILITY_NEON_BIN") is None
+        or os.getenv("COMPATIBILITY_SERENDB_BIN") is None
     )
     for pair in VERSIONS_COMBINATIONS:
         cur_id = []
@@ -650,14 +650,14 @@ def allpairs_versions():
         for component in sorted(pair.keys()):
             cur_id.append(pair[component][0])
         # Adding None if all versions are new, sof no need to mix at all
-        # If COMPATIBILITY_NEON_BIN or COMPATIBILITY_POSTGRES_DISTRIB_DIR are not defined,
+        # If COMPATIBILITY_SERENDB_BIN or COMPATIBILITY_POSTGRES_DISTRIB_DIR are not defined,
         # we will skip all the tests which include the versions mix.
         argvalues.append(
             pytest.param(
                 None if all_new else pair,
                 marks=pytest.mark.skipif(
                     compat_not_defined and not all_new,
-                    reason="COMPATIBILITY_NEON_BIN or COMPATIBILITY_POSTGRES_DISTRIB_DIR is not set",
+                    reason="COMPATIBILITY_SERENDB_BIN or COMPATIBILITY_POSTGRES_DISTRIB_DIR is not set",
                 ),
             )
         )
@@ -744,11 +744,11 @@ def shared_buffers_for_max_cu(max_cu: float) -> str:
 
 
 def skip_if_proxy_lacks_rest_broker(reason: str = "proxy was built without 'rest_broker' feature"):
-    # Determine the binary path using the same logic as neon_binpath fixture
+    # Determine the binary path using the same logic as serendb_binpath fixture
     def has_rest_broker_feature():
-        # Find the neon binaries
-        if env_neon_bin := os.environ.get("NEON_BIN"):
-            binpath = Path(env_neon_bin)
+        # Find the SerenDB binaries
+        if env_serendb_bin := os.environ.get("SERENDB_BIN"):
+            binpath = Path(env_serendb_bin)
         else:
             base_dir = Path(__file__).parents[2]  # Same as BASE_DIR in paths.py
             build_type = os.environ.get("BUILD_TYPE", "debug")

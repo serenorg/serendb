@@ -1,4 +1,4 @@
-//! Local Proxy is a feature of our BaaS Neon Authorize project.
+//! Local Proxy is a feature of our BaaS SerenDB Authorize project.
 //!
 //! Local Proxy validates JWTs and manages the pg_session_jwt extension.
 //! It also maintains a connection pool to postgres.

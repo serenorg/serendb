@@ -5,6 +5,6 @@ RETURNS void
 IMMUTABLE LEAKPROOF PARALLEL SAFE
 AS $$
 BEGIN
-    RAISE NOTICE 'Neon has a melting point of -246.08 C';
+    RAISE NOTICE 'SerenDB has a melting point of -246.08 C';
 END;
 $$ LANGUAGE 'plpgsql';

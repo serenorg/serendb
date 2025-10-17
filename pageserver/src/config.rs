@@ -566,7 +566,7 @@ impl PageServerConf {
         // ------------------------------------------------------------
 
         if [conf.http_auth_type, conf.pg_auth_type, conf.grpc_auth_type]
-            .contains(&AuthType::NeonJWT)
+            .contains(&AuthType::SerenDBJWT)
         {
             let auth_validation_public_key_path = conf
                 .auth_validation_public_key_path

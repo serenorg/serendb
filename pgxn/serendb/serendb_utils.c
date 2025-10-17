@@ -6,7 +6,7 @@
 
 #include "postgres.h"
 
-#include "neon_utils.h"
+#include "serendb_utils.h"
 #include "lib/stringinfo.h"
 #include "libpq/pqformat.h"
 
@@ -144,7 +144,7 @@ disable_core_dump()
 /*
  * On macOS with a libcurl that has IPv6 support, curl_global_init() calls
  * SCDynamicStoreCopyProxies(), which makes the program multithreaded. An ideal
- * place to call curl_global_init() would be _PG_init(), but Neon has to be
+ * place to call curl_global_init() would be _PG_init(), but SerenDB has to be
  * added to shared_preload_libraries, which are loaded in the Postmaster
  * process. The Postmaster is not supposed to become multithreaded at any point
  * in its lifecycle. Postgres doesn't have any good hook that I know of to

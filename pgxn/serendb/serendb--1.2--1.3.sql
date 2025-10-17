@@ -1,4 +1,4 @@
-\echo Use "ALTER EXTENSION neon UPDATE TO '1.3'" to load this file. \quit
+\echo Use "ALTER EXTENSION serendb UPDATE TO '1.3'" to load this file. \quit
 
 CREATE FUNCTION approximate_working_set_size(reset bool)
 RETURNS integer

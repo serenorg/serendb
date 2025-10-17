@@ -13,7 +13,7 @@ prod_aws = os.getenv("PROD_AWS")
 aws_region = os.getenv("AWS_REGION")
 
 components = {
-    "neon": ["neon"],
+    "serendb": ["serendb"],
     "compute": [
         "compute-node-v14",
         "compute-node-v15",
@@ -28,14 +28,14 @@ components = {
 
 registries = {
     "dev": [
-        "docker.io/neondatabase",
-        "ghcr.io/neondatabase",
+        "docker.io/serenorg",
+        "ghcr.io/serenorg",
         f"{dev_aws}.dkr.ecr.{aws_region}.amazonaws.com",
-        f"{dev_acr}.azurecr.io/neondatabase",
+        f"{dev_acr}.azurecr.io/serenorg",
     ],
     "prod": [
         f"{prod_aws}.dkr.ecr.{aws_region}.amazonaws.com",
-        f"{prod_acr}.azurecr.io/neondatabase",
+        f"{prod_acr}.azurecr.io/serenorg",
     ],
 }
 
@@ -55,10 +55,10 @@ target_stages = ["dev", "prod"] if branch in release_branches else ["dev"]
 for component_name, component_images in components.items():
     for stage in target_stages:
         outputs[f"{component_name}-{stage}"] = {
-            f"ghcr.io/neondatabase/{component_image}:{source_tag}": [
+            f"ghcr.io/serenorg/{component_image}:{source_tag}": [
                 f"{registry}/{component_image}:{tag}"
                 for registry, tag in itertools.product(registries[stage], target_tags)
-                if not (registry == "ghcr.io/neondatabase" and tag == source_tag)
+                if not (registry == "ghcr.io/serenorg" and tag == source_tag)
             ]
             for component_image in component_images
         }

@@ -8,9 +8,9 @@ from functools import partial
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     log_replica_lag,
     tenant_get_shards,
@@ -19,8 +19,8 @@ from fixtures.neon_fixtures import (
 from fixtures.utils import wait_until
 
 
-def test_hot_standby(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_hot_standby(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     # We've had a bug caused by WAL records split across multiple XLogData
     # messages resulting in corrupted WAL complains on standby. It reproduced
@@ -39,8 +39,8 @@ def test_hot_standby(neon_simple_env: NeonEnv):
         time.sleep(1)
         with env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary") as secondary:
             queries = [
-                "SHOW neon.timeline_id",
-                "SHOW neon.tenant_id",
+                "SHOW serendb.timeline_id",
+                "SHOW serendb.tenant_id",
                 "SELECT relname FROM pg_class WHERE relnamespace = current_schema()::regnamespace::oid",
                 "SELECT COUNT(*), SUM(i) FROM test",
             ]
@@ -90,8 +90,8 @@ def test_hot_standby(neon_simple_env: NeonEnv):
         sk_http.configure_failpoints(("sk-send-wal-replica-sleep", "off"))
 
 
-def test_2_replicas_start(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_2_replicas_start(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     with env.endpoints.create_start(
         branch_name="main",
@@ -129,7 +129,7 @@ def test_2_replicas_start(neon_simple_env: NeonEnv):
 # still needed by the standby apply LSN is propagated in standby -> safekeepers
 # -> broker -> pageserver flow so that pageserver could hold off gc for it.
 @pytest.mark.parametrize("pause_apply", [False, True])
-def test_hot_standby_gc(neon_env_builder: NeonEnvBuilder, pause_apply: bool):
+def test_hot_standby_gc(serendb_env_builder: SerenDBEnvBuilder, pause_apply: bool):
     tenant_conf = {
         # set PITR interval to be small, so we can do GC
         "pitr_interval": "0 s",
@@ -137,7 +137,7 @@ def test_hot_standby_gc(neon_env_builder: NeonEnvBuilder, pause_apply: bool):
         "gc_period": "0s",
         "compaction_period": "0s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
     timeline_id = env.initial_timeline
     tenant_id = env.initial_tenant
 
@@ -151,10 +151,10 @@ def test_hot_standby_gc(neon_env_builder: NeonEnvBuilder, pause_apply: bool):
             # Protocol version 2 was introduced to fix the issue
             # that this test exercises. With protocol version 1 it
             # fails.
-            config_lines=["neon.protocol_version=2"],
+            config_lines=["serendb.protocol_version=2"],
         ) as secondary:
             p_cur = primary.connect().cursor()
-            p_cur.execute("CREATE EXTENSION neon_test_utils")
+            p_cur.execute("CREATE EXTENSION serendb_test_utils")
             p_cur.execute("CREATE TABLE test (id int primary key) WITH (autovacuum_enabled=false)")
             p_cur.execute("INSERT INTO test SELECT generate_series(1, 10000) AS g")
 
@@ -229,7 +229,7 @@ def pgbench_accounts_initialized(ep):
     ep.safe_psql_scalar("select 'pgbench_accounts_pkey'::regclass")
 
 
-# Test that hot_standby_feedback works in neon (it is forwarded through
+# Test that hot_standby_feedback works in SerenDB (it is forwarded through
 # safekeepers). That is, ensure queries on standby don't fail during load on
 # primary under the following conditions:
 # - pgbench bombards primary with updates.
@@ -241,8 +241,8 @@ def pgbench_accounts_initialized(ep):
 #
 # Without hs feedback enabled we'd see 'User query might have needed to see row
 # versions that must be removed.' errors.
-def test_hot_standby_feedback(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+def test_hot_standby_feedback(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
     agressive_vacuum_conf = [
         "log_autovacuum_min_duration = 0",
         "autovacuum_naptime = 10s",
@@ -260,7 +260,7 @@ def test_hot_standby_feedback(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
             endpoint_id="secondary",
             config_lines=[
                 "max_standby_streaming_delay=2s",
-                "neon.protocol_version=2",
+                "serendb.protocol_version=2",
                 "hot_standby_feedback=true",
             ],
         ) as secondary:
@@ -312,8 +312,8 @@ def test_hot_standby_feedback(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
 
 # Test race condition between WAL replay and backends performing queries
 # https://github.com/neondatabase/neon/issues/7791
-def test_replica_query_race(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_replica_query_race(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     primary_ep = env.endpoints.create_start(
         branch_name="main",
@@ -322,7 +322,7 @@ def test_replica_query_race(neon_simple_env: NeonEnv):
 
     with primary_ep.connect() as p_con:
         with p_con.cursor() as p_cur:
-            p_cur.execute("CREATE EXTENSION neon_test_utils")
+            p_cur.execute("CREATE EXTENSION serendb_test_utils")
             p_cur.execute("CREATE TABLE test AS SELECT 0 AS counter")
 
     standby_ep = env.endpoints.new_replica_start(origin=primary_ep, endpoint_id="standby")

@@ -17,24 +17,24 @@ from fixtures.utils import wait_until
 from fixtures.workload import Workload
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
-        NeonEnv,
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnv,
+        SerenDBEnvBuilder,
     )
 
 
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_scrubber_tenant_snapshot(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
+def test_scrubber_tenant_snapshot(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
     """
     Test the `tenant-snapshot` subcommand, which grabs data from remote storage
 
     This is only a support/debug tool, but worth testing to ensure the tool does not regress.
     """
 
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = shard_count if shard_count is not None else 1
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = shard_count if shard_count is not None else 1
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     # We restart pageserver(s), which will cause storage storage controller
     # requests to fail and warn.
     env.storage_controller.allowed_errors.append(".*management API still failed.*")
@@ -78,7 +78,7 @@ def test_scrubber_tenant_snapshot(neon_env_builder: NeonEnvBuilder, shard_count:
     # as it won't overlap with migrations
     env.storage_controller.reconcile_until_idle(max_interval=0.1, timeout_secs=120)
 
-    output_path = neon_env_builder.test_output_dir / "snapshot"
+    output_path = serendb_env_builder.test_output_dir / "snapshot"
     os.makedirs(output_path)
 
     env.storage_scrubber.tenant_snapshot(tenant_id, output_path)
@@ -145,7 +145,7 @@ def test_scrubber_tenant_snapshot(neon_env_builder: NeonEnvBuilder, shard_count:
     env.storage_controller.reconcile_until_idle()
 
 
-def drop_local_state(env: NeonEnv, tenant_id: TenantId):
+def drop_local_state(env: SerenDBEnv, tenant_id: TenantId):
     env.storage_controller.tenant_policy_update(tenant_id, {"placement": "Detached"})
     env.storage_controller.reconcile_until_idle()
 
@@ -154,11 +154,11 @@ def drop_local_state(env: NeonEnv, tenant_id: TenantId):
 
 
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_scrubber_physical_gc(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = 2
+def test_scrubber_physical_gc(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -202,11 +202,11 @@ def test_scrubber_physical_gc(neon_env_builder: NeonEnvBuilder, shard_count: int
 
 
 @pytest.mark.parametrize("shard_count", [None, 2])
-def test_scrubber_physical_gc_ancestors(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = 2
+def test_scrubber_physical_gc_ancestors(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -330,15 +330,15 @@ def test_scrubber_physical_gc_ancestors(neon_env_builder: NeonEnvBuilder, shard_
     workload.validate()
 
 
-def test_scrubber_physical_gc_timeline_deletion(neon_env_builder: NeonEnvBuilder):
+def test_scrubber_physical_gc_timeline_deletion(serendb_env_builder: SerenDBEnvBuilder):
     """
     When we delete a timeline after a shard split, the child shards do not directly delete the
     layers in the ancestor shards.  They rely on the scrubber to clean up.
     """
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     for ps in env.pageservers:
@@ -418,16 +418,16 @@ def test_scrubber_physical_gc_timeline_deletion(neon_env_builder: NeonEnvBuilder
     assert gc_summary["ancestor_layers_deleted"] > 0
 
 
-def test_scrubber_physical_gc_ancestors_split(neon_env_builder: NeonEnvBuilder):
+def test_scrubber_physical_gc_ancestors_split(serendb_env_builder: SerenDBEnvBuilder):
     """
     Exercise ancestor GC while a tenant is partly split: this test ensures that if we have some child shards
     which don't reference an ancestor, but some child shards that don't exist yet, then we do not incorrectly
     GC any ancestor layers.
     """
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -535,16 +535,16 @@ def test_scrubber_physical_gc_ancestors_split(neon_env_builder: NeonEnvBuilder):
 
 @pytest.mark.parametrize("shard_count", [None, 4])
 def test_scrubber_scan_pageserver_metadata(
-    neon_env_builder: NeonEnvBuilder, shard_count: int | None
+    serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None
 ):
     """
     Create some layers. Delete an object listed in index. Run scrubber and see if it detects the defect.
     """
 
     # Use s3_storage so we could test out scrubber.
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.num_pageservers = shard_count if shard_count is not None else 1
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = shard_count if shard_count is not None else 1
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
 
     # Create some layers.
 
@@ -622,4 +622,4 @@ def test_scrubber_scan_pageserver_metadata(
     healthy, _ = env.storage_scrubber.scan_metadata()
     assert healthy
 
-    neon_env_builder.disable_scrub_on_exit()  # We already ran scrubber, no need to do an extra run
+    serendb_env_builder.disable_scrub_on_exit()  # We already ran scrubber, no need to do an extra run

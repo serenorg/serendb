@@ -3,18 +3,18 @@ from time import time
 import pytest
 from aiohttp import ClientSession
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 from fixtures.utils import run_only_on_default_postgres
 from jwcrypto import jwk, jwt
 
 
 @pytest.mark.asyncio
 @run_only_on_default_postgres("test doesn't use postgres")
-async def test_endpoint_storage_insert_retrieve_delete(neon_simple_env: NeonEnv):
+async def test_endpoint_storage_insert_retrieve_delete(serendb_simple_env: SerenDBEnv):
     """
     Inserts, retrieves, and deletes test file using a JWT token
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     ep = env.endpoints.create_start(branch_name="main")
     tenant_id = str(ep.tenant_id)
     timeline_id = str(ep.show_timeline_id())

@@ -22,9 +22,9 @@ use crate::pg_helpers::{
 use crate::spec_apply::ApplySpecPhase::{
     AddDatabricksGrants, AlterDatabricksRoles, CreateAndAlterDatabases, CreateAndAlterRoles,
     CreateAvailabilityCheck, CreateDatabricksMisc, CreateDatabricksRoles, CreatePgauditExtension,
-    CreatePgauditlogtofileExtension, CreatePrivilegedRole, CreateSchemaNeon,
+    CreatePgauditlogtofileExtension, CreatePrivilegedRole, CreateSchemaSerenDB,
     DisablePostgresDBPgAudit, DropInvalidDatabases, DropRoles, FinalizeDropLogicalSubscriptions,
-    HandleDatabricksAuthExtension, HandleNeonExtension, HandleOtherExtensions,
+    HandleDatabricksAuthExtension, HandleSerenDBExtension, HandleOtherExtensions,
     RenameAndDeleteDatabases, RenameRoles, RunInEachDatabase,
 };
 use crate::spec_apply::PerDatabasePhase::{
@@ -70,7 +70,7 @@ impl ComputeNode {
             // it will start again with the same spec and flag value.
             //
             // To handle this, we save the fact of the operation in the database
-            // in the neon.drop_subscriptions_done table.
+            // in the serendb.drop_subscriptions_done table.
             // If the table does not exist, we assume that the operation was never performed, so we must do it.
             // If table exists, we check if the operation was performed on the current timelilne.
             //
@@ -82,7 +82,7 @@ impl ComputeNode {
                 info!("Checking if drop subscription operation was already performed for timeline_id: {}", timeline_id);
 
                 drop_subscriptions_done = match
-                    client.query("select 1 from neon.drop_subscriptions_done where timeline_id OPERATOR(pg_catalog.=) $1", &[&timeline_id.to_string()]).await {
+                    client.query("select 1 from serendb.drop_subscriptions_done where timeline_id OPERATOR(pg_catalog.=) $1", &[&timeline_id.to_string()]).await {
                     Ok(result) => !result.is_empty(),
                     Err(e) =>
                     {
@@ -201,7 +201,7 @@ impl ComputeNode {
                 CreateAndAlterRoles,
                 RenameAndDeleteDatabases,
                 CreateAndAlterDatabases,
-                CreateSchemaNeon,
+                CreateSchemaSerenDB,
             ]
             } else {
                 vec![
@@ -211,7 +211,7 @@ impl ComputeNode {
                 CreateAndAlterRoles,
                 RenameAndDeleteDatabases,
                 CreateAndAlterDatabases,
-                CreateSchemaNeon,
+                CreateSchemaSerenDB,
             ]
             };
 
@@ -291,7 +291,7 @@ impl ComputeNode {
             let mut phases = if self.params.lakebase_mode {
                 vec![
                 HandleOtherExtensions,
-                HandleNeonExtension, // This step depends on CreateSchemaNeon
+                HandleSerenDBExtension, // This step depends on CreateSchemaSerenDB
                 // BEGIN_HADRON
                 HandleDatabricksAuthExtension,
                 // END_HADRON
@@ -305,13 +305,13 @@ impl ComputeNode {
             } else {
                 vec![
                 HandleOtherExtensions,
-                HandleNeonExtension, // This step depends on CreateSchemaNeon
+                HandleSerenDBExtension, // This step depends on CreateSchemaSerenDB
                 CreateAvailabilityCheck,
                 DropRoles,
             ]
             };
 
-            // This step depends on CreateSchemaNeon
+            // This step depends on CreateSchemaSerenDB
             if spec.drop_subscriptions_before_start && !drop_subscriptions_done {
                 info!("Adding FinalizeDropLogicalSubscriptions phase because drop_subscriptions_before_start is set");
                 phases.push(FinalizeDropLogicalSubscriptions);
@@ -528,13 +528,13 @@ pub enum ApplySpecPhase {
     CreateAndAlterRoles,
     RenameAndDeleteDatabases,
     CreateAndAlterDatabases,
-    CreateSchemaNeon,
+    CreateSchemaSerenDB,
     RunInEachDatabase { db: DB, subphase: PerDatabasePhase },
     CreatePgauditExtension,
     CreatePgauditlogtofileExtension,
     DisablePostgresDBPgAudit,
     HandleOtherExtensions,
-    HandleNeonExtension,
+    HandleSerenDBExtension,
     // BEGIN_HADRON
     HandleDatabricksAuthExtension,
     // END_HADRON
@@ -733,7 +733,7 @@ async fn get_operations<'a>(
             // See:
             //   https://github.com/postgres/postgres/commit/a4b4cc1d60f7e8ccfcc8ff8cb80c28ee411ad9a9
             //
-            // Postgres Neon extension is done the way, that db is de-registered
+            // Postgres SerenDB extension is done the way, that db is de-registered
             // in the control plane metadata only after it is dropped. So there is
             // a chance that it still thinks that the db should exist. This means
             // that it will be re-created by the `CreateDatabases` phase. This
@@ -982,10 +982,10 @@ async fn get_operations<'a>(
 
             Ok(Box::new(operations))
         }
-        ApplySpecPhase::CreateSchemaNeon => Ok(Box::new(once(Operation {
-            query: String::from("CREATE SCHEMA IF NOT EXISTS neon"),
+        ApplySpecPhase::CreateSchemaSerenDB => Ok(Box::new(once(Operation {
+            query: String::from("CREATE SCHEMA IF NOT EXISTS serendb"),
             comment: Some(String::from(
-                "create schema for neon extension and utils tables",
+                "create schema for SerenDB extension and utils tables",
             )),
         }))),
         ApplySpecPhase::RunInEachDatabase { db, subphase } => {
@@ -1079,7 +1079,7 @@ async fn get_operations<'a>(
                                     query: format!("REASSIGN OWNED BY {quoted} TO {new_owner}",),
                                     comment: None,
                                 },
-                                // Revoke some potentially blocking privileges (Neon-specific currently)
+                                // Revoke some potentially blocking privileges (SerenDB-specific currently)
                                 Operation {
                                     query: format!(
                                         include_str!("sql/pre_drop_role_revoke_privileges.sql"),
@@ -1088,7 +1088,7 @@ async fn get_operations<'a>(
                                         outer_tag = outer_tag,
                                     )
                                     // HADRON change:
-                                    .replace("neon_superuser", &params.privileged_role_name),
+                                    .replace("serendb_superuser", &params.privileged_role_name),
                                     // HADRON change end                                    ,
                                     comment: None,
                                 },
@@ -1126,7 +1126,7 @@ async fn get_operations<'a>(
                         },
                         Operation {
                             query: String::from(include_str!("sql/default_grants.sql"))
-                                .replace("neon_superuser", &params.privileged_role_name),
+                                .replace("serendb_superuser", &params.privileged_role_name),
                             comment: None,
                         },
                     ]
@@ -1162,7 +1162,7 @@ async fn get_operations<'a>(
             comment: Some(String::from("create pgauditlogtofile extensions")),
         }))),
         // Disable pgaudit logging for postgres database.
-        // Postgres is neon system database used by monitors
+        // Postgres is SerenDB system database used by monitors
         // and compute_ctl tuning functions and thus generates a lot of noise.
         // We do not consider data stored in this database as sensitive.
         ApplySpecPhase::DisablePostgresDBPgAudit => {
@@ -1172,27 +1172,27 @@ async fn get_operations<'a>(
                 comment: Some(query.to_string()),
             })))
         }
-        ApplySpecPhase::HandleNeonExtension => {
+        ApplySpecPhase::HandleSerenDBExtension => {
             let operations = vec![
                 Operation {
-                    query: String::from("CREATE EXTENSION IF NOT EXISTS neon WITH SCHEMA neon"),
+                    query: String::from("CREATE EXTENSION IF NOT EXISTS serendb WITH SCHEMA serendb"),
                     comment: Some(String::from(
                         "init: install the extension if not already installed",
                     )),
                 },
                 Operation {
                     query: String::from(
-                        "UPDATE pg_catalog.pg_extension SET extrelocatable = true WHERE extname OPERATOR(pg_catalog.=) 'neon'::pg_catalog.name AND extrelocatable OPERATOR(pg_catalog.=) false",
+                        "UPDATE pg_catalog.pg_extension SET extrelocatable = true WHERE extname OPERATOR(pg_catalog.=) 'serendb'::pg_catalog.name AND extrelocatable OPERATOR(pg_catalog.=) false",
                     ),
-                    comment: Some(String::from("compat/fix: make neon relocatable")),
+                    comment: Some(String::from("compat/fix: make serendb relocatable")),
                 },
                 Operation {
-                    query: String::from("ALTER EXTENSION neon SET SCHEMA neon"),
-                    comment: Some(String::from("compat/fix: alter neon extension schema")),
+                    query: String::from("ALTER EXTENSION serendb SET SCHEMA serendb"),
+                    comment: Some(String::from("compat/fix: alter SerenDB extension schema")),
                 },
                 Operation {
-                    query: String::from("ALTER EXTENSION neon UPDATE"),
-                    comment: Some(String::from("compat/update: update neon extension version")),
+                    query: String::from("ALTER EXTENSION serendb UPDATE"),
+                    comment: Some(String::from("compat/update: update SerenDB extension version")),
                 },
             ]
             .into_iter();
@@ -1246,9 +1246,9 @@ async fn get_operations<'a>(
         ApplySpecPhase::AddDatabricksGrants => {
             let operations = vec![
                 Operation {
-                    query: String::from("GRANT USAGE ON SCHEMA neon TO databricks_monitor"),
+                    query: String::from("GRANT USAGE ON SCHEMA serendb TO databricks_monitor"),
                     comment: Some(String::from(
-                        "Permissions needed to execute neon.* functions (in the postgres database)",
+                        "Permissions needed to execute serendb.* functions (in the postgres database)",
                     )),
                 },
                 Operation {
@@ -1267,15 +1267,15 @@ async fn get_operations<'a>(
                 },
                 Operation {
                     query: String::from(
-                        "GRANT SELECT ON neon.neon_perf_counters TO databricks_monitor",
+                        "GRANT SELECT ON serendb.serendb_perf_counters TO databricks_monitor",
                     ),
                     comment: Some(String::from(
-                        "Permissions needed to access neon performance counters view",
+                        "Permissions needed to access SerenDB performance counters view",
                     )),
                 },
                 Operation {
                     query: String::from(
-                        "GRANT EXECUTE ON FUNCTION neon.get_perf_counters() TO databricks_monitor",
+                        "GRANT EXECUTE ON FUNCTION serendb.get_perf_counters() TO databricks_monitor",
                     ),
                     comment: Some(String::from(
                         "Permissions needed to execute the underlying performance counters function",

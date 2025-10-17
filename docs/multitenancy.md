@@ -2,26 +2,26 @@
 
 ### Overview
 
-Neon supports multitenancy. One pageserver can serve multiple tenants at once. Tenants can be managed via neon_local CLI. During page server setup tenant can be created using ```neon_local init --create-tenant``` Also tenants can be added into the system on the fly without pageserver restart. This can be done using the following cli command: ```neon_local tenant create``` Tenants use random identifiers which can be represented as a 32 symbols hexadecimal string. So neon_local tenant create accepts desired tenant id as an optional argument. The concept of timelines/branches is working independently per tenant.
+SerenDB supports multitenancy. One pageserver can serve multiple tenants at once. Tenants can be managed via serendb_local CLI. During page server setup tenant can be created using ```serendb_local init --create-tenant``` Also tenants can be added into the system on the fly without pageserver restart. This can be done using the following cli command: ```serendb_local tenant create``` Tenants use random identifiers which can be represented as a 32 symbols hexadecimal string. So serendb_local tenant create accepts desired tenant id as an optional argument. The concept of timelines/branches is working independently per tenant.
 
 ### Tenants in other commands
 
-By default during `neon_local init` new tenant is created on the pageserver. Newly created tenant's id is saved to cli config, so other commands can use it automatically if no direct argument `--tenant_id=<tenant_id>` is provided. So generally tenant_id more frequently appears in internal pageserver interface. Its commands take tenant_id argument to distinguish to which tenant operation should be applied. CLI support creation of new tenants.
+By default during `serendb_local init` new tenant is created on the pageserver. Newly created tenant's id is saved to cli config, so other commands can use it automatically if no direct argument `--tenant_id=<tenant_id>` is provided. So generally tenant_id more frequently appears in internal pageserver interface. Its commands take tenant_id argument to distinguish to which tenant operation should be applied. CLI support creation of new tenants.
 
 Examples for cli:
 
 ```sh
-neon_local tenant list
+serendb_local tenant list
 
-neon_local tenant create // generates new id
+serendb_local tenant create // generates new id
 
-neon_local tenant create ee6016ec31116c1b7c33dfdfca38892f
+serendb_local tenant create ee6016ec31116c1b7c33dfdfca38892f
 
-neon_local pg create main // default tenant from neon init
+serendb_local pg create main // default tenant from serendb init
 
-neon_local pg create main --tenant_id=ee6016ec31116c1b7c33dfdfca38892f
+serendb_local pg create main --tenant_id=ee6016ec31116c1b7c33dfdfca38892f
 
-neon_local branch --tenant_id=ee6016ec31116c1b7c33dfdfca38892f
+serendb_local branch --tenant_id=ee6016ec31116c1b7c33dfdfca38892f
 ```
 
 ### Data layout

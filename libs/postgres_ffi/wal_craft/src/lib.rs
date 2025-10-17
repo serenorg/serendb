@@ -42,7 +42,7 @@ pub struct PostgresServer {
 
 pub static REQUIRED_POSTGRES_CONFIG: [&str; 4] = [
     "wal_keep_size=50MB",            // Ensure old WAL is not removed
-    "shared_preload_libraries=neon", // can only be loaded at startup
+    "shared_preload_libraries=serendb", // can only be loaded at startup
     // Disable background processes as much as possible
     "wal_writer_delay=10s",
     "autovacuum=off",
@@ -209,7 +209,7 @@ pub trait PostgresClientExt: postgres::GenericClient {
 impl<C: postgres::GenericClient> PostgresClientExt for C {}
 
 pub fn ensure_server_config(client: &mut impl postgres::GenericClient) -> anyhow::Result<()> {
-    client.execute("create extension if not exists neon_test_utils", &[])?;
+    client.execute("create extension if not exists serendb_test_utils", &[])?;
 
     let wal_keep_size: String = client.query_one("SHOW wal_keep_size", &[])?.get(0);
     ensure!(wal_keep_size == "50MB");
@@ -283,7 +283,7 @@ fn craft_internal<C: postgres::GenericClient>(
     } else if lsn % XLOG_BLCKSZ as u64 == XLOG_SIZE_OF_XLOG_SHORT_PHD as u64 {
         lsn -= XLOG_SIZE_OF_XLOG_SHORT_PHD as u64;
     }
-    client.execute("select neon_xlogflush($1)", &[&PgLsn::from(lsn)])?;
+    client.execute("select serendb_xlogflush($1)", &[&PgLsn::from(lsn)])?;
     Ok(intermediate_lsns)
 }
 

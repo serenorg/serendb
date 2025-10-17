@@ -32,7 +32,7 @@ Doing this many `Timeline::get` calls is quite inefficient because:
    So, to provide the reconstruct data for N adjacent keys, we would actually only _need_ to issue a single large read to the filesystem, instead of the N reads we currently do.
    The filesystem, in turn, ideally stores the layer file physically contiguously, so our large read will turn into one IOP toward the disk.
 
-[^1]: https://www.notion.so/neondatabase/Christian-Investigation-Slow-Basebackups-Early-2023-12-34ea5c7dcdc1485d9ac3731da4d2a6fc?pvs=4#15ee4e143392461fa64590679c8f54c9
+[^1]: https://www.notion.so/serendb/Christian-Investigation-Slow-Basebackups-Early-2023-12-34ea5c7dcdc1485d9ac3731da4d2a6fc?pvs=4#15ee4e143392461fa64590679c8f54c9
 
 # Solution
 

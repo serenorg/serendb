@@ -8,7 +8,7 @@ from typing import cast
 from urllib.parse import urlparse
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.utils import humantime_to_ms
 
 
@@ -16,9 +16,9 @@ def setup_environment():
     """Set up necessary environment variables for pgcopydb execution.
 
     Expects the following variables to be set in the environment:
-    - PG_CONFIG: e.g. /tmp/neon/pg_install/v16/bin/pg_config
-    - PSQL: e.g. /tmp/neon/pg_install/v16/bin/psql
-    - PG_16_LIB_PATH: e.g. /tmp/neon/pg_install/v16/lib
+    - PG_CONFIG: e.g. /tmp/serendb/pg_install/v16/bin/pg_config
+    - PSQL: e.g. /tmp/serendb/pg_install/v16/bin/psql
+    - PG_16_LIB_PATH: e.g. /tmp/serendb/pg_install/v16/lib
     - PGCOPYDB: e.g. /pgcopydb/bin/pgcopydb
     - PGCOPYDB_LIB_PATH: e.g. /pgcopydb/lib
     - BENCHMARK_INGEST_SOURCE_CONNSTR
@@ -161,7 +161,7 @@ def run_command_and_log_output(command, log_file_path: Path):
 
 
 def parse_log_and_report_metrics(
-    zenbenchmark: NeonBenchmarker, log_file_path: Path, backpressure_time_diff: float
+    zenbenchmark: SerenDBBenchmarker, log_file_path: Path, backpressure_time_diff: float
 ):
     """Parses the pgcopydb log file for performance metrics and reports them to the database."""
     metrics = {"backpressure_time": backpressure_time_diff}
@@ -229,15 +229,15 @@ def log_file_path(test_output_dir):
 
 @pytest.mark.remote_cluster
 def test_ingest_performance_using_pgcopydb(
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
     log_file_path: Path,
     pgcopydb_filter_file: Path,
     test_output_dir: Path,
 ):
     """
-    Simulate project migration from another PostgreSQL provider to Neon.
+    Simulate project migration from another PostgreSQL provider to SerenDB.
 
-    Measure performance for Neon ingest steps
+    Measure performance for SerenDB ingest steps
     - COPY
     - CREATE INDEX
     - CREATE CONSTRAINT

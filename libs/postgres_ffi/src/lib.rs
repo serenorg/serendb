@@ -282,9 +282,9 @@ pub fn generate_pg_control(
     )
 }
 
-// PG timeline is always 1, changing it doesn't have any useful meaning in Neon.
+// PG timeline is always 1, changing it doesn't have any useful meaning in SerenDB.
 //
-// NOTE: this is not to be confused with Neon timelines; different concept!
+// NOTE: this is not to be confused with SerenDB timelines; different concept!
 //
 // It's a shaky assumption, that it's always 1. We might import a
 // PostgreSQL data directory that has gone through timeline bumps,

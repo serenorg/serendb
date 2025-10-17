@@ -10,17 +10,17 @@ from fixtures.log_helper import log
 from fixtures.pageserver.utils import wait_timeline_detail_404
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         LogCursor,
-        NeonEnvBuilder,
-        NeonPageserver,
+        SerenDBEnvBuilder,
+        SerenDBPageserver,
     )
 
 
 @pytest.mark.parametrize("sharded", [True, False])
-def test_gc_blocking_by_timeline(neon_env_builder: NeonEnvBuilder, sharded: bool):
-    neon_env_builder.num_pageservers = 2 if sharded else 1
-    env = neon_env_builder.init_start(
+def test_gc_blocking_by_timeline(serendb_env_builder: SerenDBEnvBuilder, sharded: bool):
+    serendb_env_builder.num_pageservers = 2 if sharded else 1
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={"gc_period": "1s", "lsn_lease_length": "0s"},
         initial_tenant_shard_count=2 if sharded else None,
     )
@@ -91,7 +91,7 @@ def wait_for_another_gc_round():
 
 @dataclass
 class ScrollableLog:
-    pageserver: NeonPageserver
+    pageserver: SerenDBPageserver
     offset: LogCursor | None
 
     def assert_log_contains(self, what: str):

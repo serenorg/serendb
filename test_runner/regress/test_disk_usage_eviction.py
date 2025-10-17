@@ -13,10 +13,10 @@ import pytest
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.fast_import import mock_import_bucket, populate_vanilla_pg
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
-    NeonPageserver,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
+    SerenDBPageserver,
     PgBin,
     VanillaPostgres,
     wait_for_last_flush_lsn,
@@ -47,9 +47,9 @@ ATIME_RESOLUTION = 2
 
 @pytest.mark.parametrize("config_level_override", [None, 400])
 def test_min_resident_size_override_handling(
-    neon_env_builder: NeonEnvBuilder, config_level_override: int
+    serendb_env_builder: SerenDBEnvBuilder, config_level_override: int
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     vps_http = env.storage_controller.pageserver_api()
     ps_http = env.pageserver.http_client()
 
@@ -113,7 +113,7 @@ class EvictionOrder(StrEnum):
 @dataclass
 class EvictionEnv:
     timelines: list[tuple[TenantId, TimelineId]]
-    neon_env: NeonEnv
+    serendb_env: SerenDBEnv
     pg_bin: PgBin
     pageserver_http: PageserverHttpClient
     layer_size: int
@@ -124,23 +124,23 @@ class EvictionEnv:
         """
         Shortcut for tests that only use one pageserver.
         """
-        return self.neon_env.pageserver
+        return self.serendb_env.pageserver
 
-    def timelines_du(self, pageserver: NeonPageserver) -> tuple[int, int, int]:
+    def timelines_du(self, pageserver: SerenDBPageserver) -> tuple[int, int, int]:
         return poor_mans_du(
-            self.neon_env,
+            self.serendb_env,
             [(tid, tlid) for tid, tlid in self.timelines],
             pageserver,
             verbose=False,
         )
 
-    def du_by_timeline(self, pageserver: NeonPageserver) -> dict[tuple[TenantId, TimelineId], int]:
+    def du_by_timeline(self, pageserver: SerenDBPageserver) -> dict[tuple[TenantId, TimelineId], int]:
         return {
-            (tid, tlid): poor_mans_du(self.neon_env, [(tid, tlid)], pageserver, verbose=True)[0]
+            (tid, tlid): poor_mans_du(self.serendb_env, [(tid, tlid)], pageserver, verbose=True)[0]
             for tid, tlid in self.timelines
         }
 
-    def count_layers_per_tenant(self, pageserver: NeonPageserver) -> dict[TenantId, int]:
+    def count_layers_per_tenant(self, pageserver: SerenDBPageserver) -> dict[TenantId, int]:
         return count_layers_per_tenant(pageserver, self.timelines)
 
     def warm_up_tenant(self, tenant_id: TenantId):
@@ -149,7 +149,7 @@ class EvictionEnv:
         This assumes that the tenant is still at the state after pbench -i.
         """
         lsn = self.pgbench_init_lsns[tenant_id]
-        with self.neon_env.endpoints.create_start("main", tenant_id=tenant_id, lsn=lsn) as endpoint:
+        with self.serendb_env.endpoints.create_start("main", tenant_id=tenant_id, lsn=lsn) as endpoint:
             # instead of using pgbench --select-only which does point selects,
             # run full table scans for all tables
             with endpoint.connect() as conn:
@@ -168,7 +168,7 @@ class EvictionEnv:
 
     def pageserver_start_with_disk_usage_eviction(
         self,
-        pageserver: NeonPageserver,
+        pageserver: SerenDBPageserver,
         period,
         max_usage_pct,
         min_avail_bytes,
@@ -214,7 +214,7 @@ class EvictionEnv:
         # we now do initial logical size calculation on startup, which on debug builds can fight with disk usage based eviction
         if wait_logical_size:
             for tenant_id, timeline_id in self.timelines:
-                tenant_ps = self.neon_env.get_tenant_pageserver(tenant_id)
+                tenant_ps = self.serendb_env.get_tenant_pageserver(tenant_id)
                 # Pageserver may be none if we are currently not attached anywhere, e.g. during secondary eviction test
                 if tenant_ps is not None:
                     tenant_ps.http_client().timeline_wait_logical_size(tenant_id, timeline_id)
@@ -227,7 +227,7 @@ class EvictionEnv:
 
 
 def count_layers_per_tenant(
-    pageserver: NeonPageserver, timelines: Iterable[tuple[TenantId, TimelineId]]
+    pageserver: SerenDBPageserver, timelines: Iterable[tuple[TenantId, TimelineId]]
 ) -> dict[TenantId, int]:
     ret: Counter[TenantId] = Counter()
 
@@ -243,7 +243,7 @@ def count_layers_per_tenant(
 
 
 def _eviction_env(
-    request, neon_env_builder: NeonEnvBuilder, pg_bin: PgBin, num_pageservers: int
+    request, serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin, num_pageservers: int
 ) -> EvictionEnv:
     """
     Creates two tenants, one somewhat larger than the other.
@@ -251,14 +251,14 @@ def _eviction_env(
 
     log.info(f"setting up eviction_env for test {request.node.name}")
 
-    neon_env_builder.num_pageservers = num_pageservers
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.num_pageservers = num_pageservers
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # Disable compression support for EvictionEnv to get larger layer sizes
-    neon_env_builder.pageserver_config_override = "image_compression='disabled'"
+    serendb_env_builder.pageserver_config_override = "image_compression='disabled'"
 
     # initial tenant will not be present on this pageserver
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # allow because we are invoking this manually; we always warn on executing disk based eviction
@@ -281,7 +281,7 @@ def _eviction_env(
     # stop the safekeepers to avoid on-demand downloads caused by
     # initial logical size calculation triggered by walreceiver connection status
     # when we restart the pageserver process in any of the tests
-    env.neon_cli.safekeeper_stop()
+    env.serendb_cli.safekeeper_stop()
 
     # after stopping the safekeepers, we know that no new WAL will be coming in
     for tenant_id, timeline_id in timelines:
@@ -289,7 +289,7 @@ def _eviction_env(
 
     eviction_env = EvictionEnv(
         timelines=timelines,
-        neon_env=env,
+        serendb_env=env,
         # this last tenant http client works for num_pageservers=1
         pageserver_http=env.get_tenant_pageserver(timelines[-1][0]).http_client(),
         layer_size=layer_size,
@@ -301,7 +301,7 @@ def _eviction_env(
 
 
 def pgbench_init_tenant(
-    layer_size: int, scale: int, env: NeonEnv, pg_bin: PgBin
+    layer_size: int, scale: int, env: SerenDBEnv, pg_bin: PgBin
 ) -> tuple[TenantId, TimelineId]:
     tenant_id, timeline_id = env.create_tenant(
         conf={
@@ -321,7 +321,7 @@ def pgbench_init_tenant(
 
 
 def finish_tenant_creation(
-    env: NeonEnv,
+    env: SerenDBEnv,
     tenant_id: TenantId,
     timeline_id: TimelineId,
     min_expected_layers: int,
@@ -344,23 +344,23 @@ def finish_tenant_creation(
 
 
 @pytest.fixture
-def eviction_env(request, neon_env_builder: NeonEnvBuilder, pg_bin: PgBin) -> EvictionEnv:
-    return _eviction_env(request, neon_env_builder, pg_bin, num_pageservers=1)
+def eviction_env(request, serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin) -> EvictionEnv:
+    return _eviction_env(request, serendb_env_builder, pg_bin, num_pageservers=1)
 
 
 @pytest.fixture
-def eviction_env_ha(request, neon_env_builder: NeonEnvBuilder, pg_bin: PgBin) -> EvictionEnv:
+def eviction_env_ha(request, serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin) -> EvictionEnv:
     """
     Variant of the eviction environment with two pageservers for testing eviction on
     HA configurations with a secondary location.
     """
-    return _eviction_env(request, neon_env_builder, pg_bin, num_pageservers=2)
+    return _eviction_env(request, serendb_env_builder, pg_bin, num_pageservers=2)
 
 
 def test_broken_tenants_are_skipped(eviction_env: EvictionEnv):
     env = eviction_env
 
-    env.neon_env.pageserver.allowed_errors.append(
+    env.serendb_env.pageserver.allowed_errors.append(
         r".* Changing Active tenant to Broken state, reason: broken from test"
     )
     broken_tenant_id, broken_timeline_id = env.timelines[0]
@@ -369,13 +369,13 @@ def test_broken_tenants_are_skipped(eviction_env: EvictionEnv):
     healthy_tenant_id, healthy_timeline_id = env.timelines[1]
 
     broken_size_pre, _, _ = poor_mans_du(
-        env.neon_env,
+        env.serendb_env,
         [(broken_tenant_id, broken_timeline_id)],
         env.pageserver,
         verbose=True,
     )
     healthy_size_pre, _, _ = poor_mans_du(
-        env.neon_env,
+        env.serendb_env,
         [(healthy_tenant_id, healthy_timeline_id)],
         env.pageserver,
         verbose=True,
@@ -388,13 +388,13 @@ def test_broken_tenants_are_skipped(eviction_env: EvictionEnv):
     log.info(f"{response}")
 
     broken_size_post, _, _ = poor_mans_du(
-        env.neon_env,
+        env.serendb_env,
         [(broken_tenant_id, broken_timeline_id)],
         env.pageserver,
         verbose=True,
     )
     healthy_size_post, _, _ = poor_mans_du(
-        env.neon_env,
+        env.serendb_env,
         [(healthy_tenant_id, healthy_timeline_id)],
         env.pageserver,
         verbose=True,
@@ -403,7 +403,7 @@ def test_broken_tenants_are_skipped(eviction_env: EvictionEnv):
     assert broken_size_pre == broken_size_post, "broken tenant should not be touched"
     assert healthy_size_post < healthy_size_pre
     assert healthy_size_post == 0
-    env.neon_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
+    env.serendb_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
 
 
 @pytest.mark.parametrize(
@@ -473,10 +473,10 @@ def test_pageserver_respects_overridden_resident_size(
     assert du_by_timeline[large_tenant] > min_resident_size, (
         "ensure the larger tenant will get a haircut"
     )
-    env.neon_env.storage_controller.pageserver_api().update_tenant_config(
+    env.serendb_env.storage_controller.pageserver_api().update_tenant_config(
         small_tenant[0], {"min_resident_size_override": min_resident_size}
     )
-    env.neon_env.storage_controller.pageserver_api().update_tenant_config(
+    env.serendb_env.storage_controller.pageserver_api().update_tenant_config(
         large_tenant[0], {"min_resident_size_override": min_resident_size}
     )
 
@@ -492,7 +492,7 @@ def test_pageserver_respects_overridden_resident_size(
     log.info(f"{response}")
 
     time.sleep(1)  # give log time to flush
-    assert not env.neon_env.pageserver.log_contains(
+    assert not env.serendb_env.pageserver.log_contains(
         GLOBAL_LRU_LOG_LINE,
     ), "this test is pointless if it fell back to global LRU"
 
@@ -543,8 +543,8 @@ def test_pageserver_falls_back_to_global_lru(eviction_env: EvictionEnv, order: E
     assert actual_change >= target, "eviction must always evict more than target"
 
     time.sleep(1)  # give log time to flush
-    env.neon_env.pageserver.assert_log_contains(GLOBAL_LRU_LOG_LINE)
-    env.neon_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
+    env.serendb_env.pageserver.assert_log_contains(GLOBAL_LRU_LOG_LINE)
+    env.serendb_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
 
 
 @pytest.mark.parametrize(
@@ -632,13 +632,13 @@ def test_partial_evict_tenant(eviction_env: EvictionEnv, order: EvictionOrder):
         EvictionOrder.RELATIVE_ORDER_SPARE,
     ],
 )
-def test_fast_growing_tenant(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin, order: EvictionOrder):
+def test_fast_growing_tenant(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin, order: EvictionOrder):
     """
     Create in order first smaller tenants and finally a single larger tenant.
     Assert that with relative order modes, the disk usage based eviction is
     more fair towards the smaller tenants.
     """
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     env.pageserver.allowed_errors.append(r".* running disk usage based eviction due to pressure.*")
 
@@ -654,7 +654,7 @@ def test_fast_growing_tenant(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin, or
         # tenants is long enough for the pageserver to distinguish them.
         time.sleep(ATIME_RESOLUTION)
 
-    env.neon_cli.safekeeper_stop()
+    env.serendb_cli.safekeeper_stop()
 
     for (tenant_id, timeline_id), scale in timelines:
         min_expected_layers = 4 if scale == 1 else 10
@@ -694,9 +694,9 @@ def test_fast_growing_tenant(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin, or
 
 
 def poor_mans_du(
-    env: NeonEnv,
+    env: SerenDBEnv,
     timelines: Iterable[tuple[TenantId, TimelineId]],
-    pageserver: NeonPageserver,
+    pageserver: SerenDBPageserver,
     verbose: bool = False,
 ) -> tuple[int, int, int]:
     """
@@ -736,7 +736,7 @@ def test_statvfs_error_handling(eviction_env: EvictionEnv):
     We should log an error that statvfs fails.
     """
     env = eviction_env
-    env.neon_env.pageserver.stop()
+    env.serendb_env.pageserver.stop()
     env.pageserver_start_with_disk_usage_eviction(
         env.pageserver,
         period="1s",
@@ -749,8 +749,8 @@ def test_statvfs_error_handling(eviction_env: EvictionEnv):
         eviction_order=EvictionOrder.RELATIVE_ORDER_SPARE,
     )
 
-    env.neon_env.pageserver.assert_log_contains(".*statvfs failed.*EIO")
-    env.neon_env.pageserver.allowed_errors.append(".*statvfs failed.*EIO")
+    env.serendb_env.pageserver.assert_log_contains(".*statvfs failed.*EIO")
+    env.serendb_env.pageserver.allowed_errors.append(".*statvfs failed.*EIO")
 
 
 def test_statvfs_pressure_usage(eviction_env: EvictionEnv):
@@ -760,7 +760,7 @@ def test_statvfs_pressure_usage(eviction_env: EvictionEnv):
     """
     env = eviction_env
 
-    env.neon_env.pageserver.stop()
+    env.serendb_env.pageserver.stop()
 
     # make it seem like we're at 100% utilization by setting total bytes to the used bytes
     total_size, _, _ = env.timelines_du(env.pageserver)
@@ -784,7 +784,7 @@ def test_statvfs_pressure_usage(eviction_env: EvictionEnv):
     )
 
     wait_until(
-        lambda: env.neon_env.pageserver.assert_log_contains(".*disk usage pressure relieved")
+        lambda: env.serendb_env.pageserver.assert_log_contains(".*disk usage pressure relieved")
     )
 
     def less_than_max_usage_pct():
@@ -801,7 +801,7 @@ def test_statvfs_pressure_usage(eviction_env: EvictionEnv):
     # both tenants have become active. Hence, the logic will try to satisfy the
     # disk usage requirements by evicting everything belonging to the active tenant,
     # and hence violating the tenant minimum resident size.
-    env.neon_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
+    env.serendb_env.pageserver.allowed_errors.append(".*" + GLOBAL_LRU_LOG_LINE)
 
 
 def test_statvfs_pressure_min_avail_bytes(eviction_env: EvictionEnv):
@@ -811,7 +811,7 @@ def test_statvfs_pressure_min_avail_bytes(eviction_env: EvictionEnv):
     """
     env = eviction_env
 
-    env.neon_env.pageserver.stop()
+    env.serendb_env.pageserver.stop()
 
     # make it seem like we're at 100% utilization by setting total bytes to the used bytes
     total_size, _, _ = env.timelines_du(env.pageserver)
@@ -837,7 +837,7 @@ def test_statvfs_pressure_min_avail_bytes(eviction_env: EvictionEnv):
     )
 
     wait_until(
-        lambda: env.neon_env.pageserver.assert_log_contains(".*disk usage pressure relieved"),
+        lambda: env.serendb_env.pageserver.assert_log_contains(".*disk usage pressure relieved"),
     )
 
     def more_than_min_avail_bytes_freed():
@@ -857,10 +857,10 @@ def test_secondary_mode_eviction(eviction_env_ha: EvictionEnv):
     # Set up a situation where one pageserver _only_ has secondary locations on it,
     # so that when we release space we are sure it is via secondary locations.
     log.info("Setting up secondary locations...")
-    ps_secondary = env.neon_env.pageservers[1]
+    ps_secondary = env.serendb_env.pageservers[1]
     for tenant_id in tenant_ids:
         # Find where it is attached
-        pageserver = env.neon_env.get_tenant_pageserver(tenant_id)
+        pageserver = env.serendb_env.get_tenant_pageserver(tenant_id)
         pageserver.http_client().tenant_heatmap_upload(tenant_id)
 
         # Detach it
@@ -898,7 +898,7 @@ def test_secondary_mode_eviction(eviction_env_ha: EvictionEnv):
 
 @run_only_on_default_postgres(reason="PG version is irrelevant here")
 def test_import_timeline_disk_pressure_eviction(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     vanilla_pg: VanillaPostgres,
     make_httpserver: HTTPServer,
     pg_bin: PgBin,
@@ -920,22 +920,22 @@ def test_import_timeline_disk_pressure_eviction(
     ).respond_with_handler(handler)
 
     # Plug the cplane mock in
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
     # The import will specifiy a local filesystem path mocking remote storage
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     vanilla_pg.start()
     target_relblock_size = 1024 * 1024 * 128
     populate_vanilla_pg(vanilla_pg, target_relblock_size)
     vanilla_pg.stop()
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
-    importbucket_path = neon_env_builder.repo_dir / "test_import_completion_bucket"
+    importbucket_path = serendb_env_builder.repo_dir / "test_import_completion_bucket"
     mock_import_bucket(vanilla_pg, importbucket_path)
 
     tenant_id = TenantId.generate()
@@ -944,7 +944,7 @@ def test_import_timeline_disk_pressure_eviction(
 
     eviction_env = EvictionEnv(
         timelines=[(tenant_id, timeline_id)],
-        neon_env=env,
+        serendb_env=env,
         pageserver_http=env.pageserver.http_client(),
         layer_size=5 * 1024 * 1024,  # Doesn't apply here
         pg_bin=pg_bin,  # Not used here

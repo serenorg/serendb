@@ -1,5 +1,5 @@
 {
-  collector_name: 'neon_collector',
+  collector_name: 'serendb_collector',
   metrics: [
     import 'sql_exporter/checkpoints_req.libsonnet',
     import 'sql_exporter/checkpoints_timed.libsonnet',
@@ -53,8 +53,8 @@
   ],
   queries: [
     {
-      query_name: 'neon_perf_counters',
-      query: importstr 'sql_exporter/neon_perf_counters.sql',
+      query_name: 'serendb_perf_counters',
+      query: importstr 'sql_exporter/serendb_perf_counters.sql',
     },
   ],
 }

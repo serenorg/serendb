@@ -7,10 +7,10 @@ from pathlib import Path
 import psycopg2
 import psycopg2.extras
 import pytest
-from fixtures.benchmark_fixture import NeonBenchmarker
+from fixtures.benchmark_fixture import SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_api import NeonAPI, connection_parameters_to_env
-from fixtures.neon_fixtures import PgBin
+from fixtures.serendb_api import SerenDBAPI, connection_parameters_to_env
+from fixtures.serendb_fixtures import PgBin
 from fixtures.pg_version import PgVersion
 
 vacuum_times_sql = """
@@ -72,9 +72,9 @@ def insert_second_chunk_and_verify_autovacuum_is_now_running(
 def test_cumulative_statistics_persistence(
     pg_bin: PgBin,
     test_output_dir: Path,
-    neon_api: NeonAPI,
+    serendb_api: SerenDBAPI,
     pg_version: PgVersion,
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Verifies that the cumulative statistics are correctly persisted across restarts.
@@ -88,12 +88,12 @@ def test_cumulative_statistics_persistence(
     - insert additional tuples that by itself are not enough to trigger auto-vacuum but in combination with the previous tuples are
     - verify that autovacuum is triggered by the combination of tuples inserted before and after endpoint suspension
     """
-    project = neon_api.create_project(
+    project = serendb_api.create_project(
         pg_version,
         f"Test cumulative statistics persistence, GITHUB_RUN_ID={os.getenv('GITHUB_RUN_ID')}",
     )
     project_id = project["project"]["id"]
-    neon_api.wait_for_operation_to_finish(project_id)
+    serendb_api.wait_for_operation_to_finish(project_id)
     endpoint_id = project["endpoints"][0]["id"]
     region_id = project["project"]["region_id"]
     log.info(f"Created project {project_id} with endpoint {endpoint_id} in region {region_id}")
@@ -141,7 +141,7 @@ def test_cumulative_statistics_persistence(
             )
             autovacuum_vacuum_insert_threshold = cur.fetchall()[0][0]
             cur.execute(
-                "SELECT setting::int AS pgstat_file_size_limit FROM pg_settings WHERE name = 'neon.pgstat_file_size_limit'"
+                "SELECT setting::int AS pgstat_file_size_limit FROM pg_settings WHERE name = 'serendb.pgstat_file_size_limit'"
             )
             pgstat_file_size_limit = cur.fetchall()[0][0]
             assert pgstat_file_size_limit > 10 * 1024  # at least 10 MB
@@ -171,14 +171,14 @@ def test_cumulative_statistics_persistence(
 
         # suspend the endpoint
         log.info(f"Suspending endpoint {endpoint_id}")
-        neon_api.suspend_endpoint(project_id, endpoint_id)
-        neon_api.wait_for_operation_to_finish(project_id)
+        serendb_api.suspend_endpoint(project_id, endpoint_id)
+        serendb_api.wait_for_operation_to_finish(project_id)
         time.sleep(60)  # give some time in between suspend and resume
 
         # resume the endpoint
         log.info(f"Starting endpoint {endpoint_id}")
-        neon_api.start_endpoint(project_id, endpoint_id)
-        neon_api.wait_for_operation_to_finish(project_id)
+        serendb_api.start_endpoint(project_id, endpoint_id)
+        serendb_api.wait_for_operation_to_finish(project_id)
 
         conn = psycopg2.connect(connstr)
         conn.autocommit = True
@@ -222,4 +222,4 @@ def test_cumulative_statistics_persistence(
         log.error(traceback.format_exc())
     finally:
         assert not error_occurred  # Fail the test if an error occurred
-        neon_api.delete_project(project_id)
+        serendb_api.delete_project(project_id)

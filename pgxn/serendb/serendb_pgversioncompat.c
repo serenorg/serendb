@@ -1,5 +1,5 @@
 /*
- * Support functions for the compatibility macros in neon_pgversioncompat.h
+ * Support functions for the compatibility macros in serendb_pgversioncompat.h
  */
 #include "postgres.h"
 
@@ -8,7 +8,7 @@
 #include "access/xlog.h"
 #include "utils/tuplestore.h"
 
-#include "neon_pgversioncompat.h"
+#include "serendb_pgversioncompat.h"
 
 #if PG_MAJORVERSION_NUM < 15
 void

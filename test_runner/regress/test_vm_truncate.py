@@ -1,16 +1,16 @@
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 
 
 #
 # Test that VM is properly truncated
 #
-def test_vm_truncate(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_vm_truncate(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
     con = endpoint.connect()
     cur = con.cursor()
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
     cur.execute("CREATE EXTENSION pageinspect")
 
     cur.execute(

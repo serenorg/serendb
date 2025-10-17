@@ -25,7 +25,7 @@ before the compute node starts.
 
 ## Components
 
-compute_ctl, PostgreSQL, neon (extension), Compute Host Node, Extension Store
+compute_ctl, PostgreSQL, serendb (extension), Compute Host Node, Extension Store
 
 ## Requirements
 

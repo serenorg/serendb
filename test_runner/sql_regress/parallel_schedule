@@ -4,11 +4,11 @@
 # number of connections needed to run the tests.
 # ----------
 
-test: neon-cid
-test: neon-rel-truncate
-test: neon-clog
-test: neon-test-utils
-test: neon-vacuum-full
-test: neon-subxacts
-test: neon-spgist
-test: neon-event-triggers
+test: serendb-cid
+test: serendb-rel-truncate
+test: serendb-clog
+test: serendb-test-utils
+test: serendb-vacuum-full
+test: serendb-subxacts
+test: serendb-spgist
+test: serendb-event-triggers

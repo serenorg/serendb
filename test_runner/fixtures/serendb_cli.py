@@ -26,9 +26,9 @@ if TYPE_CHECKING:
 
 
 # Used to be an ABC. abc.ABC removed due to linter without name change.
-class AbstractNeonCli:
+class AbstractSerenDBCli:
     """
-    A typed wrapper around an arbitrary Neon CLI tool.
+    A typed wrapper around an arbitrary SerenDB CLI tool.
     Supports a way to run arbitrary command directly via CLI.
     Do not use directly, use specific subclasses instead.
     """
@@ -53,7 +53,7 @@ class AbstractNeonCli:
 
         Return both stdout and stderr, which can be accessed as
 
-        >>> result = env.neon_cli.raw_cli(...)
+        >>> result = env.serendb_cli.raw_cli(...)
         >>> assert result.stderr == ""
         >>> log.info(result.stdout)
 
@@ -138,35 +138,35 @@ class AbstractNeonCli:
         return res
 
 
-class NeonLocalCli(AbstractNeonCli):
-    """A typed wrapper around the `neon_local` CLI tool.
+class SerenDBLocalCli(AbstractSerenDBCli):
+    """A typed wrapper around the `serendb_local` CLI tool.
     Supports main commands via typed methods and a way to run arbitrary command directly via CLI.
 
     Note: The methods in this class are supposed to be faithful wrappers of the underlying
-    'neon_local' commands. If you're tempted to add any logic here, please consider putting it
+    'serendb_local' commands. If you're tempted to add any logic here, please consider putting it
     in the caller instead!
 
     There are a few exceptions where these wrapper methods intentionally differ from the
     underlying commands, however:
-    - Many 'neon_local' commands take an optional 'tenant_id' argument and use the default from
+    - Many 'serendb_local' commands take an optional 'tenant_id' argument and use the default from
       the config file if it's omitted. The corresponding wrappers require an explicit 'tenant_id'
       argument. The idea is that we don't want to rely on the config file's default in tests,
-      because NeonEnv has its own 'initial_tenant'. They are currently always the same, but we
-      want to rely on the Neonenv's default instead of the config file default in tests.
+      because SerenDBEnv has its own 'initial_tenant'. They are currently always the same, but we
+      want to rely on the SerenDBenv's default instead of the config file default in tests.
 
     - Similarly, --pg_version argument is always required in the wrappers, even when it's
-      optional in the 'neon_local' command. The default in 'neon_local' is a specific
+      optional in the 'serendb_local' command. The default in 'serendb_local' is a specific
       hardcoded version, but in tests, we never want to accidentally rely on that;, we
       always want to use the version from the test fixtures.
 
     - Wrappers for commands that create a new tenant or timeline ID require the new tenant
-      or timeline ID to be passed by the caller, while the 'neon_local' commands will
+      or timeline ID to be passed by the caller, while the 'serendb_local' commands will
       generate a random ID if it's not specified. This is because we don't want to have to
-      parse the ID from the 'neon_local' output. Making it required ensures that the
+      parse the ID from the 'serendb_local' output. Making it required ensures that the
       caller has to generate it.
     """
 
-    COMMAND = "neon_local"
+    COMMAND = "serendb_local"
 
     def __init__(
         self,
@@ -179,7 +179,7 @@ class NeonLocalCli(AbstractNeonCli):
             env_vars = {}
         else:
             env_vars = extra_env.copy()
-        env_vars["NEON_REPO_DIR"] = str(repo_dir)
+        env_vars["SERENDB_REPO_DIR"] = str(repo_dir)
         env_vars["POSTGRES_DISTRIB_DIR"] = str(pg_distrib_dir)
 
         super().__init__(env_vars, binpath)
@@ -359,7 +359,7 @@ class NeonLocalCli(AbstractNeonCli):
 
     def timeline_list(self, tenant_id: TenantId) -> list[tuple[str, TimelineId]]:
         """
-        Returns a list of (branch_name, timeline_id) tuples out of parsed `neon timeline list` CLI output.
+        Returns a list of (branch_name, timeline_id) tuples out of parsed `SerenDB timeline list` CLI output.
         """
 
         # main [b49f7954224a0ad25cc0013ea107b54b]
@@ -587,7 +587,7 @@ class NeonLocalCli(AbstractNeonCli):
         ]
         extra_env_vars = env or {}
         if basebackup_request_tries is not None:
-            extra_env_vars["NEON_COMPUTE_TESTING_BASEBACKUP_RETRIES"] = str(
+            extra_env_vars["SERENDB_COMPUTE_TESTING_BASEBACKUP_RETRIES"] = str(
                 basebackup_request_tries
             )
         if remote_ext_base_url is not None:
@@ -689,8 +689,8 @@ class NeonLocalCli(AbstractNeonCli):
         self, name: str, tenant_id: TenantId, timeline_id: TimelineId
     ) -> subprocess.CompletedProcess[str]:
         """
-        Map tenant id and timeline id to a neon_local branch name. They do not have to exist.
-        Usually needed when creating branches via PageserverHttpClient and not neon_local.
+        Map tenant id and timeline id to a serendb_local branch name. They do not have to exist.
+        Usually needed when creating branches via PageserverHttpClient and not serendb_local.
 
         After creating a name mapping, you can use EndpointFactory.create_start
         with this registered branch name.
@@ -715,7 +715,7 @@ class NeonLocalCli(AbstractNeonCli):
         return self.raw_cli(["stop"], check_return_code=check_return_code)
 
 
-class WalCraft(AbstractNeonCli):
+class WalCraft(AbstractSerenDBCli):
     """
     A typed wrapper around the `wal_craft` CLI tool.
     Supports main commands via typed methods and a way to run arbitrary command directly via CLI.
@@ -733,7 +733,7 @@ class WalCraft(AbstractNeonCli):
         res.check_returncode()
 
 
-class Pagectl(AbstractNeonCli):
+class Pagectl(AbstractSerenDBCli):
     """
     A typed wrapper around the `pagectl` utility CLI tool.
     """

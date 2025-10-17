@@ -47,7 +47,7 @@ pub struct ComputeSpec {
     pub features: Vec<ComputeFeature>,
 
     /// If compute_ctl was passed `--resize-swap-on-bind`, a value of `Some(_)` instructs
-    /// compute_ctl to `/neonvm/bin/resize-swap` with the given size, when the spec is first
+    /// compute_ctl to `/serendbvm/bin/resize-swap` with the given size, when the spec is first
     /// received.
     ///
     /// Both this field and `--resize-swap-on-bind` are required, so that the control plane's
@@ -59,12 +59,12 @@ pub struct ComputeSpec {
     /// Eventually we may remove `--resize-swap-on-bind` and exclusively use `swap_size_bytes` for
     /// enabling the swap resizing behavior once rollout is complete.
     ///
-    /// See neondatabase/cloud#12047 for more.
+    /// See serendb/cloud#12047 for more.
     #[serde(default)]
     pub swap_size_bytes: Option<u64>,
 
     /// If compute_ctl was passed `--set-disk-quota-for-fs`, a value of `Some(_)` instructs
-    /// compute_ctl to run `/neonvm/bin/set-disk-quota` with the given size and fs, when the
+    /// compute_ctl to run `/serendbvm/bin/set-disk-quota` with the given size and fs, when the
     /// spec is first received.
     ///
     /// Both this field and `--set-disk-quota-for-fs` are required, so that the control plane's
@@ -101,7 +101,7 @@ pub struct ComputeSpec {
     // `safekeeper_connstrings` must be set for a primary.
     //
     // For backwards compatibility, the control plane may leave out all of
-    // these, and instead set the "neon.tenant_id", "neon.timeline_id",
+    // these, and instead set the "serendb.tenant_id", "serendb.timeline_id",
     // etc. GUCs in cluster.settings. TODO: Once the control plane has been
     // updated to fill these fields, we can make these non optional.
     pub tenant_id: Option<TenantId>,
@@ -127,14 +127,14 @@ pub struct ComputeSpec {
     /// the stripe size is stored in `pageserver_connection_info.stripe_size` instead.
     pub shard_stripe_size: Option<ShardStripeSize>,
 
-    // More neon ids that we expose to the compute_ctl
-    // and to postgres as neon extension GUCs.
+    // More SerenDB ids that we expose to the compute_ctl
+    // and to postgres as SerenDB extension GUCs.
     pub project_id: Option<String>,
     pub branch_id: Option<String>,
     pub endpoint_id: Option<String>,
 
     /// Safekeeper membership config generation. It is put in
-    /// neon.safekeepers GUC and serves two purposes:
+    /// serendb.safekeepers GUC and serves two purposes:
     /// 1) Non zero value forces walproposer to use membership configurations.
     /// 2) If walproposer wants to update list of safekeepers to connect to
     ///    taking them from some safekeeper mconf, it should check what value
@@ -189,7 +189,7 @@ pub struct ComputeSpec {
     pub audit_log_level: ComputeAudit,
 
     /// Hostname and the port of the otel collector. Leave empty to disable Postgres logs forwarding.
-    /// Example: config-shy-breeze-123-collector-monitoring.neon-telemetry.svc.cluster.local:10514
+    /// Example: config-shy-breeze-123-collector-monitoring.serendb-telemetry.svc.cluster.local:10514
     pub logs_export_host: Option<String>,
 
     /// Address of endpoint storage service
@@ -254,7 +254,7 @@ pub struct PageserverConnectionInfo {
 /// Extract PageserverConnectionInfo from a comma-separated list of libpq connection strings.
 ///
 /// This is used for backwards-compatibility, to parse the legacy
-/// [ComputeSpec::pageserver_connstring] field, or the 'neon.pageserver_connstring' GUC. Nowadays,
+/// [ComputeSpec::pageserver_connstring] field, or the 'serendb.pageserver_connstring' GUC. Nowadays,
 /// the 'pageserver_connection_info' field should be used instead.
 impl PageserverConnectionInfo {
     pub fn from_connstr(

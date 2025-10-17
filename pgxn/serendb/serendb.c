@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * neon.c
- *	  Main entry point into the neon extension
+ * serendb.c
+ *	  Main entry point into the SerenDB extension
  *
  *-------------------------------------------------------------------------
  */
@@ -34,10 +34,10 @@
 #include "communicator_process.h"
 #include "extension_server.h"
 #include "file_cache.h"
-#include "neon.h"
-#include "neon_ddl_handler.h"
-#include "neon_lwlsncache.h"
-#include "neon_perf_counters.h"
+#include "serendb.h"
+#include "serendb_ddl_handler.h"
+#include "serendb_lwlsncache.h"
+#include "serendb_perf_counters.h"
 #include "logical_replication_monitor.h"
 #include "unstable_extensions.h"
 #include "walsender_hooks.h"
@@ -57,12 +57,12 @@ static bool monitor_query_exec_time = false;
 static ExecutorStart_hook_type prev_ExecutorStart = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
-static void neon_ExecutorStart(QueryDesc *queryDesc, int eflags);
-static void neon_ExecutorEnd(QueryDesc *queryDesc);
+static void serendb_ExecutorStart(QueryDesc *queryDesc, int eflags);
+static void serendb_ExecutorEnd(QueryDesc *queryDesc);
 
 static shmem_startup_hook_type prev_shmem_startup_hook;
-static void neon_shmem_startup_hook(void);
-static void neon_shmem_request_hook(void);
+static void serendb_shmem_startup_hook(void);
+static void serendb_shmem_request_hook(void);
 
 #if PG_MAJORVERSION_NUM >= 15
 static shmem_request_hook_type prev_shmem_request_hook = NULL;
@@ -70,16 +70,16 @@ static shmem_request_hook_type prev_shmem_request_hook = NULL;
 
 
 #if PG_MAJORVERSION_NUM >= 17
-uint32		WAIT_EVENT_NEON_LFC_MAINTENANCE;
-uint32		WAIT_EVENT_NEON_LFC_READ;
-uint32		WAIT_EVENT_NEON_LFC_TRUNCATE;
-uint32		WAIT_EVENT_NEON_LFC_WRITE;
-uint32		WAIT_EVENT_NEON_LFC_CV_WAIT;
-uint32		WAIT_EVENT_NEON_PS_STARTING;
-uint32		WAIT_EVENT_NEON_PS_CONFIGURING;
-uint32		WAIT_EVENT_NEON_PS_SEND;
-uint32		WAIT_EVENT_NEON_PS_READ;
-uint32		WAIT_EVENT_NEON_WAL_DL;
+uint32		WAIT_EVENT_SERENDB_LFC_MAINTENANCE;
+uint32		WAIT_EVENT_SERENDB_LFC_READ;
+uint32		WAIT_EVENT_SERENDB_LFC_TRUNCATE;
+uint32		WAIT_EVENT_SERENDB_LFC_WRITE;
+uint32		WAIT_EVENT_SERENDB_LFC_CV_WAIT;
+uint32		WAIT_EVENT_SERENDB_PS_STARTING;
+uint32		WAIT_EVENT_SERENDB_PS_CONFIGURING;
+uint32		WAIT_EVENT_SERENDB_PS_SEND;
+uint32		WAIT_EVENT_SERENDB_PS_READ;
+uint32		WAIT_EVENT_SERENDB_WAL_DL;
 #endif
 
 int databricks_test_hook = 0;
@@ -124,7 +124,7 @@ static const struct config_enum_entry debug_compare_local_modes[] = {
  *
  * That's not great in PostgreSQL, because a hot standby does not necessary
  * open up for queries immediately as you might expect. But it's worse in
- * Neon: A standby in Neon doesn't need to start WAL replay from a checkpoint
+ * SerenDB: A standby in SerenDB doesn't need to start WAL replay from a checkpoint
  * record; it can start at any LSN. Postgres arranges things so that there is
  * a running-xacts record soon after every checkpoint record, but when you
  * start from an arbitrary LSN, that doesn't help. If the primary is idle, or
@@ -442,10 +442,10 @@ ReportSearchPath(void)
 /*
  * PG14 uses separate backend for stats collector having no access to shared memory.
  * As far as AUX mechanism requires access to shared memory, persisting pgstat.stat file
- * is not supported in PG14. And so there is no definition of neon_pgstat_file_size_limit
+ * is not supported in PG14. And so there is no definition of serendb_pgstat_file_size_limit
  * variable, so we have to declare it here.
  */
-static int neon_pgstat_file_size_limit;
+static int serendb_pgstat_file_size_limit;
 #endif
 
 static void DatabricksSqlErrorHookImpl(ErrorData *edata) {
@@ -466,11 +466,11 @@ void
 _PG_init(void)
 {
 	/*
-	 * Also load 'neon_rmgr'. This makes it unnecessary to list both 'neon'
-	 * and 'neon_rmgr' in shared_preload_libraries.
+	 * Also load 'serendb_rmgr'. This makes it unnecessary to list both 'serendb'
+	 * and 'serendb_rmgr' in shared_preload_libraries.
 	 */
 #if PG_VERSION_NUM >= 160000
-	load_file("$libdir/neon_rmgr", false);
+	load_file("$libdir/serendb_rmgr", false);
 #endif
 
 	if (lakebase_mode) {
@@ -495,14 +495,14 @@ _PG_init(void)
 	 *    request hooks" are a new mechanism in Postgres v15. In v14 and
 	 *    below, you had to make those Requests in stage 1 already, which
 	 *    means they could not depend on MaxBackends. (See hack in
-	 *    NeonPerfCountersShmemRequest())
+	 *    SerenDBPerfCountersShmemRequest())
 	 *
 	 * 3. After some more runtime-computed GUCs that affect the amount of
 	 *    shared memory needed have been calculated, the "shmem startup" hooks
 	 *    are called. In this stage, we allocate any shared memory, LWLocks
 	 *    and other shared resources.
 	 *
-	 * Here, in the 'neon' extension, we register just one shmem request hook
+	 * Here, in the 'serendb' extension, we register just one shmem request hook
 	 * and one startup hook, which call into functions in all the subsystems
 	 * that are part of the extension. On v14, the ShmemRequest functions are
 	 * called in stage 1, and on v15 onwards they are called in stage 2.
@@ -518,7 +518,7 @@ _PG_init(void)
 	pg_init_communicator_process();
 
 	pg_init_communicator();
-	Custom_XLogReaderRoutines = NeonOnDemandXLogReaderRoutines;
+	Custom_XLogReaderRoutines = SerenDBOnDemandXLogReaderRoutines;
 
 	InitUnstableExtensionsSupport();
 	InitLogicalReplicationMonitor();
@@ -529,7 +529,7 @@ _PG_init(void)
 	restore_running_xacts_callback = RestoreRunningXactsFromClog;
 
 	DefineCustomBoolVariable(
-							"neon.disable_logical_replication_subscribers",
+							"serendb.disable_logical_replication_subscribers",
 							"Disable incoming logical replication",
 							NULL,
 							&disable_logical_replication_subscribers,
@@ -538,7 +538,7 @@ _PG_init(void)
 							0,
 							NULL, NULL, NULL);
 	DefineCustomBoolVariable(
-							"neon.disable_wal_prevlink_checks",
+							"serendb.disable_wal_prevlink_checks",
 							"Disable validation of prev link in WAL records",
 							NULL,
 							&disable_wal_prev_lsn_checks,
@@ -548,7 +548,7 @@ _PG_init(void)
 							NULL, NULL, NULL);
 
 	DefineCustomBoolVariable(
-							"neon.monitor_query_exec_time",
+							"serendb.monitor_query_exec_time",
 							"Collect infortmation about query execution time",
 							NULL,
 							&monitor_query_exec_time,
@@ -558,7 +558,7 @@ _PG_init(void)
 							NULL, NULL, NULL);
 
 	DefineCustomBoolVariable(
-							"neon.allow_replica_misconfig",
+							"serendb.allow_replica_misconfig",
 							"Allow replica startup when some critical GUCs have smaller value than on primary node",
 							NULL,
 							&allowReplicaMisconfig,
@@ -568,7 +568,7 @@ _PG_init(void)
 							NULL, NULL, NULL);
 
 	DefineCustomEnumVariable(
-							"neon.running_xacts_overflow_policy",
+							"serendb.running_xacts_overflow_policy",
 							"Action performed on snapshot overflow when restoring runnings xacts from CLOG",
 							NULL,
 							&running_xacts_overflow_policy,
@@ -578,17 +578,17 @@ _PG_init(void)
 							0,
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.pgstat_file_size_limit",
-							"Maximal size of pgstat.stat file saved in Neon storage",
+	DefineCustomIntVariable("serendb.pgstat_file_size_limit",
+							"Maximal size of pgstat.stat file saved in SerenDB storage",
 							"Zero value disables persisting pgstat.stat file",
-							&neon_pgstat_file_size_limit,
+							&serendb_pgstat_file_size_limit,
 							0, 0, 1000000, /* disabled by default */
 							PGC_SIGHUP,
 							GUC_UNIT_KB,
 							NULL, NULL, NULL);
 
 	DefineCustomEnumVariable(
-							"neon.debug_compare_local",
+							"serendb.debug_compare_local",
 							"Debug mode for comparing content of pages in prefetch ring/LFC/PS and local disk",
 							NULL,
 							&debug_compare_local,
@@ -599,16 +599,16 @@ _PG_init(void)
 							NULL, NULL, NULL);
 
 	DefineCustomStringVariable(
-							"neon.privileged_role_name",
+							"serendb.privileged_role_name",
 							"Name of the 'weak' superuser role, which we give to the users",
 							NULL,
 							&privileged_role_name,
-							"neon_superuser",
+							"serendb_superuser",
 							PGC_POSTMASTER, 0, NULL, NULL, NULL);
 
 	DefineCustomBoolVariable(
-							"neon.lakebase_mode",
-							"Is neon running in Lakebase?",
+							"serendb.lakebase_mode",
+							"Is SerenDB running in Lakebase?",
 							NULL,
 							&lakebase_mode,
 							false,
@@ -634,7 +634,7 @@ _PG_init(void)
 	 * loaded, otherwise any settings to GUCs that were set before the
 	 * extension was loaded will be removed.
 	 */
-	EmitWarningsOnPlaceholders("neon");
+	EmitWarningsOnPlaceholders("serendb");
 
 	ReportSearchPath();
 
@@ -644,20 +644,20 @@ _PG_init(void)
 	 */
 #if PG_VERSION_NUM >= 150000
 	prev_shmem_request_hook = shmem_request_hook;
-	shmem_request_hook = neon_shmem_request_hook;
+	shmem_request_hook = serendb_shmem_request_hook;
 #else
-	neon_shmem_request_hook();
+	serendb_shmem_request_hook();
 #endif
 
 	/* Register hooks for stage 3 */
 	prev_shmem_startup_hook = shmem_startup_hook;
-	shmem_startup_hook = neon_shmem_startup_hook;
+	shmem_startup_hook = serendb_shmem_startup_hook;
 
 	/* Other misc initialization */
 	prev_ExecutorStart = ExecutorStart_hook;
-	ExecutorStart_hook = neon_ExecutorStart;
+	ExecutorStart_hook = serendb_ExecutorStart;
 	prev_ExecutorEnd = ExecutorEnd_hook;
-	ExecutorEnd_hook = neon_ExecutorEnd;
+	ExecutorEnd_hook = serendb_ExecutorEnd;
 }
 
 /* Various functions exposed at SQL level */
@@ -667,7 +667,7 @@ PG_FUNCTION_INFO_V1(backpressure_lsns);
 PG_FUNCTION_INFO_V1(backpressure_throttling_time);
 PG_FUNCTION_INFO_V1(approximate_working_set_size_seconds);
 PG_FUNCTION_INFO_V1(approximate_working_set_size);
-PG_FUNCTION_INFO_V1(neon_get_lfc_stats);
+PG_FUNCTION_INFO_V1(serendb_get_lfc_stats);
 PG_FUNCTION_INFO_V1(local_cache_pages);
 
 Datum
@@ -675,7 +675,7 @@ pg_cluster_size(PG_FUNCTION_ARGS)
 {
 	int64		size;
 
-	size = GetNeonCurrentClusterSize();
+	size = GetSerenDBCurrentClusterSize();
 
 	if (size == 0)
 		PG_RETURN_NULL();
@@ -744,9 +744,9 @@ approximate_working_set_size(PG_FUNCTION_ARGS)
 }
 
 Datum
-neon_get_lfc_stats(PG_FUNCTION_ARGS)
+serendb_get_lfc_stats(PG_FUNCTION_ARGS)
 {
-#define NUM_NEON_GET_STATS_COLS        2
+#define NUM_SERENDB_GET_STATS_COLS        2
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	LfcStatsEntry *entries;
 	size_t		num_entries;
@@ -760,8 +760,8 @@ neon_get_lfc_stats(PG_FUNCTION_ARGS)
 	for (size_t i = 0; i < num_entries; i++)
 	{
 		LfcStatsEntry *entry = &entries[i];
-		Datum		values[NUM_NEON_GET_STATS_COLS];
-		bool		nulls[NUM_NEON_GET_STATS_COLS];
+		Datum		values[NUM_SERENDB_GET_STATS_COLS];
+		bool		nulls[NUM_SERENDB_GET_STATS_COLS];
 
 		values[0] = CStringGetTextDatum(entry->metric_name);
 		nulls[0] = false;
@@ -771,7 +771,7 @@ neon_get_lfc_stats(PG_FUNCTION_ARGS)
 	}
 	PG_RETURN_VOID();
 
-#undef NUM_NEON_GET_STATS_COLS
+#undef NUM_SERENDB_GET_STATS_COLS
 }
 
 Datum
@@ -820,7 +820,7 @@ local_cache_pages(PG_FUNCTION_ARGS)
  * For a high-level explanation of the initialization process, see _PG_init().
  */
 static void
-neon_shmem_request_hook(void)
+serendb_shmem_request_hook(void)
 {
 #if PG_VERSION_NUM >= 150000
 	if (prev_shmem_request_hook)
@@ -828,7 +828,7 @@ neon_shmem_request_hook(void)
 #endif
 
 	LfcShmemRequest();
-	NeonPerfCountersShmemRequest();
+	SerenDBPerfCountersShmemRequest();
 	PagestoreShmemRequest();
 	RelsizeCacheShmemRequest();
 	WalproposerShmemRequest();
@@ -842,7 +842,7 @@ neon_shmem_request_hook(void)
  * For a high-level explanation of the initialization process, see _PG_init().
  */
 static void
-neon_shmem_startup_hook(void)
+serendb_shmem_startup_hook(void)
 {
 	if (prev_shmem_startup_hook)
 		prev_shmem_startup_hook();
@@ -850,7 +850,7 @@ neon_shmem_startup_hook(void)
 	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
 	LfcShmemInit();
-	NeonPerfCountersShmemInit();
+	SerenDBPerfCountersShmemInit();
 	if (lakebase_mode) {
 		DatabricksMetricsShmemInit();
 	}
@@ -860,16 +860,16 @@ neon_shmem_startup_hook(void)
 	LwLsnCacheShmemInit();
 
 #if PG_MAJORVERSION_NUM >= 17
-	WAIT_EVENT_NEON_LFC_MAINTENANCE = WaitEventExtensionNew("Neon/FileCache_Maintenance");
-	WAIT_EVENT_NEON_LFC_READ = WaitEventExtensionNew("Neon/FileCache_Read");
-	WAIT_EVENT_NEON_LFC_TRUNCATE = WaitEventExtensionNew("Neon/FileCache_Truncate");
-	WAIT_EVENT_NEON_LFC_WRITE = WaitEventExtensionNew("Neon/FileCache_Write");
-	WAIT_EVENT_NEON_LFC_CV_WAIT = WaitEventExtensionNew("Neon/FileCache_CvWait");
-	WAIT_EVENT_NEON_PS_STARTING = WaitEventExtensionNew("Neon/PS_Starting");
-	WAIT_EVENT_NEON_PS_CONFIGURING = WaitEventExtensionNew("Neon/PS_Configuring");
-	WAIT_EVENT_NEON_PS_SEND = WaitEventExtensionNew("Neon/PS_SendIO");
-	WAIT_EVENT_NEON_PS_READ = WaitEventExtensionNew("Neon/PS_ReadIO");
-	WAIT_EVENT_NEON_WAL_DL = WaitEventExtensionNew("Neon/WAL_Download");
+	WAIT_EVENT_SERENDB_LFC_MAINTENANCE = WaitEventExtensionNew("SerenDB/FileCache_Maintenance");
+	WAIT_EVENT_SERENDB_LFC_READ = WaitEventExtensionNew("SerenDB/FileCache_Read");
+	WAIT_EVENT_SERENDB_LFC_TRUNCATE = WaitEventExtensionNew("SerenDB/FileCache_Truncate");
+	WAIT_EVENT_SERENDB_LFC_WRITE = WaitEventExtensionNew("SerenDB/FileCache_Write");
+	WAIT_EVENT_SERENDB_LFC_CV_WAIT = WaitEventExtensionNew("SerenDB/FileCache_CvWait");
+	WAIT_EVENT_SERENDB_PS_STARTING = WaitEventExtensionNew("SerenDB/PS_Starting");
+	WAIT_EVENT_SERENDB_PS_CONFIGURING = WaitEventExtensionNew("SerenDB/PS_Configuring");
+	WAIT_EVENT_SERENDB_PS_SEND = WaitEventExtensionNew("SerenDB/PS_SendIO");
+	WAIT_EVENT_SERENDB_PS_READ = WaitEventExtensionNew("SerenDB/PS_ReadIO");
+	WAIT_EVENT_SERENDB_WAL_DL = WaitEventExtensionNew("SerenDB/WAL_Download");
 #endif
 
 	LWLockRelease(AddinShmemInitLock);
@@ -879,7 +879,7 @@ neon_shmem_startup_hook(void)
  * ExecutorStart hook: start up tracking if needed
  */
 static void
-neon_ExecutorStart(QueryDesc *queryDesc, int eflags)
+serendb_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
 	if (prev_ExecutorStart)
 		prev_ExecutorStart(queryDesc, eflags);
@@ -908,7 +908,7 @@ neon_ExecutorStart(QueryDesc *queryDesc, int eflags)
  * ExecutorEnd hook: store results if needed
  */
 static void
-neon_ExecutorEnd(QueryDesc *queryDesc)
+serendb_ExecutorEnd(QueryDesc *queryDesc)
 {
 	if (monitor_query_exec_time && queryDesc->totaltime)
 	{

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import time
 
-from fixtures.neon_fixtures import NeonEnvBuilder, flush_ep_to_pageserver
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, flush_ep_to_pageserver
 
 
-def test_layer_map(neon_env_builder: NeonEnvBuilder, zenbenchmark):
+def test_layer_map(serendb_env_builder: SerenDBEnvBuilder, zenbenchmark):
     """Benchmark searching the layer map, when there are a lot of small layer files."""
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     n_iters = 10
     n_records = 100000
 

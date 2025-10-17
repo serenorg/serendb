@@ -6,7 +6,7 @@ cache, the running-xacts record will be marked as "suboverflowed", and the
 standby will need to also wait for the currently in-progress transactions to
 finish.
 
-In Neon, we have an additional mechanism that scans the CLOG at server startup
+In SerenDB, we have an additional mechanism that scans the CLOG at server startup
 to determine the list of running transactions, so that the standby can start up
 immediately without waiting for the running-xacts record, but that mechanism
 only works if the # of active (sub-)transactions is reasonably small. Otherwise
@@ -29,7 +29,7 @@ import psycopg2
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv, PgBin, wait_for_last_flush_lsn, wait_replica_caughtup
+from fixtures.serendb_fixtures import SerenDBEnv, PgBin, wait_for_last_flush_lsn, wait_replica_caughtup
 from fixtures.pg_version import PgVersion
 from fixtures.utils import query_scalar, skip_on_postgres, wait_until
 
@@ -50,23 +50,23 @@ end; $$ language plpgsql
 """
 
 
-def test_replica_start_scan_clog(neon_simple_env: NeonEnv):
+def test_replica_start_scan_clog(serendb_simple_env: SerenDBEnv):
     """
     Test the CLOG-scanning mechanism at hot standby startup. There is one
     transaction active in the primary when the standby is started. The primary
     is killed before it has a chance to write a running-xacts record. The
-    CLOG-scanning at neon startup allows the standby to start up anyway.
+    CLOG-scanning at SerenDB startup allows the standby to start up anyway.
 
     See the module docstring for background.
     """
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     primary_conn = primary.connect()
     primary_cur = primary_conn.cursor()
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
     primary_cur.execute("create table t(pk serial primary key, payload integer)")
     primary_cur.execute(CREATE_SUBXACTS_FUNC)
     primary_cur.execute("select pg_switch_wal()")
@@ -80,7 +80,7 @@ def test_replica_start_scan_clog(neon_simple_env: NeonEnv):
 
     # Wait for the WAL to be flushed, but then immediately kill the primary,
     # before it has a chance to generate a running-xacts record.
-    primary_cur.execute("select neon_xlogflush()")
+    primary_cur.execute("select serendb_xlogflush()")
     wait_for_last_flush_lsn(env, primary, env.initial_tenant, env.initial_timeline)
     primary.stop(mode="immediate")
 
@@ -95,7 +95,7 @@ def test_replica_start_scan_clog(neon_simple_env: NeonEnv):
     assert secondary_cur.fetchone() == (0,)
 
 
-def test_replica_start_scan_clog_crashed_xids(neon_simple_env: NeonEnv):
+def test_replica_start_scan_clog_crashed_xids(serendb_simple_env: SerenDBEnv):
     """
     Test the CLOG-scanning mechanism at hot standby startup, after
     leaving behind crashed transactions.
@@ -105,7 +105,7 @@ def test_replica_start_scan_clog_crashed_xids(neon_simple_env: NeonEnv):
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     timeline_id = env.initial_timeline
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     primary_conn = primary.connect()
@@ -144,7 +144,7 @@ def test_replica_start_scan_clog_crashed_xids(neon_simple_env: NeonEnv):
 @skip_on_postgres(
     PgVersion.V15, reason="pg_log_standby_snapshot() function is available since Postgres 16"
 )
-def test_replica_start_at_running_xacts(neon_simple_env: NeonEnv, pg_version):
+def test_replica_start_at_running_xacts(serendb_simple_env: SerenDBEnv, pg_version):
     """
     Test that starting a replica works right after the primary has
     created a running-xacts record. This may seem like a trivial case,
@@ -154,15 +154,15 @@ def test_replica_start_at_running_xacts(neon_simple_env: NeonEnv, pg_version):
 
     See the module docstring for background.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     primary_conn = primary.connect()
     primary_cur = primary_conn.cursor()
 
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
     primary_cur.execute("select pg_log_standby_snapshot()")
-    primary_cur.execute("select neon_xlogflush()")
+    primary_cur.execute("select serendb_xlogflush()")
     wait_for_last_flush_lsn(env, primary, env.initial_tenant, env.initial_timeline)
 
     secondary = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
@@ -173,7 +173,7 @@ def test_replica_start_at_running_xacts(neon_simple_env: NeonEnv, pg_version):
     assert secondary_cur.fetchone() == (123,)
 
 
-def test_replica_start_wait_subxids_finish(neon_simple_env: NeonEnv):
+def test_replica_start_wait_subxids_finish(serendb_simple_env: SerenDBEnv):
     """
     Test replica startup when there are a lot of (sub)transactions active in the
     primary. That's too many for the CLOG-scanning mechanism to handle, so the
@@ -188,7 +188,7 @@ def test_replica_start_wait_subxids_finish(neon_simple_env: NeonEnv):
 
     # Initialize the primary, a test table, and a helper function to create
     # lots of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     primary_conn = primary.connect()
     primary_cur = primary_conn.cursor()
@@ -220,7 +220,7 @@ def test_replica_start_wait_subxids_finish(neon_simple_env: NeonEnv):
     secondary = env.endpoints.new_replica(
         origin=primary,
         endpoint_id="secondary",
-        config_lines=["neon.running_xacts_overflow_policy='wait'"],
+        config_lines=["serendb.running_xacts_overflow_policy='wait'"],
     )
     start_secondary_thread = threading.Thread(target=secondary.start)
     start_secondary_thread.start()
@@ -284,7 +284,7 @@ def test_replica_start_wait_subxids_finish(neon_simple_env: NeonEnv):
     assert secondary_cur.fetchone() == (110001,)
 
 
-def test_replica_too_many_known_assigned_xids(neon_simple_env: NeonEnv):
+def test_replica_too_many_known_assigned_xids(serendb_simple_env: SerenDBEnv):
     """
     The CLOG-scanning mechanism fills the known-assigned XIDs array
     optimistically at standby startup, betting that it can still fit
@@ -294,7 +294,7 @@ def test_replica_too_many_known_assigned_xids(neon_simple_env: NeonEnv):
     been started. The WAL redo will fail with an error:
 
     FATAL:  too many KnownAssignedXids
-    CONTEXT:  WAL redo at 0/1895CB0 for neon/INSERT: off: 25, flags: 0x08; blkref #0: rel 1663/5/16385, blk 64
+    CONTEXT:  WAL redo at 0/1895CB0 for serendb/INSERT: off: 25, flags: 0x08; blkref #0: rel 1663/5/16385, blk 64
 
     which causes the standby to shut down.
 
@@ -303,11 +303,11 @@ def test_replica_too_many_known_assigned_xids(neon_simple_env: NeonEnv):
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     primary_conn = primary.connect()
     primary_cur = primary_conn.cursor()
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
     primary_cur.execute("create table t(pk serial primary key, payload integer)")
     primary_cur.execute(CREATE_SUBXACTS_FUNC)
 
@@ -332,7 +332,7 @@ def test_replica_too_many_known_assigned_xids(neon_simple_env: NeonEnv):
             small_p_cur.execute("select create_subxacts(1)")
 
     # Create a replica at this LSN
-    primary_cur.execute("select neon_xlogflush()")
+    primary_cur.execute("select serendb_xlogflush()")
     wait_for_last_flush_lsn(env, primary, env.initial_tenant, env.initial_timeline)
     secondary = env.endpoints.new_replica_start(origin=primary, endpoint_id="secondary")
     secondary_conn = secondary.connect()
@@ -386,15 +386,15 @@ def test_replica_too_many_known_assigned_xids(neon_simple_env: NeonEnv):
     secondary.check_stop_result = False
 
 
-def test_replica_start_repro_visibility_bug(neon_simple_env: NeonEnv):
+def test_replica_start_repro_visibility_bug(serendb_simple_env: SerenDBEnv):
     """
-    Before PR #7288, a hot standby in neon incorrectly started up
+    Before PR #7288, a hot standby in SerenDB incorrectly started up
     immediately, before it had received a running-xacts record. That
     led to visibility bugs if there were active transactions in the
     primary. This test reproduces the incorrect query results and
     incorrectly set hint bits, before that was fixed.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     p_cur = primary.connect().cursor()
@@ -420,7 +420,7 @@ def test_replica_start_repro_visibility_bug(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.parametrize("shutdown", [True, False])
-def test_replica_start_with_prepared_xacts(neon_simple_env: NeonEnv, shutdown: bool):
+def test_replica_start_with_prepared_xacts(serendb_simple_env: SerenDBEnv, shutdown: bool):
     """
     Test the CLOG-scanning mechanism at hot standby startup in the presence of
     prepared transactions.
@@ -431,13 +431,13 @@ def test_replica_start_with_prepared_xacts(neon_simple_env: NeonEnv, shutdown: b
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main", endpoint_id="primary", config_lines=["max_prepared_transactions=5"]
     )
     primary_conn = primary.connect()
     primary_cur = primary_conn.cursor()
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
     primary_cur.execute("create table t(pk serial primary key, payload integer)")
     primary_cur.execute("create table t1(pk integer primary key)")
     primary_cur.execute("create table t2(pk integer primary key)")
@@ -463,7 +463,7 @@ def test_replica_start_with_prepared_xacts(neon_simple_env: NeonEnv, shutdown: b
     primary_cur.execute("select create_subxacts(50)")
 
     # Wait for the WAL to be flushed
-    primary_cur.execute("select neon_xlogflush()")
+    primary_cur.execute("select serendb_xlogflush()")
     wait_for_last_flush_lsn(env, primary, env.initial_tenant, env.initial_timeline)
 
     if shutdown:
@@ -507,7 +507,7 @@ def test_replica_start_with_prepared_xacts(neon_simple_env: NeonEnv, shutdown: b
     assert secondary_cur.fetchall() == [(2,), (3,)]
 
 
-def test_replica_start_with_prepared_xacts_with_subxacts(neon_simple_env: NeonEnv):
+def test_replica_start_with_prepared_xacts_with_subxacts(serendb_simple_env: SerenDBEnv):
     """
     Test the CLOG-scanning mechanism at hot standby startup in the presence of
     prepared transactions, with subtransactions.
@@ -515,7 +515,7 @@ def test_replica_start_with_prepared_xacts_with_subxacts(neon_simple_env: NeonEn
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main", endpoint_id="primary", config_lines=["max_prepared_transactions=5"]
     )
@@ -523,7 +523,7 @@ def test_replica_start_with_prepared_xacts_with_subxacts(neon_simple_env: NeonEn
     primary_cur = primary_conn.cursor()
 
     # Install extension containing function needed for test
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
 
     primary_cur.execute("create table t(pk serial primary key, payload integer)")
     primary_cur.execute(CREATE_SUBXACTS_FUNC)
@@ -582,7 +582,7 @@ def test_replica_start_with_prepared_xacts_with_subxacts(neon_simple_env: NeonEn
     assert secondary_cur.fetchone() == (101000,)
 
 
-def test_replica_start_with_prepared_xacts_with_many_subxacts(neon_simple_env: NeonEnv):
+def test_replica_start_with_prepared_xacts_with_many_subxacts(serendb_simple_env: SerenDBEnv):
     """
     Test the CLOG-scanning mechanism at hot standby startup in the presence of
     prepared transactions, with lots of subtransactions.
@@ -595,7 +595,7 @@ def test_replica_start_with_prepared_xacts_with_many_subxacts(neon_simple_env: N
 
     # Initialize the primary, a test table, and a helper function to create lots
     # of subtransactions.
-    env = neon_simple_env
+    env = serendb_simple_env
     primary = env.endpoints.create_start(
         branch_name="main", endpoint_id="primary", config_lines=["max_prepared_transactions=5"]
     )
@@ -603,7 +603,7 @@ def test_replica_start_with_prepared_xacts_with_many_subxacts(neon_simple_env: N
     primary_cur = primary_conn.cursor()
 
     # Install extension containing function needed for test
-    primary_cur.execute("CREATE EXTENSION neon_test_utils")
+    primary_cur.execute("CREATE EXTENSION serendb_test_utils")
 
     primary_cur.execute("create table t(pk serial primary key, payload integer)")
     primary_cur.execute(CREATE_SUBXACTS_FUNC)
@@ -657,7 +657,7 @@ def test_replica_start_with_prepared_xacts_with_many_subxacts(neon_simple_env: N
     assert secondary_cur.fetchone() == (200001,)
 
 
-def test_replica_start_with_too_many_unused_xids(neon_simple_env: NeonEnv):
+def test_replica_start_with_too_many_unused_xids(serendb_simple_env: SerenDBEnv):
     """
     Test the CLOG-scanning mechanism at hot standby startup in the presence of
     large number of unsued XIDs, caused by  XID alignment and frequent primary restarts
@@ -665,7 +665,7 @@ def test_replica_start_with_too_many_unused_xids(neon_simple_env: NeonEnv):
     n_restarts = 50
 
     # Initialize the primary and a test table
-    env = neon_simple_env
+    env = serendb_simple_env
     timeline_id = env.initial_timeline
     primary = env.endpoints.create_start(branch_name="main", endpoint_id="primary")
     with primary.cursor() as primary_cur:
@@ -689,7 +689,7 @@ def test_replica_start_with_too_many_unused_xids(neon_simple_env: NeonEnv):
     secondary = env.endpoints.new_replica_start(
         origin=primary,
         endpoint_id="secondary",
-        config_lines=["neon.running_xacts_overflow_policy='ignore'"],
+        config_lines=["serendb.running_xacts_overflow_policy='ignore'"],
     )
 
     # Check that replica see all changes
@@ -698,8 +698,8 @@ def test_replica_start_with_too_many_unused_xids(neon_simple_env: NeonEnv):
         assert secondary_cur.fetchone() == (n_restarts,)
 
 
-def test_ephemeral_endpoints_vacuum(neon_simple_env: NeonEnv, pg_bin: PgBin):
-    env = neon_simple_env
+def test_ephemeral_endpoints_vacuum(serendb_simple_env: SerenDBEnv, pg_bin: PgBin):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     sql = """

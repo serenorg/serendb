@@ -56,7 +56,7 @@ pub(crate) mod owned_buffers_io {
     //! reason we need this abstraction.
     //!
     //! Over time, this could move into the `tokio-epoll-uring` crate, maybe `uring-common`,
-    //! but for the time being we're proving out the primitives in the neon.git repo
+    //! but for the time being we're proving out the primitives in the serendb.git repo
     //! for faster iteration.
 
     pub(crate) mod aligned_buffer;

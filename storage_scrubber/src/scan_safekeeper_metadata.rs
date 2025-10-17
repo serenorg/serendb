@@ -251,7 +251,7 @@ async fn load_timelines_from_db(
 ) -> anyhow::Result<Vec<TimelineLsnData>> {
     info!("loading from table {dump_db_table}");
 
-    // Use rustls (Neon requires TLS)
+    // Use rustls (SerenDB requires TLS)
     let root_store = TLS_ROOTS.get_or_try_init(load_certs)?.clone();
     let client_config =
         rustls::ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))

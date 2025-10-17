@@ -7,17 +7,17 @@ from fixtures.metrics import parse_metrics
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 from fixtures.log_helper import log
 
 
-def test_compute_reconfigure(neon_simple_env: NeonEnv):
+def test_compute_reconfigure(serendb_simple_env: SerenDBEnv):
     """
     Test that we can change postgresql.conf settings even if
     skip_pg_catalog_updates=True is set.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     TEST_LOG_LINE_PREFIX = "%m [%p] [test_compute_reconfigure]: "
 
@@ -89,31 +89,31 @@ def test_compute_reconfigure(neon_simple_env: NeonEnv):
     assert samples[0].value == 1
 
 
-def test_compute_safekeeper_connstrings_duplicate(neon_simple_env: NeonEnv):
+def test_compute_safekeeper_connstrings_duplicate(serendb_simple_env: SerenDBEnv):
     """
-    Test that we catch duplicate entries in neon.safekeepers.
+    Test that we catch duplicate entries in serendb.safekeepers.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 
-    # grab the current value of neon.safekeepers
+    # grab the current value of serendb.safekeepers
     sk_list = []
     with endpoint.cursor() as cursor:
-        cursor.execute("SHOW neon.safekeepers;")
+        cursor.execute("SHOW serendb.safekeepers;")
         row = cursor.fetchone()
         assert row is not None
 
-        log.info(f'    initial neon.safekeepers: "{row}"')
+        log.info(f'    initial serendb.safekeepers: "{row}"')
 
         # build a safekeepers list with a duplicate
         sk_list.append(row[0])
         sk_list.append(row[0])
 
     safekeepers = ",".join(sk_list)
-    log.info(f'reconfigure neon.safekeepers: "{safekeepers}"')
+    log.info(f'reconfigure serendb.safekeepers: "{safekeepers}"')
 
-    # introduce duplicate entry in neon.safekeepers, on purpose
+    # introduce duplicate entry in serendb.safekeepers, on purpose
     endpoint.respec_deep(
         **{
             "spec": {
@@ -121,7 +121,7 @@ def test_compute_safekeeper_connstrings_duplicate(neon_simple_env: NeonEnv):
                 "cluster": {
                     "settings": [
                         {
-                            "name": "neon.safekeepers",
+                            "name": "serendb.safekeepers",
                             "vartype": "string",
                             "value": safekeepers,
                         }

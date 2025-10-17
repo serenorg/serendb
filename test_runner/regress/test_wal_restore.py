@@ -10,8 +10,8 @@ import pytest
 import zstandard
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     VanillaPostgres,
 )
@@ -36,19 +36,19 @@ if TYPE_CHECKING:
     reason="restore_from_wal.sh supports only Linux",
 )
 def test_wal_restore(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     test_output_dir: Path,
     port_distributor: PortDistributor,
     base_dir: Path,
     pg_distrib_dir: Path,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.create_branch("test_wal_restore")
     endpoint = env.endpoints.create_start("test_wal_restore")
     endpoint.safe_psql("create table t as select generate_series(1,300000)")
-    tenant_id = TenantId(endpoint.safe_psql("show neon.tenant_id")[0][0])
-    timeline_id = TimelineId(endpoint.safe_psql("show neon.timeline_id")[0][0])
+    tenant_id = TenantId(endpoint.safe_psql("show serendb.tenant_id")[0][0])
+    timeline_id = TimelineId(endpoint.safe_psql("show serendb.timeline_id")[0][0])
     env.pageserver.stop()
     port = port_distributor.get_port()
     data_dir = test_output_dir / "pgsql.restored"
@@ -92,14 +92,14 @@ def decompress_zstd(
 
 
 def test_wal_restore_initdb(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     test_output_dir: Path,
     port_distributor: PortDistributor,
     base_dir: Path,
     pg_distrib_dir: Path,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
     endpoint.safe_psql("create table t as select generate_series(1,300000)")
     tenant_id = env.initial_tenant
@@ -145,11 +145,11 @@ def test_wal_restore_initdb(
 
 
 @pytest.mark.parametrize("broken_tenant", [True, False])
-def test_wal_restore_http(neon_env_builder: NeonEnvBuilder, broken_tenant: bool):
+def test_wal_restore_http(serendb_env_builder: SerenDBEnvBuilder, broken_tenant: bool):
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
     endpoint.safe_psql("create table t as select generate_series(1,300000)")
     tenant_id = env.initial_tenant
@@ -215,16 +215,16 @@ def test_wal_restore_http(neon_env_builder: NeonEnvBuilder, broken_tenant: bool)
 
 
 # def test_sk_pull_timelines(
-#     neon_env_builder: NeonEnvBuilder,
+#     serendb_env_builder: SerenDBEnvBuilder,
 # ):
 #     DBNAME = "regression"
 #     superuser_name = "databricks_superuser"
-#     neon_env_builder.num_safekeepers = 3
-#     neon_env_builder.num_pageservers = 4
-#     neon_env_builder.safekeeper_extra_opts = ["--enable-pull-timeline-on-startup"]
-#     neon_env_builder.enable_safekeeper_remote_storage(s3_storage())
+#     serendb_env_builder.num_safekeepers = 3
+#     serendb_env_builder.num_pageservers = 4
+#     serendb_env_builder.safekeeper_extra_opts = ["--enable-pull-timeline-on-startup"]
+#     serendb_env_builder.enable_safekeeper_remote_storage(s3_storage())
 
-#     env = neon_env_builder.init_start(initial_tenant_shard_count=4)
+#     env = serendb_env_builder.init_start(initial_tenant_shard_count=4)
 
 #     env.compute_manager.start(base_port=env.compute_manager_port)
 

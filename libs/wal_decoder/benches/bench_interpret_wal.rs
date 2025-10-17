@@ -22,7 +22,7 @@ use utils::lsn::Lsn;
 use utils::shard::{ShardCount, ShardNumber};
 use wal_decoder::models::InterpretedWalRecord;
 
-const S3_BUCKET: &str = "neon-github-public-dev";
+const S3_BUCKET: &str = "serendb-github-public-dev";
 const S3_REGION: &str = "eu-central-1";
 const BUCKET_PREFIX: &str = "wal-snapshots/bulk-insert/";
 const METADATA_FILENAME: &str = "metadata.json";

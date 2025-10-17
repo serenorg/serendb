@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use crate::background_process;
-use crate::local_env::{LocalEnv, NeonStorageControllerConf};
+use crate::local_env::{LocalEnv, SerenDBStorageControllerConf};
 use camino::{Utf8Path, Utf8PathBuf};
 use hyper0::Uri;
 use nix::unistd::Pid;
@@ -39,7 +39,7 @@ pub struct StorageController {
     private_key: Option<Pem>,
     public_key: Option<Pem>,
     client: reqwest::Client,
-    config: NeonStorageControllerConf,
+    config: SerenDBStorageControllerConf,
 
     // The listen port is learned when starting the storage controller,
     // hence the use of OnceLock to init it at the right time.
@@ -52,14 +52,14 @@ const STORAGE_CONTROLLER_POSTGRES_VERSION: PgMajorVersion = PgMajorVersion::PG16
 
 const DB_NAME: &str = "storage_controller";
 
-pub struct NeonStorageControllerStartArgs {
+pub struct SerenDBStorageControllerStartArgs {
     pub instance_id: u8,
     pub base_port: Option<u16>,
     pub start_timeout: humantime::Duration,
     pub handle_ps_local_disk_loss: Option<bool>,
 }
 
-impl NeonStorageControllerStartArgs {
+impl SerenDBStorageControllerStartArgs {
     pub fn with_default_instance_id(start_timeout: humantime::Duration) -> Self {
         Self {
             instance_id: 1,
@@ -70,12 +70,12 @@ impl NeonStorageControllerStartArgs {
     }
 }
 
-pub struct NeonStorageControllerStopArgs {
+pub struct SerenDBStorageControllerStopArgs {
     pub instance_id: u8,
     pub immediate: bool,
 }
 
-impl NeonStorageControllerStopArgs {
+impl SerenDBStorageControllerStopArgs {
     pub fn with_default_instance_id(immediate: bool) -> Self {
         Self {
             instance_id: 1,
@@ -118,7 +118,7 @@ impl StorageController {
             .expect("Config is validated to contain at least one pageserver");
         let (private_key, public_key) = match ps_conf.http_auth_type {
             AuthType::Trust => (None, None),
-            AuthType::NeonJWT => {
+            AuthType::SerenDBJWT => {
                 let private_key_path = env.get_private_key_path();
                 let private_key =
                     pem::parse(fs::read(private_key_path).expect("failed to read private key"))
@@ -249,7 +249,7 @@ impl StorageController {
     ///
     /// This function is equivalent to the `diesel setup` command in the diesel CLI.  We implement
     /// the same steps by hand to avoid imposing a dependency on installing diesel-cli for developers
-    /// who just want to run `cargo neon_local` without knowing about diesel.
+    /// who just want to run `cargo serendb_local` without knowing about diesel.
     ///
     /// Returns the database url
     pub async fn setup_database(&self, postgres_port: u16) -> anyhow::Result<String> {
@@ -345,7 +345,7 @@ impl StorageController {
             .expect("Failed to wait for pg_ctl termination")
     }
 
-    pub async fn start(&self, start_args: NeonStorageControllerStartArgs) -> anyhow::Result<()> {
+    pub async fn start(&self, start_args: SerenDBStorageControllerStartArgs) -> anyhow::Result<()> {
         let instance_dir = self.storage_controller_instance_dir(start_args.instance_id);
         if let Err(err) = tokio::fs::create_dir(&instance_dir).await {
             if err.kind() != std::io::ErrorKind::AlreadyExists {
@@ -370,7 +370,7 @@ impl StorageController {
                 base_port,
                 self.config
                     .database_url
-                    .expect("--base-port requires NeonStorageControllerConf::database_url")
+                    .expect("--base-port requires SerenDBStorageControllerConf::database_url")
                     .port(),
             )
         } else {
@@ -430,7 +430,7 @@ impl StorageController {
             //   the storage controller we don't want a slow local disk to interfere with that.
             //
             // NB: it's important that we rewrite this file on each start command so we propagate changes
-            // from `LocalEnv`'s config file (`.neon/config`).
+            // from `LocalEnv`'s config file (`.serendb/config`).
             tokio::fs::write(
                 &pg_data_path.join("postgresql.conf"),
                 format!("port = {postgres_port}\nfsync=off\n"),
@@ -628,7 +628,7 @@ impl StorageController {
         }
 
         args.push(format!(
-            "--neon-local-repo-dir={}",
+            "--serendb-local-repo-dir={}",
             self.env.base_data_dir.display()
         ));
 
@@ -640,7 +640,7 @@ impl StorageController {
             args.push("--timelines-onto-safekeepers".to_string());
         }
 
-        // neon_local is used in test environments where we often have less than 3 safekeepers.
+        // serendb_local is used in test environments where we often have less than 3 safekeepers.
         if self.config.timeline_safekeeper_count.is_some() || self.env.safekeepers.len() < 3 {
             let sk_cnt = self
                 .config
@@ -699,7 +699,7 @@ impl StorageController {
         Ok(())
     }
 
-    pub async fn stop(&self, stop_args: NeonStorageControllerStopArgs) -> anyhow::Result<()> {
+    pub async fn stop(&self, stop_args: SerenDBStorageControllerStopArgs) -> anyhow::Result<()> {
         background_process::stop_process(
             stop_args.immediate,
             COMMAND,

@@ -18,10 +18,10 @@ from requests import RequestException
 from requests.exceptions import RetryError
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         Endpoint,
-        NeonEnv,
-        NeonEnvBuilder,
+        SerenDBEnv,
+        SerenDBEnvBuilder,
         PgBin,
     )
 
@@ -39,9 +39,9 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize("scale", get_scales_matrix(1))
 @pytest.mark.parametrize("ty", ["cascade", "flat"])
 def test_branching_with_pgbench(
-    neon_simple_env: NeonEnv, pg_bin: PgBin, n_branches: int, scale: int, ty: str
+    serendb_simple_env: SerenDBEnv, pg_bin: PgBin, n_branches: int, scale: int, ty: str
 ):
-    env = neon_simple_env
+    env = serendb_simple_env
 
     # Use aggressive GC and checkpoint settings, so that we also exercise GC during the test
     tenant, _ = env.create_tenant(
@@ -121,10 +121,10 @@ def test_branching_with_pgbench(
 # This test checks if the pageserver is able to handle a "unnormalized" starting LSN.
 #
 # Related: see discussion in https://github.com/neondatabase/neon/pull/2143#issuecomment-1209092186
-def test_branching_unnormalized_start_lsn(neon_simple_env: NeonEnv, pg_bin: PgBin):
+def test_branching_unnormalized_start_lsn(serendb_simple_env: SerenDBEnv, pg_bin: PgBin):
     XLOG_BLCKSZ = 8192
 
-    env = neon_simple_env
+    env = serendb_simple_env
 
     env.create_branch("b0")
     endpoint0 = env.endpoints.create_start("b0")
@@ -145,12 +145,12 @@ def test_branching_unnormalized_start_lsn(neon_simple_env: NeonEnv, pg_bin: PgBi
     pg_bin.run_capture(["pgbench", "-i", endpoint1.connstr()])
 
 
-def test_cannot_create_endpoint_on_non_uploaded_timeline(neon_env_builder: NeonEnvBuilder):
+def test_cannot_create_endpoint_on_non_uploaded_timeline(serendb_env_builder: SerenDBEnvBuilder):
     """
     Endpoint should not be possible to create because branch has not been uploaded.
     """
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.pageserver.allowed_errors.extend(
@@ -192,7 +192,7 @@ def test_cannot_create_endpoint_on_non_uploaded_timeline(neon_env_builder: NeonE
 
         wait_until_paused(env, "before-upload-index-pausable")
 
-        env.neon_cli.mappings_map_branch(initial_branch, env.initial_tenant, env.initial_timeline)
+        env.serendb_cli.mappings_map_branch(initial_branch, env.initial_tenant, env.initial_timeline)
 
         with pytest.raises(RuntimeError, match="ERROR: Not found: Timeline"):
             env.endpoints.create_start(
@@ -204,12 +204,12 @@ def test_cannot_create_endpoint_on_non_uploaded_timeline(neon_env_builder: NeonE
         t.join()
 
 
-def test_cannot_branch_from_non_uploaded_branch(neon_env_builder: NeonEnvBuilder):
+def test_cannot_branch_from_non_uploaded_branch(serendb_env_builder: SerenDBEnvBuilder):
     """
     Branch should not be possible to create because ancestor has not been uploaded.
     """
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.pageserver.allowed_errors.extend(
@@ -261,12 +261,12 @@ def test_cannot_branch_from_non_uploaded_branch(neon_env_builder: NeonEnvBuilder
         t.join()
 
 
-def test_non_uploaded_root_timeline_is_deleted_after_restart(neon_env_builder: NeonEnvBuilder):
+def test_non_uploaded_root_timeline_is_deleted_after_restart(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that a timeline is deleted locally on subsequent restart if it never successfully uploaded during creation.
     """
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.pageserver.allowed_errors.extend(
@@ -319,12 +319,12 @@ def test_non_uploaded_root_timeline_is_deleted_after_restart(neon_env_builder: N
     assert len(ps_http.timeline_list(tenant_id=env.initial_tenant)) == 1
 
 
-def test_non_uploaded_branch_is_deleted_after_restart(neon_env_builder: NeonEnvBuilder):
+def test_non_uploaded_branch_is_deleted_after_restart(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that a timeline is deleted locally on subsequent restart if it never successfully uploaded during creation.
     """
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.pageserver.allowed_errors.append(
@@ -370,8 +370,8 @@ def test_non_uploaded_branch_is_deleted_after_restart(neon_env_builder: NeonEnvB
         ps_http.timeline_detail(env.initial_tenant, branch_id)
 
 
-def test_duplicate_creation(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_configs()
+def test_duplicate_creation(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_configs()
     env.start()
     env.pageserver.tenant_create(env.initial_tenant)
 
@@ -435,8 +435,8 @@ def test_duplicate_creation(neon_env_builder: NeonEnvBuilder):
     assert len(ps_http.timeline_list(tenant_id=env.initial_tenant)) == 1
 
 
-def test_branching_while_stuck_find_gc_cutoffs(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+def test_branching_while_stuck_find_gc_cutoffs(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
 
     client = env.pageserver.http_client()
 
@@ -456,7 +456,7 @@ def test_branching_while_stuck_find_gc_cutoffs(neon_env_builder: NeonEnvBuilder)
         completion.result()
 
 
-def wait_until_paused(env: NeonEnv, failpoint: str):
+def wait_until_paused(env: SerenDBEnv, failpoint: str):
     found = False
     msg = f"at failpoint {failpoint}"
     for _ in range(20):

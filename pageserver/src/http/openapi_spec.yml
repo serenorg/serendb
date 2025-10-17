@@ -1,7 +1,7 @@
 openapi: "3.0.2"
 info:
   title: Page Server API
-  description: Neon Pageserver API
+  description: SerenDB Pageserver API
   version: "1.0"
   license:
     name: "Apache"

@@ -113,7 +113,7 @@ KEY_MIN = Key(0)
 @total_ordering
 class Id:
     """
-    Datatype for a Neon tenant and timeline IDs. Internally it's a 16-byte array, and
+    Datatype for a SerenDB tenant and timeline IDs. Internally it's a 16-byte array, and
     the string representation is in hex. This corresponds to the Id / TenantId /
     TimelineIds in the Rust code.
     """

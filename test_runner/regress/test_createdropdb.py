@@ -5,7 +5,7 @@ import pathlib
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv, check_restored_datadir_content
+from fixtures.serendb_fixtures import SerenDBEnv, check_restored_datadir_content
 from fixtures.pg_version import PgVersion
 from fixtures.utils import query_scalar
 
@@ -14,8 +14,8 @@ from fixtures.utils import query_scalar
 # Test CREATE DATABASE when there have been relmapper changes
 #
 @pytest.mark.parametrize("strategy", ["file_copy", "wal_log"])
-def test_createdb(neon_simple_env: NeonEnv, strategy: str):
-    env = neon_simple_env
+def test_createdb(serendb_simple_env: SerenDBEnv, strategy: str):
+    env = serendb_simple_env
     if env.pg_version == PgVersion.V14 and strategy == "wal_log":
         pytest.skip("wal_log strategy not supported on PostgreSQL 14")
 
@@ -53,15 +53,15 @@ def test_createdb(neon_simple_env: NeonEnv, strategy: str):
             res = cur.fetchone()
             assert res is not None
             # check that dbsize equals sum of all relation sizes, excluding shared ones
-            # This is how we define dbsize in neon for now
+            # This is how we define dbsize in SerenDB for now
             assert res[0] == res[1]
 
 
 #
 # Test DROP DATABASE
 #
-def test_dropdb(neon_simple_env: NeonEnv, test_output_dir):
-    env = neon_simple_env
+def test_dropdb(serendb_simple_env: SerenDBEnv, test_output_dir):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     with endpoint.cursor() as cur:

@@ -2,7 +2,7 @@
 ### The image itself is mainly used as a container for the binaries and for starting e2e tests with custom parameters.
 ### By default, the binaries inside the image have some mock parameters and can start, but are not intended to be used
 ### inside this image in the real deployments.
-ARG REPOSITORY=ghcr.io/neondatabase
+ARG REPOSITORY=ghcr.io/serenorg
 ARG IMAGE=build-tools
 ARG TAG=pinned
 ARG DEBIAN_VERSION=bookworm
@@ -33,7 +33,7 @@ ARG BASE_IMAGE_SHA=${BASE_IMAGE_SHA/debian:bullseye-slim/debian@$BULLSEYE_SLIM_S
 # Naive way:
 #
 # 1. COPY . .
-# 1. make neon-pg-ext
+# 1. make serendb-pg-ext
 # 2. cargo build <storage binaries>
 #
 # But to enable docker to cache intermediate layers, we perform a few preparatory steps:
@@ -119,10 +119,10 @@ RUN  --mount=type=secret,uid=1000,id=SUBZERO_ACCESS_TOKEN \
       --bin storage_controller  \
       --bin proxy  \
       --bin endpoint_storage \
-      --bin neon_local \
+      --bin serendb_local \
       --bin storage_scrubber \
       --locked --release \
-    && mold -run make -j $(nproc) -s neon-pg-ext
+    && mold -run make -j $(nproc) -s serendb-pg-ext
 
 # Assemble the final image
 FROM $BASE_IMAGE_SHA
@@ -151,19 +151,19 @@ RUN set -e \
     && rm -rf aws awscliv2.zip \
     && rm -f /etc/apt/apt.conf.d/80-retries \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && useradd -d /data neon \
-    && chown -R neon:neon /data
+    && useradd -d /data serendb \
+    && chown -R serendb:serendb /data
 
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/pg_sni_router       /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/pageserver          /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/pagectl             /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/safekeeper          /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/storage_broker      /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/storage_controller  /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/proxy               /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/endpoint_storage    /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/neon_local          /usr/local/bin
-COPY --from=build --chown=neon:neon /home/nonroot/target/release/storage_scrubber    /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/pg_sni_router       /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/pageserver          /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/pagectl             /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/safekeeper          /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/storage_broker      /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/storage_controller  /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/proxy               /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/endpoint_storage    /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/serendb_local          /usr/local/bin
+COPY --from=build --chown=serendb:serendb /home/nonroot/target/release/storage_scrubber    /usr/local/bin
 COPY --from=build /home/nonroot/pg_install/v14 /usr/local/v14/
 COPY --from=build /home/nonroot/pg_install/v15 /usr/local/v15/
 COPY --from=build /home/nonroot/pg_install/v16 /usr/local/v16/
@@ -174,21 +174,21 @@ COPY --from=build /home/nonroot/pg_install/v17 /usr/local/v17/
 # old scripts working for now, create the tarball.
 RUN tar -C /usr/local -cvzf /data/postgres_install.tar.gz v14 v15 v16 v17
 
-# By default, pageserver uses `.neon/` working directory in WORKDIR, so create one and fill it with the dummy config.
+# By default, pageserver uses `.serendb/` working directory in WORKDIR, so create one and fill it with the dummy config.
 # Now, when `docker run ... pageserver` is run, it can start without errors, yet will have some default dummy values.
-RUN mkdir -p /data/.neon/ && \
-  echo "id=1234" > "/data/.neon/identity.toml" && \
+RUN mkdir -p /data/.serendb/ && \
+  echo "id=1234" > "/data/.serendb/identity.toml" && \
   echo "broker_endpoint='http://storage_broker:50051'\n" \
        "pg_distrib_dir='/usr/local/'\n" \
        "listen_pg_addr='0.0.0.0:6400'\n" \
        "listen_http_addr='0.0.0.0:9898'\n" \
        "availability_zone='local'\n" \
-  > /data/.neon/pageserver.toml && \
-  chown -R neon:neon /data/.neon
+  > /data/.serendb/pageserver.toml && \
+  chown -R serendb:serendb /data/.serendb
 
 VOLUME ["/data"]
-USER neon
+USER serendb
 EXPOSE 6400
 EXPOSE 9898
 
-CMD ["/usr/local/bin/pageserver", "-D", "/data/.neon"]
+CMD ["/usr/local/bin/pageserver", "-D", "/data/.serendb"]

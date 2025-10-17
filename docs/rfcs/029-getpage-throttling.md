@@ -6,7 +6,7 @@ Date: Oct 24, 2023
 ## Summary
 
 This RFC proposes per-tenant throttling of GetPage@LSN requests inside Pageserver
-and the interactions with its client, i.e., the neon_smgr component in Compute.
+and the interactions with its client, i.e., the serendb_smgr component in Compute.
 
 The result of implementing & executing this RFC will be a fleet-wide upper limit for
 **"the highest GetPage/second that Pageserver can support for a single tenant/shard"**.
@@ -16,7 +16,7 @@ The result of implementing & executing this RFC will be a fleet-wide upper limit
 ### GetPage@LSN Request Flow
 
 Pageserver exposes its `page_service.rs` as a libpq listener.
-The Computes' `neon_smgr` module connects to that libpq listener.
+The Computes' `serendb_smgr` module connects to that libpq listener.
 Once a connection is established, the protocol allows Compute to request page images at a given LSN.
 We call these requests GetPage@LSN requests, or GetPage requests for short.
 Other request types can be sent, but these are low traffic compared to GetPage requests
@@ -70,7 +70,7 @@ My claim is that it was **unhealthy to serve this workload at the pace we did**:
       At some point, we're bound by the EC2 Instance Store NVMe drive's IOPS limit.
       The result is an **uneven** performance profile from the Compute perspective.
 
-    * **economics**: Neon currently does not charge for IOPS, only capacity.
+    * **economics**: SerenDB currently does not charge for IOPS, only capacity.
       **We cannot afford to undercut the market in IOPS/$ this drastically; it leads to adverse selection and perverse incentives.**
       For example, the 155k IOPS, which we served for 10min, would cost ca. 6.5k$/month when provisioned as an io2 EBS volume.
       Even the 18k IOPS, which we served for 9h, would cost ca. 1.1k$/month when provisioned as an io2 EBS volume.
@@ -78,8 +78,8 @@ My claim is that it was **unhealthy to serve this workload at the pace we did**:
       It could be economically advantageous to keep using a low-DRAM compute because Pageserver IOPS are fast enough and free.
 
 
-Note: It is helpful to think of Pageserver as a disk, because it's precisely where `neon_smgr` sits:
-vanilla Postgres gets its pages from disk, Neon Postgres gets them from Pageserver.
+Note: It is helpful to think of Pageserver as a disk, because it's precisely where `serendb_smgr` sits:
+vanilla Postgres gets its pages from disk, SerenDB Postgres gets them from Pageserver.
 So, regarding the above performance & economic arguments, it is fair to say that we currently provide an "as-fast-as-possible-IOPS" disk that we charge for only by capacity.
 
 ## Solution: Throttling GetPage Requests
@@ -87,7 +87,7 @@ So, regarding the above performance & economic arguments, it is fair to say that
 **The consequence of the above analysis must be that Pageserver throttles GetPage@LSN requests**.
 That is, unless we want to start charging for provisioned GetPage@LSN/second.
 Throttling sets the correct incentive for a thrashing Compute to scale up its DRAM to the working set size.
-Neon Autoscaling will make this easy, [eventually](https://github.com/neondatabase/neon/pull/3913).
+SerenDB Autoscaling will make this easy, [eventually](https://github.com/neondatabase/neon/pull/3913).
 
 ## The Design Space
 
@@ -166,7 +166,7 @@ Rollout will happen as follows:
 The per-tenant override will remain for emergencies and testing.
 But since Console doesn't preserve it during tenant migrations, it isn't durably configurable for the tenant.
 
-Toward the upper layers of the Neon stack, the resulting limit will be
+Toward the upper layers of the SerenDB stack, the resulting limit will be
 **"the highest GetPage/second that Pageserver can support for a single tenant"**.
 
 ### Rationale
@@ -185,7 +185,7 @@ Compute-side metrics for GetPage latency.
 
 Back-channel to inform Compute/Autoscaling/ControlPlane that the project is being throttled.
 
-Compute-side neon_smgr improvements to avoid sending the same GetPage request multiple times if multiple backends experience a cache miss.
+Compute-side serendb_smgr improvements to avoid sending the same GetPage request multiple times if multiple backends experience a cache miss.
 
 Dealing with read-only endpoints: users use read-only endpoints to scale reads for a single tenant.
 Possibly there are also assumptions around read-only endpoints not affecting the primary read-write endpoint's performance.

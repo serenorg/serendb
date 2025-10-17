@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder, PgBin
+from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder, PgBin
 from fixtures.pageserver.makelayers import l0stack
 from fixtures.utils import humantime_to_ms
 
@@ -65,8 +65,8 @@ for max_batch_size in [32]:
     ],
 )
 def test_postgres_seqscan(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     tablesize_mib: int,
     pipelining_config: PageServicePipeliningConfig,
     target_runtime: int,
@@ -142,13 +142,13 @@ def test_postgres_seqscan(
     # Setup
     #
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
             # minimal lfc & small shared buffers to force requests to pageserver
-            "neon.max_file_cache_size=1MB",
+            "serendb.max_file_cache_size=1MB",
             "shared_buffers=10MB",
         ],
     )
@@ -158,11 +158,11 @@ def test_postgres_seqscan(
     cur.execute("SET max_parallel_workers_per_gather=0")  # disable parallel backends
     cur.execute(f"SET effective_io_concurrency={effective_io_concurrency}")
     cur.execute(
-        f"SET neon.readahead_buffer_size={readhead_buffer_size}"
+        f"SET serendb.readahead_buffer_size={readhead_buffer_size}"
     )  # this is the current default value, but let's hard-code that
 
-    cur.execute("CREATE EXTENSION IF NOT EXISTS neon;")
-    cur.execute("CREATE EXTENSION IF NOT EXISTS neon_test_utils;")
+    cur.execute("CREATE EXTENSION IF NOT EXISTS serendb;")
+    cur.execute("CREATE EXTENSION IF NOT EXISTS serendb_test_utils;")
 
     log.info("Filling the table")
     cur.execute("CREATE TABLE t (data char(1000)) with (fillfactor=10)")
@@ -215,7 +215,7 @@ def test_postgres_seqscan(
     def get_metrics() -> Metrics:
         with conn.cursor() as cur:
             cur.execute(
-                "select value from neon_perf_counters where metric='getpage_wait_seconds_count';"
+                "select value from serendb_perf_counters where metric='getpage_wait_seconds_count';"
             )
             compute_getpage_count = cur.fetchall()[0][0]
             pageserver_metrics = ps_http.get_metrics()
@@ -342,8 +342,8 @@ def test_postgres_seqscan(
     ],
 )
 def test_random_reads(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     pipelining_config: PageServicePipeliningConfig,
     ps_io_concurrency: str,
@@ -359,8 +359,8 @@ def test_random_reads(
     # Setup
     #
 
-    def build_snapshot_cb(neon_env_builder: NeonEnvBuilder) -> NeonEnv:
-        env = neon_env_builder.init_start()
+    def build_snapshot_cb(serendb_env_builder: SerenDBEnvBuilder) -> SerenDBEnv:
+        env = serendb_env_builder.init_start()
         endpoint = env.endpoints.create_start("main")
         l0stack.make_l0_stack(
             endpoint,
@@ -368,7 +368,7 @@ def test_random_reads(
         )
         return env
 
-    env = neon_env_builder.build_and_use_snapshot(
+    env = serendb_env_builder.build_and_use_snapshot(
         f"test_page_service_batching--test_pagebench-{l0_stack_height}", build_snapshot_cb
     )
 
@@ -398,7 +398,7 @@ def test_random_reads(
     metrics_before = ps_http.get_metrics()
 
     cmd = [
-        str(env.neon_binpath / "pagebench"),
+        str(env.serendb_binpath / "pagebench"),
         "get-page-latest-lsn",
         "--mgmt-api-endpoint",
         ps_http.base_url,

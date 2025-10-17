@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnv, PgBin
 
 
 # Test restarting page server, while safekeeper and compute node keep
 # running.
-def test_pageserver_restarts_under_workload(neon_simple_env: NeonEnv, pg_bin: PgBin):
-    env = neon_simple_env
+def test_pageserver_restarts_under_workload(serendb_simple_env: SerenDBEnv, pg_bin: PgBin):
+    env = serendb_simple_env
     env.create_branch("test_pageserver_restarts")
     endpoint = env.endpoints.create_start("test_pageserver_restarts")
     n_restarts = 10

@@ -7,14 +7,14 @@ from fixtures.pg_version import PgVersion
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_default_locales(neon_simple_env: NeonEnv):
+def test_default_locales(serendb_simple_env: SerenDBEnv):
     """
     Test that the default locales for compute databases is C.UTF-8.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 

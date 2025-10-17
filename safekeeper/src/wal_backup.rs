@@ -131,7 +131,7 @@ async fn shut_down_task(entry: &mut Option<WalBackupTaskHandle>) {
 }
 
 /* BEGIN_HADRON */
-// On top of the neon determine_offloader, we also check if the current offloader is lagging behind too much.
+// On top of the SerenDB determine_offloader, we also check if the current offloader is lagging behind too much.
 // If it is, we re-elect a new offloader. This mitigates the below issue. It also helps distribute the load across SKs.
 //
 // We observe that the offloader fails to upload a segment due to race conditions on XLOG SWITCH and PG start streaming WALs.

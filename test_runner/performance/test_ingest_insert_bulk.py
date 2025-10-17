@@ -4,11 +4,11 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     wait_for_last_flush_lsn,
 )
 from fixtures.pageserver.utils import (
@@ -27,8 +27,8 @@ from fixtures.utils import shared_buffers_for_max_cu
 @pytest.mark.parametrize("fsync", [True, False], ids=["fsync", "nofsync"])
 def test_ingest_insert_bulk(
     request: pytest.FixtureRequest,
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     fsync: bool,
     backpressure: bool,
     s3: bool,
@@ -44,18 +44,18 @@ def test_ingest_insert_bulk(
     VOLUME = 5 * 1024**3
     rows = VOLUME // (size + 64)  # +64 roughly accounts for per-row WAL overhead
 
-    neon_env_builder.safekeepers_enable_fsync = fsync
+    serendb_env_builder.safekeepers_enable_fsync = fsync
 
     if s3:
-        neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+        serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
         # NB: don't use S3 for Safekeeper. It doesn't affect throughput (no backpressure), but it
         # would compete with Pageserver for bandwidth.
-        # neon_env_builder.enable_safekeeper_remote_storage(s3_storage())
+        # serendb_env_builder.enable_safekeeper_remote_storage(s3_storage())
 
-    neon_env_builder.pageserver_config_override = "wait_lsn_timeout='600 s'"
+    serendb_env_builder.pageserver_config_override = "wait_lsn_timeout='600 s'"
 
-    neon_env_builder.disable_scrub_on_exit()  # immediate shutdown may leave stray layers
-    env = neon_env_builder.init_start()
+    serendb_env_builder.disable_scrub_on_exit()  # immediate shutdown may leave stray layers
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start(
         "main",
@@ -65,11 +65,11 @@ def test_ingest_insert_bulk(
             f"max_replication_flush_lag = {'10GB' if backpressure else '0'}",
             # use shared_buffers size like in production for 8 CU compute
             f"shared_buffers={shared_buffers_for_max_cu(8.0)}",
-            # NB: neon_local defaults to 15MB, which is too slow -- production uses 500MB.
+            # NB: serendb_local defaults to 15MB, which is too slow -- production uses 500MB.
             f"max_replication_write_lag = {'500MB' if backpressure else '0'}",
         ],
     )
-    endpoint.safe_psql("create extension neon")
+    endpoint.safe_psql("create extension serendb")
 
     # Wait for the timeline to be propagated to the pageserver.
     wait_for_last_flush_lsn(env, endpoint, env.initial_tenant, env.initial_timeline)

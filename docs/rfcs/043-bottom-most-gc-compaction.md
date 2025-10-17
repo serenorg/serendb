@@ -105,7 +105,7 @@ After: sum(min(logs for each key, image for each key))
 
 # Compaction Trigger
 
-The bottom-most compaction can be automatically triggered. The goal of the trigger is that it should ensure a constant factor for write amplification. Say that the user write 1GB of WAL into the system, we should write 1GB x C data to S3. The legacy compaction algorithm does not have such a constant factor C. The data we write to S3 is quadratic to the logical size of the database (see [A Theoretical View of Neon Storage](https://www.notion.so/A-Theoretical-View-of-Neon-Storage-8d7ad7555b0c41b2a3597fa780911194?pvs=21)).
+The bottom-most compaction can be automatically triggered. The goal of the trigger is that it should ensure a constant factor for write amplification. Say that the user write 1GB of WAL into the system, we should write 1GB x C data to S3. The legacy compaction algorithm does not have such a constant factor C. The data we write to S3 is quadratic to the logical size of the database (see [A Theoretical View of SerenDB Storage](https://www.notion.so/A-Theoretical-View-of-SerenDB-Storage-8d7ad7555b0c41b2a3597fa780911194?pvs=21)).
 
 We propose the following compaction trigger that generates a constant write amplification factor. Write amplification >= total writes to S3 / total user writes. We only analyze the write amplification caused by the bottom-most GC-compaction process, ignoring the legacy create image layers amplification.
 

@@ -8,7 +8,7 @@
 //! data directory. For debugging, you can access it with curl:
 //!
 //! ```sh
-//! curl --unix-socket neon-communicator.socket http://localhost/metrics
+//! curl --unix-socket serendb-communicator.socket http://localhost/metrics
 //! ```
 //!
 use axum::Router;
@@ -25,7 +25,7 @@ use std::io::ErrorKind;
 
 use tokio::net::UnixListener;
 
-use crate::NEON_COMMUNICATOR_SOCKET_NAME;
+use crate::SERENDB_COMMUNICATOR_SOCKET_NAME;
 use crate::worker_process::main_loop::CommunicatorWorkerProcessStruct;
 
 impl CommunicatorWorkerProcessStruct {
@@ -42,7 +42,7 @@ impl CommunicatorWorkerProcessStruct {
 
         // If the server is restarted, there might be an old socket still
         // lying around. Remove it first.
-        match std::fs::remove_file(NEON_COMMUNICATOR_SOCKET_NAME) {
+        match std::fs::remove_file(SERENDB_COMMUNICATOR_SOCKET_NAME) {
             Ok(()) => {
                 tracing::warn!("removed stale control socket");
             }
@@ -54,7 +54,7 @@ impl CommunicatorWorkerProcessStruct {
         };
 
         // Create the unix domain socket and start listening on it
-        let listener = UnixListener::bind(NEON_COMMUNICATOR_SOCKET_NAME)?;
+        let listener = UnixListener::bind(SERENDB_COMMUNICATOR_SOCKET_NAME)?;
 
         tokio::spawn(async {
             tracing::info!("control socket listener spawned");

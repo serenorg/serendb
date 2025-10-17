@@ -742,22 +742,22 @@ pub mod v16 {
         }
     }
 
-    /* Since PG16, we have the Neon RMGR (RM_NEON_ID) to manage Neon-flavored WAL. */
-    pub mod rm_neon {
+    /* Since PG16, we have the SerenDB RMGR (RM_SERENDB_ID) to manage SerenDB-flavored WAL. */
+    pub mod rm_serendb {
         use bytes::{Buf, Bytes};
 
         use crate::{OffsetNumber, TransactionId};
 
         #[repr(C)]
         #[derive(Debug)]
-        pub struct XlNeonHeapInsert {
+        pub struct XlSerenDBHeapInsert {
             pub offnum: OffsetNumber,
             pub flags: u8,
         }
 
-        impl XlNeonHeapInsert {
-            pub fn decode(buf: &mut Bytes) -> XlNeonHeapInsert {
-                XlNeonHeapInsert {
+        impl XlSerenDBHeapInsert {
+            pub fn decode(buf: &mut Bytes) -> XlSerenDBHeapInsert {
+                XlSerenDBHeapInsert {
                     offnum: buf.get_u16_le(),
                     flags: buf.get_u8(),
                 }
@@ -766,16 +766,16 @@ pub mod v16 {
 
         #[repr(C)]
         #[derive(Debug)]
-        pub struct XlNeonHeapMultiInsert {
+        pub struct XlSerenDBHeapMultiInsert {
             pub flags: u8,
             pub _padding: u8,
             pub ntuples: u16,
             pub t_cid: u32,
         }
 
-        impl XlNeonHeapMultiInsert {
-            pub fn decode(buf: &mut Bytes) -> XlNeonHeapMultiInsert {
-                XlNeonHeapMultiInsert {
+        impl XlSerenDBHeapMultiInsert {
+            pub fn decode(buf: &mut Bytes) -> XlSerenDBHeapMultiInsert {
+                XlSerenDBHeapMultiInsert {
                     flags: buf.get_u8(),
                     _padding: buf.get_u8(),
                     ntuples: buf.get_u16_le(),
@@ -786,7 +786,7 @@ pub mod v16 {
 
         #[repr(C)]
         #[derive(Debug)]
-        pub struct XlNeonHeapDelete {
+        pub struct XlSerenDBHeapDelete {
             pub xmax: TransactionId,
             pub offnum: OffsetNumber,
             pub infobits_set: u8,
@@ -794,9 +794,9 @@ pub mod v16 {
             pub t_cid: u32,
         }
 
-        impl XlNeonHeapDelete {
-            pub fn decode(buf: &mut Bytes) -> XlNeonHeapDelete {
-                XlNeonHeapDelete {
+        impl XlSerenDBHeapDelete {
+            pub fn decode(buf: &mut Bytes) -> XlSerenDBHeapDelete {
+                XlSerenDBHeapDelete {
                     xmax: buf.get_u32_le(),
                     offnum: buf.get_u16_le(),
                     infobits_set: buf.get_u8(),
@@ -808,7 +808,7 @@ pub mod v16 {
 
         #[repr(C)]
         #[derive(Debug)]
-        pub struct XlNeonHeapUpdate {
+        pub struct XlSerenDBHeapUpdate {
             pub old_xmax: TransactionId,
             pub old_offnum: OffsetNumber,
             pub old_infobits_set: u8,
@@ -818,9 +818,9 @@ pub mod v16 {
             pub new_offnum: OffsetNumber,
         }
 
-        impl XlNeonHeapUpdate {
-            pub fn decode(buf: &mut Bytes) -> XlNeonHeapUpdate {
-                XlNeonHeapUpdate {
+        impl XlSerenDBHeapUpdate {
+            pub fn decode(buf: &mut Bytes) -> XlSerenDBHeapUpdate {
+                XlSerenDBHeapUpdate {
                     old_xmax: buf.get_u32_le(),
                     old_offnum: buf.get_u16_le(),
                     old_infobits_set: buf.get_u8(),
@@ -834,7 +834,7 @@ pub mod v16 {
 
         #[repr(C)]
         #[derive(Debug)]
-        pub struct XlNeonHeapLock {
+        pub struct XlSerenDBHeapLock {
             pub locking_xid: TransactionId,
             pub t_cid: u32,
             pub offnum: OffsetNumber,
@@ -842,9 +842,9 @@ pub mod v16 {
             pub flags: u8,
         }
 
-        impl XlNeonHeapLock {
-            pub fn decode(buf: &mut Bytes) -> XlNeonHeapLock {
-                XlNeonHeapLock {
+        impl XlSerenDBHeapLock {
+            pub fn decode(buf: &mut Bytes) -> XlSerenDBHeapLock {
+                XlSerenDBHeapLock {
                     locking_xid: buf.get_u32_le(),
                     t_cid: buf.get_u32_le(),
                     offnum: buf.get_u16_le(),
@@ -862,7 +862,7 @@ pub mod v17 {
     pub use super::v14::XlHeapLockUpdated;
     pub use super::v16::{
         XlHeapDelete, XlHeapInsert, XlHeapLock, XlHeapMultiInsert, XlHeapUpdate, XlParameterChange,
-        rm_neon,
+        rm_serendb,
     };
     pub use crate::TimeLineID;
     pub use postgres_ffi_types::TimestampTz;

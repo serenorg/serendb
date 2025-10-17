@@ -2,4 +2,4 @@
 language = "en"
 multilingual = false
 src = "."
-title = "Neon architecture"
+title = "SerenDB architecture"

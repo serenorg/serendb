@@ -27,7 +27,7 @@ use crate::types::EndpointId;
 #[derive(Clone)]
 pub enum ControlPlaneClient {
     /// Proxy V1 control plane API
-    ProxyV1(cplane_proxy_v1::NeonControlPlaneClient),
+    ProxyV1(cplane_proxy_v1::SerenDBControlPlaneClient),
     /// Local mock control plane.
     #[cfg(any(test, feature = "testing"))]
     PostgresMock(mock::MockControlPlane),

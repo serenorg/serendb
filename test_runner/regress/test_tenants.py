@@ -19,10 +19,10 @@ from fixtures.metrics import (
     PAGESERVER_PER_TENANT_METRICS,
     parse_metrics,
 )
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     wait_for_last_flush_lsn,
 )
 from fixtures.pageserver.http import PageserverApiException
@@ -35,18 +35,18 @@ if TYPE_CHECKING:
     from prometheus_client.samples import Sample
 
 
-def test_tenant_creation_fails(neon_simple_env: NeonEnv):
-    tenants_dir = neon_simple_env.pageserver.tenant_dir()
+def test_tenant_creation_fails(serendb_simple_env: SerenDBEnv):
+    tenants_dir = serendb_simple_env.pageserver.tenant_dir()
     initial_tenants = sorted(
-        map(lambda t: t.split()[0], neon_simple_env.neon_cli.tenant_list().stdout.splitlines())
+        map(lambda t: t.split()[0], serendb_simple_env.serendb_cli.tenant_list().stdout.splitlines())
     )
     [d for d in tenants_dir.iterdir()]
 
     error_regexes = [".*tenant-config-before-write.*"]
-    neon_simple_env.pageserver.allowed_errors.extend(error_regexes)
-    neon_simple_env.storage_controller.allowed_errors.extend(error_regexes)
+    serendb_simple_env.pageserver.allowed_errors.extend(error_regexes)
+    serendb_simple_env.storage_controller.allowed_errors.extend(error_regexes)
 
-    pageserver_http = neon_simple_env.pageserver.http_client()
+    pageserver_http = serendb_simple_env.pageserver.http_client()
 
     # Failure to write a config to local disk makes the pageserver assume that local disk is bad and abort the process
     pageserver_http.configure_failpoints(("tenant-config-before-write", "return"))
@@ -54,28 +54,28 @@ def test_tenant_creation_fails(neon_simple_env: NeonEnv):
     tenant_id = TenantId.generate()
 
     with pytest.raises(requests.exceptions.ConnectionError, match="Connection aborted"):
-        neon_simple_env.pageserver.http_client().tenant_attach(tenant_id=tenant_id, generation=1)
+        serendb_simple_env.pageserver.http_client().tenant_attach(tenant_id=tenant_id, generation=1)
 
     # Any files left behind on disk during failed creation do not prevent
     # a retry from succeeding.  Restart pageserver with no failpoints.
-    neon_simple_env.pageserver.running = False
-    neon_simple_env.pageserver.start()
+    serendb_simple_env.pageserver.running = False
+    serendb_simple_env.pageserver.start()
 
     # The failed creation should not be present in list of tenants, as when we start up we'll see
     # an empty tenant dir with no config in it.
-    neon_simple_env.pageserver.allowed_errors.append(".*Failed to load tenant config.*")
+    serendb_simple_env.pageserver.allowed_errors.append(".*Failed to load tenant config.*")
     new_tenants = sorted(
-        map(lambda t: t.split()[0], neon_simple_env.neon_cli.tenant_list().stdout.splitlines())
+        map(lambda t: t.split()[0], serendb_simple_env.serendb_cli.tenant_list().stdout.splitlines())
     )
     assert initial_tenants == new_tenants, "should not create new tenants"
 
-    neon_simple_env.create_tenant()
+    serendb_simple_env.create_tenant()
 
 
-def test_tenants_normal_work(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
+def test_tenants_normal_work(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_1, _ = env.create_tenant()
     tenant_2, _ = env.create_tenant()
 
@@ -102,11 +102,11 @@ def test_tenants_normal_work(neon_env_builder: NeonEnvBuilder):
                 assert cur.fetchone() == (5000050000,)
 
 
-def test_metrics_normal_work(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.pageserver_config_override = "availability_zone='test_ps_az'"
+def test_metrics_normal_work(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.pageserver_config_override = "availability_zone='test_ps_az'"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_1, _ = env.create_tenant()
     tenant_2, _ = env.create_tenant()
 
@@ -131,7 +131,7 @@ def test_metrics_normal_work(neon_env_builder: NeonEnvBuilder):
         collected_metrics[f"safekeeper{sk.id}"] = sk.http_client().get_metrics_str()
 
     for name in collected_metrics:
-        basepath = os.path.join(neon_env_builder.repo_dir, f"{name}.metrics")
+        basepath = os.path.join(serendb_env_builder.repo_dir, f"{name}.metrics")
 
         with open(basepath, "w") as stdout_f:
             print(collected_metrics[name], file=stdout_f, flush=True)
@@ -247,14 +247,14 @@ def test_metrics_normal_work(neon_env_builder: NeonEnvBuilder):
         assert value
 
 
-def test_pageserver_metrics_removed_after_detach(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_metrics_removed_after_detach(serendb_env_builder: SerenDBEnvBuilder):
     """Tests that when a tenant is detached, the tenant specific metrics are not left behind"""
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    neon_env_builder.num_safekeepers = 3
+    serendb_env_builder.num_safekeepers = 3
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_1, _ = env.create_tenant()
     tenant_2, _ = env.create_tenant()
 
@@ -300,14 +300,14 @@ def test_pageserver_metrics_removed_after_detach(neon_env_builder: NeonEnvBuilde
 
 @pytest.mark.parametrize("compaction", ["compaction_enabled", "compaction_disabled"])
 def test_pageserver_metrics_removed_after_offload(
-    neon_env_builder: NeonEnvBuilder, compaction: str
+    serendb_env_builder: SerenDBEnvBuilder, compaction: str
 ):
     """Tests that when a timeline is offloaded, the tenant specific metrics are not left behind"""
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
-    neon_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.num_safekeepers = 3
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_1, _ = env.create_tenant(
         conf={
             # disable background compaction and GC so that we don't have leftover tasks
@@ -385,8 +385,8 @@ def test_pageserver_metrics_removed_after_offload(
         assert post_offload_samples == set()
 
 
-def test_pageserver_with_empty_tenants(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_pageserver_with_empty_tenants(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(
         [
@@ -451,7 +451,7 @@ def test_pageserver_with_empty_tenants(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_create_churn_during_restart(neon_env_builder: NeonEnvBuilder):
+def test_create_churn_during_restart(serendb_env_builder: SerenDBEnvBuilder):
     """
     Probabilistic stress test for the pageserver's handling of tenant requests
     across a restart. This is intended to catch things like:
@@ -460,7 +460,7 @@ def test_create_churn_during_restart(neon_env_builder: NeonEnvBuilder):
     - Issues with interrupting/resuming tenant/timeline creation in shutdown
     - Issues with a timeline is not created successfully because of restart.
     """
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     tenant_id: TenantId = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -527,12 +527,12 @@ def test_create_churn_during_restart(neon_env_builder: NeonEnvBuilder):
     wait_until_tenant_active(env.pageserver.http_client(), tenant_id, iterations=10, period=1)
 
 
-def test_pageserver_metrics_many_relations(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_metrics_many_relations(serendb_env_builder: SerenDBEnvBuilder):
     """Test for the directory_entries_count metric"""
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     endpoint_tenant = env.endpoints.create_start("main", tenant_id=env.initial_tenant)
@@ -575,12 +575,12 @@ def test_pageserver_metrics_many_relations(neon_env_builder: NeonEnvBuilder):
     assert counts[2] + counts[7] > COUNT_AT_LEAST_EXPECTED
 
 
-def test_timelines_parallel_endpoints(neon_simple_env: NeonEnv):
+def test_timelines_parallel_endpoints(serendb_simple_env: SerenDBEnv):
     """
     (Relaxed) regression test for issue that led to https://github.com/neondatabase/neon/pull/9268
     Create many endpoints in parallel and then restart them
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     # This param needs to be 200+ to reproduce the limit issue
     n_threads = 16

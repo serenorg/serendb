@@ -1,6 +1,6 @@
 //!
 //! Import data and WAL from a PostgreSQL data directory and WAL segments into
-//! a neon Timeline.
+//! a SerenDB Timeline.
 //!
 use std::path::{Path, PathBuf};
 
@@ -610,13 +610,13 @@ async fn import_file(
         debug!("imported twophase file");
     } else if file_path.starts_with("pg_wal") {
         debug!("found wal file in base section. ignore it");
-    } else if file_path.starts_with("zenith.signal") || file_path.starts_with("neon.signal") {
+    } else if file_path.starts_with("zenith.signal") || file_path.starts_with("serendb.signal") {
         // Parse zenith signal file to set correct previous LSN
         let bytes = read_all_bytes(reader).await?;
-        // neon.signal format is "PREV LSN: prev_lsn"
+        // serendb.signal format is "PREV LSN: prev_lsn"
         // TODO write serialization and deserialization in the same place.
-        let neon_signal = std::str::from_utf8(&bytes)?.trim();
-        let prev_lsn = match neon_signal {
+        let serendb_signal = std::str::from_utf8(&bytes)?.trim();
+        let prev_lsn = match serendb_signal {
             "PREV LSN: none" => Lsn(0),
             "PREV LSN: invalid" => Lsn(0),
             other => {
@@ -624,19 +624,19 @@ async fn import_file(
                 split[1]
                     .trim()
                     .parse::<Lsn>()
-                    .context("can't parse neon.signal")?
+                    .context("can't parse serendb.signal")?
             }
         };
 
-        // neon.signal is not necessarily the last file, that we handle
+        // serendb.signal is not necessarily the last file, that we handle
         // but it is ok to call `finish_write()`, because final `modification.commit()`
         // will update lsn once more to the final one.
         let writer = modification.tline.writer().await;
         writer.finish_write(prev_lsn);
 
-        debug!("imported neon signal {}", prev_lsn);
+        debug!("imported SerenDB signal {}", prev_lsn);
     } else if file_path.starts_with("pg_tblspc") {
-        // TODO Backups exported from neon won't have pg_tblspc, but we will need
+        // TODO Backups exported from SerenDB won't have pg_tblspc, but we will need
         // this to import arbitrary postgres databases.
         bail!("Importing pg_tblspc is not implemented");
     } else {

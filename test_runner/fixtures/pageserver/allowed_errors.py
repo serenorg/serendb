@@ -145,11 +145,11 @@ DEFAULT_STORAGE_CONTROLLER_ALLOWED_ERRORS = [
     ".*startup_reconcile: Could not scan node.*",
     # Tests run in dev mode
     ".*Starting in dev mode.*",
-    # Tests that stop endpoints & use the storage controller's neon_local notification
-    # mechanism might fail (neon_local's stopping and endpoint isn't atomic wrt the storage
+    # Tests that stop endpoints & use the storage controller's serendb_local notification
+    # mechanism might fail (serendb_local's stopping and endpoint isn't atomic wrt the storage
     # controller's attempts to notify the endpoint).
-    ".*reconciler.*neon_local notification hook failed.*",
-    ".*reconciler.*neon_local error.*",
+    ".*reconciler.*serendb_local notification hook failed.*",
+    ".*reconciler.*serendb_local error.*",
     # Tenant rate limits may fire in tests that submit lots of API requests.
     ".*tenant \\S+ is rate limited.*",
     # Reconciliations may get stuck/delayed e.g. in chaos tests.

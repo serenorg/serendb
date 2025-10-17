@@ -21,7 +21,7 @@
 #                the extensions.
 #
 # compute-tools: This contains compute_ctl, the launcher program that starts Postgres
-#                in Neon. It also contains a few other tools that are built from the
+#                in SerenDB. It also contains a few other tools that are built from the
 #                sources from this repository and used in compute VMs: 'fast_import' and
 #                'local_proxy'
 #
@@ -29,7 +29,7 @@
 #
 # By convention, the build of each extension consists of two layers:
 #
-# {extension}-src:   Contains the source tarball, possible neon-specific patches, and
+# {extension}-src:   Contains the source tarball, possible SerenDB-specific patches, and
 #                    the extracted tarball with the patches applied. All of these are
 #                    under the /ext-src/ directory.
 #
@@ -164,7 +164,7 @@ RUN case $DEBIAN_VERSION in \
 #########################################################################################
 #
 # Layer "pg-build"
-# Build Postgres from the neon postgres repository.
+# Build Postgres from the SerenDB postgres repository.
 #
 #########################################################################################
 FROM build-deps AS pg-build
@@ -177,7 +177,7 @@ RUN cd postgres && \
     # Apply patches to some contrib extensions
     # For example, we need to grant EXECUTE on pg_stat_statements_reset() to {privileged_role_name}.
     # In vanilla Postgres this function is limited to Postgres role superuser.
-    # In Neon we have {privileged_role_name} role that is not a superuser but replaces superuser in some cases.
+    # In SerenDB we have {privileged_role_name} role that is not a superuser but replaces superuser in some cases.
     # We could add the additional grant statements to the Postgres repository but it would be hard to maintain,
     # whenever we need to pick up a new Postgres version and we want to limit the changes in our Postgres fork,
     # so we do it here.
@@ -1158,7 +1158,7 @@ COPY compute/patches/onnxruntime.patch .
 RUN wget https://github.com/microsoft/onnxruntime/archive/refs/tags/v1.18.1.tar.gz -O onnxruntime.tar.gz && \
     mkdir onnxruntime-src && cd onnxruntime-src && tar xzf ../onnxruntime.tar.gz --strip-components=1 -C . && \
     patch -p1 < /ext-src/onnxruntime.patch && \
-    echo "#nothing to test here" > neon-test.sh
+    echo "#nothing to test here" > serendb-test.sh
 
 RUN wget https://github.com/neondatabase-labs/pgrag/archive/refs/tags/v0.1.2.tar.gz -O pgrag.tar.gz &&  \
     echo "7361654ea24f08cbb9db13c2ee1c0fe008f6114076401bb871619690dafc5225 pgrag.tar.gz" | sha256sum --check && \
@@ -1496,8 +1496,8 @@ RUN wget https://github.com/Mooncake-Labs/pg_mooncake/releases/download/v0.1.2/p
     echo "4550473784fcdd2e1e18062bc01eb9c286abd27cdf5e11a4399be6c0a426ba90 pg_mooncake.tar.gz" | sha256sum --check && \
     mkdir pg_mooncake-src && cd pg_mooncake-src && tar xzf ../pg_mooncake.tar.gz --strip-components=1 -C . && \
     cd third_party/duckdb && patch -p1 < /ext-src/duckdb_v113.patch && cd ../.. && \
-    echo "make -f pg_mooncake-src/Makefile.build installcheck TEST_DIR=./test SQL_DIR=./sql SRC_DIR=./src" > neon-test.sh && \
-    chmod a+x neon-test.sh
+    echo "make -f pg_mooncake-src/Makefile.build installcheck TEST_DIR=./test SQL_DIR=./sql SRC_DIR=./src" > serendb-test.sh && \
+    chmod a+x serendb-test.sh
 
 FROM rust-extensions-build AS pg_mooncake-build
 COPY --from=pg_mooncake-src /ext-src/ /ext-src/
@@ -1625,18 +1625,18 @@ RUN make install USE_PGXS=1 -j $(getconf _NPROCESSORS_ONLN)
 
 #########################################################################################
 #
-# Layer "neon-ext-build"
-# compile neon extensions
+# Layer "serendb-ext-build"
+# compile serendb extensions
 #
 #########################################################################################
-FROM pg-build-with-cargo AS neon-ext-build
+FROM pg-build-with-cargo AS serendb-ext-build
 ARG PG_VERSION
 
 USER root
 COPY . .
 
 RUN make -j $(getconf _NPROCESSORS_ONLN) -C pgxn -s install-compute \
-      BUILD_TYPE=release CARGO_BUILD_FLAGS="--locked --release" NEON_CARGO_ARTIFACT_TARGET_DIR="$(pwd)/target/release"
+      BUILD_TYPE=release CARGO_BUILD_FLAGS="--locked --release" SERENDB_CARGO_ARTIFACT_TARGET_DIR="$(pwd)/target/release"
 
 #########################################################################################
 #
@@ -1715,15 +1715,15 @@ COPY --from=pgauditlogtofile-build /usr/local/pgsql/ /usr/local/pgsql/
 
 #########################################################################################
 #
-# Layer "neon-pg-ext-build"
+# Layer "serendb-pg-ext-build"
 # Includes Postgres and all the extensions chosen by EXTENSIONS arg.
 #
 #########################################################################################
-FROM extensions-${EXTENSIONS} AS neon-pg-ext-build
+FROM extensions-${EXTENSIONS} AS serendb-pg-ext-build
 
 #########################################################################################
 #
-# Compile the Neon-specific `compute_ctl`, `fast_import`, and `local_proxy` binaries
+# Compile the SerenDB-specific `compute_ctl`, `fast_import`, and `local_proxy` binaries
 #
 #########################################################################################
 FROM build-deps-with-cargo AS compute-tools
@@ -1810,9 +1810,9 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then\
 # Clean up postgres folder before inclusion
 #
 #########################################################################################
-FROM neon-ext-build AS postgres-cleanup-layer
+FROM serendb-ext-build AS postgres-cleanup-layer
 
-COPY --from=neon-pg-ext-build /usr/local/pgsql /usr/local/pgsql
+COPY --from=serendb-pg-ext-build /usr/local/pgsql /usr/local/pgsql
 
 # Remove binaries from /bin/ that we won't use (or would manually copy & install otherwise)
 RUN cd /usr/local/pgsql/bin && rm -f ecpg raster2pgsql shp2pgsql pgtopo_export pgtopo_import pgsql2shp
@@ -1907,7 +1907,7 @@ COPY compute/patches/pg_repack.patch /ext-src
 RUN cd /ext-src/pg_repack-src && patch -p1 </ext-src/pg_repack.patch && rm -f /ext-src/pg_repack.patch
 
 COPY --chmod=755 docker-compose/run-tests.sh /run-tests.sh
-RUN echo /usr/local/pgsql/lib > /etc/ld.so.conf.d/00-neon.conf && /sbin/ldconfig
+RUN echo /usr/local/pgsql/lib > /etc/ld.so.conf.d/00-serendb.conf && /sbin/ldconfig
 RUN apt-get update && apt-get install -y libtap-parser-sourcehandler-pgtap-perl jq parallel \
    && apt clean && rm -rf /ext-src/*.tar.gz /ext-src/*.patch /var/lib/apt/lists/*
 ENV PATH=/usr/local/pgsql/bin:$PATH
@@ -1997,7 +1997,7 @@ RUN mkdir /var/db && useradd -m -d /var/db/postgres postgres && \
     chmod 0750 /var/db/postgres/compute && \
     chmod 0750 /var/db/postgres/pgbouncer && \
     # create folder for file cache
-    mkdir -p -m 777 /neon/cache && \
+    mkdir -p -m 777 /serendb/cache && \
     # Create remote extension download directory
     mkdir /usr/local/download_extensions && \
     chown -R postgres:postgres /usr/local/download_extensions
@@ -2022,12 +2022,12 @@ COPY --from=exporters ./sql_exporter /bin/sql_exporter
 COPY --chown=postgres compute/etc/postgres_exporter.yml /etc/postgres_exporter.yml
 
 COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/sql_exporter.yml               /etc/sql_exporter.yml
-COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/neon_collector.yml             /etc/neon_collector.yml
+COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/serendb_collector.yml             /etc/serendb_collector.yml
 COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/sql_exporter_autoscaling.yml   /etc/sql_exporter_autoscaling.yml
-COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/neon_collector_autoscaling.yml /etc/neon_collector_autoscaling.yml
+COPY --from=sql_exporter_preprocessor --chmod=0644 /home/nonroot/compute/etc/serendb_collector_autoscaling.yml /etc/serendb_collector_autoscaling.yml
 
 # Make the libraries we built available
-COPY --chmod=0666 compute/etc/ld.so.conf.d/00-neon.conf /etc/ld.so.conf.d/00-neon.conf
+COPY --chmod=0666 compute/etc/ld.so.conf.d/00-serendb.conf /etc/ld.so.conf.d/00-serendb.conf
 RUN /sbin/ldconfig
 
 # rsyslog config permissions

@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from fixtures.compare_fixtures import PgCompare
 
 
-def test_write_amplification(neon_with_baseline: PgCompare):
-    env = neon_with_baseline
+def test_write_amplification(serendb_with_baseline: PgCompare):
+    env = serendb_with_baseline
 
     with closing(env.pg.connect()) as conn:
         with conn.cursor() as cur:

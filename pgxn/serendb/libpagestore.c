@@ -35,9 +35,9 @@
 #include "utils/guc.h"
 #include "utils/memutils.h"
 
-#include "neon.h"
-#include "neon_perf_counters.h"
-#include "neon_utils.h"
+#include "serendb.h"
+#include "serendb_perf_counters.h"
+#include "serendb_utils.h"
 #include "pagestore_client.h"
 #include "walproposer.h"
 
@@ -51,13 +51,13 @@
 #define MIN_RECONNECT_INTERVAL_USEC 1000
 #define MAX_RECONNECT_INTERVAL_USEC 1000000
 
-enum NeonComputeMode {
+enum SerenDBComputeMode {
 	CP_MODE_PRIMARY = 0,
 	CP_MODE_REPLICA,
 	CP_MODE_STATIC
 };
 
-static const struct config_enum_entry neon_compute_modes[] = {
+static const struct config_enum_entry serendb_compute_modes[] = {
 	{"primary", CP_MODE_PRIMARY, false},
 	{"replica", CP_MODE_REPLICA, false},
 	{"static", CP_MODE_STATIC, false},
@@ -65,21 +65,21 @@ static const struct config_enum_entry neon_compute_modes[] = {
 };
 
 /* GUCs */
-char	   *neon_timeline;
-char	   *neon_tenant;
-char	   *neon_project_id;
-char	   *neon_branch_id;
-char	   *neon_endpoint_id;
+char	   *serendb_timeline;
+char	   *serendb_tenant;
+char	   *serendb_project_id;
+char	   *serendb_branch_id;
+char	   *serendb_endpoint_id;
 int32		max_cluster_size;
 char	   *pageserver_connstring;
-char	   *neon_auth_token;
+char	   *serendb_auth_token;
 
 int			readahead_buffer_size = 128;
 int			flush_every_n_requests = 8;
 
-int         neon_protocol_version = 3;
+int         serendb_protocol_version = 3;
 
-static int	neon_compute_mode = 0;
+static int	serendb_compute_mode = 0;
 static int	max_reconnect_attempts = 60;
 static int	stripe_size;
 static int	max_sockets;
@@ -103,7 +103,7 @@ typedef struct
  * PagestoreShmemState is kept in shared memory. It contains the connection
  * strings for each shard.
  *
- * The "neon.pageserver_connstring" GUC is marked with the PGC_SIGHUP option,
+ * The "serendb.pageserver_connstring" GUC is marked with the PGC_SIGHUP option,
  * allowing it to be changed using pg_reload_conf(). The control plane can
  * update the connection string if the pageserver crashes, is relocated, or
  * new shards are added. A parsed copy of the current value of the GUC is kept
@@ -121,7 +121,7 @@ typedef struct
  * stripe_size is now also part of ShardMap, although it is defined by separate GUC.
  * Postgres doesn't provide any mechanism to enforce dependencies between GUCs,
  * that it we we have to rely on order of GUC definition in config file.
- * "neon.stripe_size" should be defined prior to "neon.pageserver_connstring"
+ * "serendb.stripe_size" should be defined prior to "serendb.pageserver_connstring"
  */
 typedef struct
 {
@@ -177,7 +177,7 @@ typedef struct
 } PageServer;
 
 static uint32 local_request_counter;
-#define GENERATE_REQUEST_ID() (((NeonRequestId)MyProcPid << 32) | ++local_request_counter)
+#define GENERATE_REQUEST_ID() (((SerenDBRequestId)MyProcPid << 32) | ++local_request_counter)
 
 static PageServer page_servers[MAX_SHARDS];
 
@@ -224,12 +224,12 @@ ParseShardMap(const char *connstr, ShardMap *result)
 
 		if (nshards >= MAX_SHARDS)
 		{
-			neon_log(LOG, "Too many shards");
+			serendb_log(LOG, "Too many shards");
 			return false;
 		}
 		if (connstr_len >= MAX_PAGESERVER_CONNSTRING_SIZE)
 		{
-			neon_log(LOG, "Connection string too long");
+			serendb_log(LOG, "Connection string too long");
 			return false;
 		}
 		if (result)
@@ -355,7 +355,7 @@ load_shard_map(shardno_t shard_no, char *connstr_p, shardno_t *num_shards_p, siz
 		   || end_update_counter != pg_atomic_read_u64(&pagestore_shared->end_update_counter));
 
 	if (connstr_p && shard_no >= num_shards)
-		neon_log(ERROR, "Shard %d is greater or equal than number of shards %d",
+		serendb_log(ERROR, "Shard %d is greater or equal than number of shards %d",
 				 shard_no, num_shards);
 
 	/*
@@ -416,7 +416,7 @@ CLEANUP_AND_DISCONNECT(PageServer *shard)
 	}
 	if (shard->conn)
 	{
-		MyNeonCounters->pageserver_disconnects_total++;
+		MySerenDBCounters->pageserver_disconnects_total++;
 		PQfinish(shard->conn);
 		shard->conn = NULL;
 	}
@@ -463,7 +463,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		/* Make sure we start with a clean slate */
 		CLEANUP_AND_DISCONNECT(shard);
 
-		neon_shard_log(shard_no, DEBUG5, "Connection state: Disconnected");
+		serendb_shard_log(shard_no, DEBUG5, "Connection state: Disconnected");
 
 		now = GetCurrentTimestamp();
 		us_since_last_attempt = (int64) (now - shard->last_reconnect_time);
@@ -500,7 +500,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 
 		/*
 		 * Connect using the connection string we got from the
-		 * neon.pageserver_connstring GUC. If the NEON_AUTH_TOKEN environment
+		 * serendb.pageserver_connstring GUC. If the SERENDB_AUTH_TOKEN environment
 		 * variable was set, use that as the password.
 		 *
 		 * The connection options are parsed in the order they're given, so when
@@ -528,27 +528,27 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		values[n_pgsql_params] = connstr;
 		n_pgsql_params++;
 
-		if (neon_auth_token)
+		if (serendb_auth_token)
 		{
 			keywords[n_pgsql_params] = "password";
-			values[n_pgsql_params] = neon_auth_token;
+			values[n_pgsql_params] = serendb_auth_token;
 			n_pgsql_params++;
 		}
 
 		{
 			bool param_set = false;
-			switch (neon_compute_mode)
+			switch (serendb_compute_mode)
 			{
 				case CP_MODE_PRIMARY:
-					strncpy(endpoint_str, "-c neon.compute_mode=primary", sizeof(endpoint_str));
+					strncpy(endpoint_str, "-c serendb.compute_mode=primary", sizeof(endpoint_str));
 					param_set = true;
 					break;
 				case CP_MODE_REPLICA:
-					strncpy(endpoint_str, "-c neon.compute_mode=replica", sizeof(endpoint_str));
+					strncpy(endpoint_str, "-c serendb.compute_mode=replica", sizeof(endpoint_str));
 					param_set = true;
 					break;
 				case CP_MODE_STATIC:
-					strncpy(endpoint_str, "-c neon.compute_mode=static", sizeof(endpoint_str));
+					strncpy(endpoint_str, "-c serendb.compute_mode=static", sizeof(endpoint_str));
 					param_set = true;
 					break;
 			}
@@ -570,7 +570,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 			CLEANUP_AND_DISCONNECT(shard);
 			ereport(elevel,
 					(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-						errmsg(NEON_TAG "[shard %d] could not establish connection to pageserver", shard_no),
+						errmsg(SERENDB_TAG "[shard %d] could not establish connection to pageserver", shard_no),
 						errdetail_internal("%s", msg)));
 			pfree(msg);
 			return false;
@@ -584,7 +584,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		int			ps_send_query_ret;
 		bool		connected = false;
 		int poll_result = PGRES_POLLING_WRITING;
-		neon_shard_log(shard_no, DEBUG5, "Connection state: Connecting_Startup");
+		serendb_shard_log(shard_no, DEBUG5, "Connection state: Connecting_Startup");
 
 		do
 		{
@@ -595,7 +595,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 				{
 					char	   *pqerr = PQerrorMessage(shard->conn);
 					char	   *msg = NULL;
-					neon_shard_log(shard_no, DEBUG5, "POLLING_FAILED");
+					serendb_shard_log(shard_no, DEBUG5, "POLLING_FAILED");
 
 					if (pqerr)
 						msg = pchomp(pqerr);
@@ -604,13 +604,13 @@ pageserver_connect(shardno_t shard_no, int elevel)
 
 					if (msg)
 					{
-						neon_shard_log(shard_no, elevel,
+						serendb_shard_log(shard_no, elevel,
 									   "could not connect to pageserver: %s",
 									   msg);
 						pfree(msg);
 					}
 					else
-						neon_shard_log(shard_no, elevel,
+						serendb_shard_log(shard_no, elevel,
 									   "could not connect to pageserver");
 
 					return false;
@@ -623,7 +623,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 											   WL_EXIT_ON_PM_DEATH | WL_LATCH_SET | WL_SOCKET_READABLE,
 											   PQsocket(shard->conn),
 											   0,
-											   WAIT_EVENT_NEON_PS_STARTING);
+											   WAIT_EVENT_SERENDB_PS_STARTING);
 					elog(DEBUG5, "PGRES_POLLING_READING=>%d", rc);
 					if (rc & WL_LATCH_SET)
 					{
@@ -645,7 +645,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 											   WL_EXIT_ON_PM_DEATH | WL_LATCH_SET | WL_SOCKET_WRITEABLE,
 											   PQsocket(shard->conn),
 											   0,
-											   WAIT_EVENT_NEON_PS_STARTING);
+											   WAIT_EVENT_SERENDB_PS_STARTING);
 					elog(DEBUG5, "PGRES_POLLING_WRITING=>%d", rc);
 					if (rc & WL_LATCH_SET)
 					{
@@ -660,7 +660,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 
 				break;
 			case PGRES_POLLING_OK:
-				neon_shard_log(shard_no, DEBUG5, "POLLING_OK");
+				serendb_shard_log(shard_no, DEBUG5, "POLLING_OK");
 				connected = true;
 				break;
 			}
@@ -684,16 +684,16 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		AddWaitEventToSet(shard->wes_read, WL_SOCKET_READABLE, PQsocket(shard->conn), NULL, NULL);
 
 
-		switch (neon_protocol_version)
+		switch (serendb_protocol_version)
 		{
 		case 3:
-			pagestream_query = psprintf("pagestream_v3 %s %s", neon_tenant, neon_timeline);
+			pagestream_query = psprintf("pagestream_v3 %s %s", serendb_tenant, serendb_timeline);
 			break;
 		case 2:
-			pagestream_query = psprintf("pagestream_v2 %s %s", neon_tenant, neon_timeline);
+			pagestream_query = psprintf("pagestream_v2 %s %s", serendb_tenant, serendb_timeline);
 			break;
 		default:
-			elog(ERROR, "unexpected neon_protocol_version %d", neon_protocol_version);
+			elog(ERROR, "unexpected serendb_protocol_version %d", serendb_protocol_version);
 		}
 
 		if (PQstatus(shard->conn) == CONNECTION_BAD)
@@ -704,7 +704,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 
 			ereport(elevel,
 					(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-						errmsg(NEON_TAG "[shard %d] could not establish connection to pageserver", shard_no),
+						errmsg(SERENDB_TAG "[shard %d] could not establish connection to pageserver", shard_no),
 						errdetail_internal("%s", msg)));
 			pfree(msg);
 			return false;
@@ -716,7 +716,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		{
 			CLEANUP_AND_DISCONNECT(shard);
 
-			neon_shard_log(shard_no, elevel, "could not send pagestream command to pageserver");
+			serendb_shard_log(shard_no, elevel, "could not send pagestream command to pageserver");
 			return false;
 		}
 
@@ -725,7 +725,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 	/* FALLTHROUGH */
 	case PS_Connecting_PageStream:
 	{
-		neon_shard_log(shard_no, DEBUG5, "Connection state: Connecting_PageStream");
+		serendb_shard_log(shard_no, DEBUG5, "Connection state: Connecting_PageStream");
 
 		if (PQstatus(shard->conn) == CONNECTION_BAD)
 		{
@@ -733,7 +733,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 			CLEANUP_AND_DISCONNECT(shard);
 			ereport(elevel,
 					(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-						errmsg(NEON_TAG "[shard %d] could not establish connection to pageserver", shard_no),
+						errmsg(SERENDB_TAG "[shard %d] could not establish connection to pageserver", shard_no),
 						errdetail_internal("%s", msg)));
 			pfree(msg);
 			return false;
@@ -745,7 +745,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 
 			/* Sleep until there's something to do */
 			(void) WaitEventSetWait(shard->wes_read, -1L, &event, 1,
-									WAIT_EVENT_NEON_PS_CONFIGURING);
+									WAIT_EVENT_SERENDB_PS_CONFIGURING);
 			ResetLatch(MyLatch);
 
 			CHECK_FOR_INTERRUPTS();
@@ -758,7 +758,7 @@ pageserver_connect(shardno_t shard_no, int elevel)
 					char	   *msg = pchomp(PQerrorMessage(shard->conn));
 
 					CLEANUP_AND_DISCONNECT(shard);
-					neon_shard_log(shard_no, elevel, "could not complete handshake with pageserver: %s",
+					serendb_shard_log(shard_no, elevel, "could not complete handshake with pageserver: %s",
 								   msg);
 					pfree(msg);
 					return false;
@@ -781,11 +781,11 @@ pageserver_connect(shardno_t shard_no, int elevel)
 		 */
 		shard->delay_us = MIN_RECONNECT_INTERVAL_USEC;
 
-		neon_shard_log(shard_no, DEBUG5, "Connection state: Connected");
-		neon_shard_log(shard_no, LOG, "libpagestore: connected to '%s' with protocol version %d", connstr, neon_protocol_version);
+		serendb_shard_log(shard_no, DEBUG5, "Connection state: Connected");
+		serendb_shard_log(shard_no, LOG, "libpagestore: connected to '%s' with protocol version %d", connstr, serendb_protocol_version);
 		return true;
 	default:
-		neon_shard_log(shard_no, ERROR, "libpagestore: invalid connection state %d", shard->state);
+		serendb_shard_log(shard_no, ERROR, "libpagestore: invalid connection state %d", shard->state);
 	}
 
 	pg_unreachable();
@@ -887,7 +887,7 @@ retry:
 		timeout = (long) ceil(Min(log_timeout, disconnect_timeout));
 
 		noccurred = WaitEventSetWait(shard->wes_read, timeout, &occurred_event, 1,
-									 WAIT_EVENT_NEON_PS_READ);
+									 WAIT_EVENT_SERENDB_PS_READ);
 		ResetLatch(MyLatch);
 
 		CHECK_FOR_INTERRUPTS();
@@ -899,7 +899,7 @@ retry:
 			{
 				char	   *msg = pchomp(PQerrorMessage(pageserver_conn));
 
-				neon_shard_log(shard_no, LOG, "could not get response from pageserver: %s", msg);
+				serendb_shard_log(shard_no, LOG, "could not get response from pageserver: %s", msg);
 				pfree(msg);
 				return -1;
 			}
@@ -917,7 +917,7 @@ retry:
 		 * As a debugging aid, if we don't get a response to a pageserver request
 		 * for a long time, print a log message.
 		 *
-		 * The default neon.pageserver_response_log_timeout value, 10 s, is
+		 * The default serendb.pageserver_response_log_timeout value, 10 s, is
 		 * very generous. Normally we expect a response in a few
 		 * milliseconds. We have metrics to track latencies in normal ranges,
 		 * but in the cases that take exceptionally long, it's useful to log
@@ -933,15 +933,15 @@ retry:
 			get_local_port(PQsocket(pageserver_conn), &port);
 			get_socket_stats(PQsocket(pageserver_conn), &sndbuf, &recvbuf);
 
-			neon_shard_log(shard_no, LOG,
+			serendb_shard_log(shard_no, LOG,
 						   "no response received from pageserver for %0.3f s, still waiting (sent " UINT64_FORMAT " requests, received " UINT64_FORMAT " responses) (socket port=%d sndbuf=%d recvbuf=%d) (conn start=%d end=%d)",
 						   INSTR_TIME_GET_DOUBLE(since_start),
 						   shard->nrequests_sent, shard->nresponses_received, port, sndbuf, recvbuf,
 				           pageserver_conn->inStart, pageserver_conn->inEnd);
 			shard->receive_last_log_time = now;
-			MyNeonCounters->compute_getpage_stuck_requests_total += !shard->receive_logged;
+			MySerenDBCounters->compute_getpage_stuck_requests_total += !shard->receive_logged;
 			shard->receive_logged = true;
-			max_wait = &MyNeonCounters->compute_getpage_max_inflight_stuck_time_ms;
+			max_wait = &MySerenDBCounters->compute_getpage_max_inflight_stuck_time_ms;
 			*max_wait = Max(*max_wait, INSTR_TIME_GET_MILLISEC(since_start));
 		}
 
@@ -963,9 +963,9 @@ retry:
 		{
 			int 		port;
 			get_local_port(PQsocket(pageserver_conn), &port);
-			neon_shard_log(shard_no, LOG, "no response from pageserver for %0.3f s, disconnecting (socket port=%d)",
+			serendb_shard_log(shard_no, LOG, "no response from pageserver for %0.3f s, disconnecting (socket port=%d)",
 					   INSTR_TIME_GET_DOUBLE(since_start), port);
-			MyNeonCounters->compute_getpage_max_inflight_stuck_time_ms = 0;
+			MySerenDBCounters->compute_getpage_max_inflight_stuck_time_ms = 0;
 			pageserver_disconnect(shard_no);
 			return -1;
 		}
@@ -982,14 +982,14 @@ retry:
 		INSTR_TIME_SET_CURRENT(now);
 		since_start = now;
 		INSTR_TIME_SUBTRACT(since_start, shard->receive_start_time);
-		neon_shard_log(shard_no, LOG,
+		serendb_shard_log(shard_no, LOG,
 					   "received response from pageserver after %0.3f s",
 					   INSTR_TIME_GET_DOUBLE(since_start));
 	}
 	INSTR_TIME_SET_ZERO(shard->receive_start_time);
 	INSTR_TIME_SET_ZERO(shard->receive_last_log_time);
 	shard->receive_logged = false;
-	MyNeonCounters->compute_getpage_max_inflight_stuck_time_ms = 0;
+	MySerenDBCounters->compute_getpage_max_inflight_stuck_time_ms = 0;
 
 	return ret;
 }
@@ -1132,18 +1132,18 @@ hadron_request_configuration_refresh() {
 // END HADRON
 
 static bool
-pageserver_send(shardno_t shard_no, NeonRequest *request)
+pageserver_send(shardno_t shard_no, SerenDBRequest *request)
 {
 	StringInfoData req_buff;
 	PageServer *shard = &page_servers[shard_no];
 	PGconn	   *pageserver_conn;
 
-	MyNeonCounters->pageserver_requests_sent_total++;
+	MySerenDBCounters->pageserver_requests_sent_total++;
 
 	/* If the connection was lost for some reason, reconnect */
 	if (shard->state == PS_Connected && PQstatus(shard->conn) == CONNECTION_BAD)
 	{
-		neon_shard_log(shard_no, LOG, "pageserver_send disconnect bad connection");
+		serendb_shard_log(shard_no, LOG, "pageserver_send disconnect bad connection");
 		pageserver_disconnect(shard_no);
 		pageserver_conn = NULL;
 	}
@@ -1168,7 +1168,7 @@ pageserver_send(shardno_t shard_no, NeonRequest *request)
 			if (shard->n_reconnect_attempts > conf_refresh_reconnect_attempt_threshold
 				&& hadron_request_configuration_refresh() )
 			{
-				neon_shard_log(shard_no, ERROR, "request failed too many times, cancelling query");
+				serendb_shard_log(shard_no, ERROR, "request failed too many times, cancelling query");
 			}
 		}
 		shard->n_reconnect_attempts = 0;
@@ -1196,7 +1196,7 @@ pageserver_send(shardno_t shard_no, NeonRequest *request)
 		char	   *msg = pchomp(PQerrorMessage(pageserver_conn));
 
 		pageserver_disconnect(shard_no);
-		neon_shard_log(shard_no, LOG, "pageserver_send disconnected: failed to send page request (try to reconnect): %s", msg);
+		serendb_shard_log(shard_no, LOG, "pageserver_send disconnected: failed to send page request (try to reconnect): %s", msg);
 		pfree(msg);
 		pfree(req_buff.data);
 		return false;
@@ -1206,20 +1206,20 @@ pageserver_send(shardno_t shard_no, NeonRequest *request)
 
 	if (message_level_is_interesting(PageStoreTrace))
 	{
-		char	   *msg = nm_to_string((NeonMessage *) request);
+		char	   *msg = nm_to_string((SerenDBMessage *) request);
 
-		neon_shard_log(shard_no, PageStoreTrace, "sent request: %s", msg);
+		serendb_shard_log(shard_no, PageStoreTrace, "sent request: %s", msg);
 		pfree(msg);
 	}
 
 	return true;
 }
 
-static NeonResponse *
+static SerenDBResponse *
 pageserver_receive(shardno_t shard_no)
 {
 	StringInfoData resp_buff;
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 	PageServer *shard = &page_servers[shard_no];
 	PGconn	   *pageserver_conn = shard->conn;
 	/* read response */
@@ -1227,7 +1227,7 @@ pageserver_receive(shardno_t shard_no)
 
 	if (shard->state != PS_Connected)
 	{
-		neon_shard_log(shard_no, LOG,
+		serendb_shard_log(shard_no, LOG,
 					   "pageserver_receive: returning NULL for non-connected pageserver connection: 0x%02x",
 					   shard->state);
 		return NULL;
@@ -1250,7 +1250,7 @@ pageserver_receive(shardno_t shard_no)
 		}
 		PG_CATCH();
 		{
-			neon_shard_log(shard_no, LOG, "pageserver_receive: disconnect due to failure while parsing response");
+			serendb_shard_log(shard_no, LOG, "pageserver_receive: disconnect due to failure while parsing response");
 			pageserver_disconnect(shard_no);
 			PG_RE_THROW();
 		}
@@ -1258,9 +1258,9 @@ pageserver_receive(shardno_t shard_no)
 
 		if (message_level_is_interesting(PageStoreTrace))
 		{
-			char	   *msg = nm_to_string((NeonMessage *) resp);
+			char	   *msg = nm_to_string((SerenDBMessage *) resp);
 
-			neon_shard_log(shard_no, PageStoreTrace, "got response: %s", msg);
+			serendb_shard_log(shard_no, PageStoreTrace, "got response: %s", msg);
 			pfree(msg);
 		}
 	}
@@ -1273,7 +1273,7 @@ pageserver_receive(shardno_t shard_no)
 	{
 		char	   *msg = pchomp(PQerrorMessage(pageserver_conn));
 
-		neon_shard_log(shard_no, LOG, "pageserver_receive disconnect: psql end of copy data: %s", msg);
+		serendb_shard_log(shard_no, LOG, "pageserver_receive disconnect: psql end of copy data: %s", msg);
 		pfree(msg);
 		pageserver_disconnect(shard_no);
 		resp = NULL;
@@ -1291,24 +1291,24 @@ pageserver_receive(shardno_t shard_no)
 
 		pageserver_disconnect(shard_no);
 		hadron_request_configuration_refresh();
-		neon_shard_log(shard_no, ERROR, "pageserver_receive disconnect: could not read COPY data: %s", msg);
+		serendb_shard_log(shard_no, ERROR, "pageserver_receive disconnect: could not read COPY data: %s", msg);
 	}
 	else
 	{
 		pageserver_disconnect(shard_no);
 		hadron_request_configuration_refresh();
-		neon_shard_log(shard_no, ERROR, "pageserver_receive disconnect: unexpected PQgetCopyData return value: %d", rc);
+		serendb_shard_log(shard_no, ERROR, "pageserver_receive disconnect: unexpected PQgetCopyData return value: %d", rc);
 	}
 
 	shard->nresponses_received++;
-	return (NeonResponse *) resp;
+	return (SerenDBResponse *) resp;
 }
 
-static NeonResponse *
+static SerenDBResponse *
 pageserver_try_receive(shardno_t shard_no)
 {
 	StringInfoData resp_buff;
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 	PageServer *shard = &page_servers[shard_no];
 	PGconn	   *pageserver_conn = shard->conn;
 	int	rc;
@@ -1341,7 +1341,7 @@ pageserver_try_receive(shardno_t shard_no)
 		}
 		PG_CATCH();
 		{
-			neon_shard_log(shard_no, LOG, "pageserver_receive: disconnect due to failure while parsing response");
+			serendb_shard_log(shard_no, LOG, "pageserver_receive: disconnect due to failure while parsing response");
 			pageserver_disconnect(shard_no);
 			/*
 			 * Malformed responses from PageServer are a reason to raise
@@ -1353,15 +1353,15 @@ pageserver_try_receive(shardno_t shard_no)
 
 		if (message_level_is_interesting(PageStoreTrace))
 		{
-			char	   *msg = nm_to_string((NeonMessage *) resp);
+			char	   *msg = nm_to_string((SerenDBMessage *) resp);
 
-			neon_shard_log(shard_no, PageStoreTrace, "got response: %s", msg);
+			serendb_shard_log(shard_no, PageStoreTrace, "got response: %s", msg);
 			pfree(msg);
 		}
 	}
 	else if (rc == -1)
 	{
-		neon_shard_log(shard_no, LOG, "pageserver_receive disconnect: psql end of copy data: %s", pchomp(PQerrorMessage(pageserver_conn)));
+		serendb_shard_log(shard_no, LOG, "pageserver_receive disconnect: psql end of copy data: %s", pchomp(PQerrorMessage(pageserver_conn)));
 		pageserver_disconnect(shard_no);
 		resp = NULL;
 		hadron_request_configuration_refresh();
@@ -1372,14 +1372,14 @@ pageserver_try_receive(shardno_t shard_no)
 
 		pageserver_disconnect(shard_no);
 		hadron_request_configuration_refresh();
-		neon_shard_log(shard_no, LOG, "pageserver_receive disconnect: could not read COPY data: %s", msg);
+		serendb_shard_log(shard_no, LOG, "pageserver_receive disconnect: could not read COPY data: %s", msg);
 		resp = NULL;
 	}
 	else
 	{
 		pageserver_disconnect(shard_no);
 		hadron_request_configuration_refresh();
-		neon_shard_log(shard_no, ERROR, "pageserver_receive disconnect: unexpected PQgetCopyData return value: %d", rc);
+		serendb_shard_log(shard_no, ERROR, "pageserver_receive disconnect: unexpected PQgetCopyData return value: %d", rc);
 	}
 
 	/*
@@ -1389,11 +1389,11 @@ pageserver_try_receive(shardno_t shard_no)
 	 */
 	if ( rc < 0 && hadron_request_configuration_refresh() )
 	{
-		neon_shard_log(shard_no, ERROR, "refresh_configuration request failed, cancelling query");
+		serendb_shard_log(shard_no, ERROR, "refresh_configuration request failed, cancelling query");
 	}
 
 	shard->nresponses_received++;
-	return (NeonResponse *) resp;
+	return (SerenDBResponse *) resp;
 }
 
 
@@ -1404,17 +1404,17 @@ pageserver_flush(shardno_t shard_no)
 
 	if (page_servers[shard_no].state != PS_Connected)
 	{
-		neon_shard_log(shard_no, WARNING, "Tried to flush while disconnected");
+		serendb_shard_log(shard_no, WARNING, "Tried to flush while disconnected");
 	}
 	else
 	{
-		MyNeonCounters->pageserver_send_flushes_total++;
+		MySerenDBCounters->pageserver_send_flushes_total++;
 		if (PQflush(pageserver_conn))
 		{
 			char	   *msg = pchomp(PQerrorMessage(pageserver_conn));
 
 			pageserver_disconnect(shard_no);
-			neon_shard_log(shard_no, LOG, "pageserver_flush disconnect because failed to flush page requests: %s", msg);
+			serendb_shard_log(shard_no, LOG, "pageserver_flush disconnect because failed to flush page requests: %s", msg);
 			pfree(msg);
 			return false;
 		}
@@ -1433,7 +1433,7 @@ page_server_api api =
 };
 
 static bool
-check_neon_id(char **newval, void **extra, GucSource source)
+check_serendb_id(char **newval, void **extra, GucSource source)
 {
 	uint8		id[16];
 
@@ -1469,7 +1469,7 @@ PagestoreShmemRequest(void)
 void
 pg_init_libpagestore(void)
 {
-	DefineCustomStringVariable("neon.pageserver_connstring",
+	DefineCustomStringVariable("serendb.pageserver_connstring",
 							   "connection string to the page server",
 							   NULL,
 							   &pageserver_connstring,
@@ -1478,50 +1478,50 @@ pg_init_libpagestore(void)
 							   0,	/* no flags required */
 							   CheckPageserverConnstring, AssignPageserverConnstring, NULL);
 
-	DefineCustomStringVariable("neon.timeline_id",
-							   "Neon timeline_id the server is running on",
+	DefineCustomStringVariable("serendb.timeline_id",
+							   "SerenDB timeline_id the server is running on",
 							   NULL,
-							   &neon_timeline,
+							   &serendb_timeline,
 							   "",
 							   PGC_POSTMASTER,
 							   0,	/* no flags required */
-							   check_neon_id, NULL, NULL);
+							   check_serendb_id, NULL, NULL);
 
-	DefineCustomStringVariable("neon.tenant_id",
-							   "Neon tenant_id the server is running on",
+	DefineCustomStringVariable("serendb.tenant_id",
+							   "SerenDB tenant_id the server is running on",
 							   NULL,
-							   &neon_tenant,
+							   &serendb_tenant,
 							   "",
 							   PGC_POSTMASTER,
 							   0,	/* no flags required */
-							   check_neon_id, NULL, NULL);
+							   check_serendb_id, NULL, NULL);
 
-	DefineCustomStringVariable("neon.project_id",
-							   "Neon project_id the server is running on",
+	DefineCustomStringVariable("serendb.project_id",
+							   "SerenDB project_id the server is running on",
 							   NULL,
-							   &neon_project_id,
+							   &serendb_project_id,
 							   "",
 							   PGC_POSTMASTER,
 							   0,	/* no flags required */
 							   NULL, NULL, NULL);
-	DefineCustomStringVariable("neon.branch_id",
-							   "Neon branch_id the server is running on",
+	DefineCustomStringVariable("serendb.branch_id",
+							   "SerenDB branch_id the server is running on",
 							   NULL,
-							   &neon_branch_id,
+							   &serendb_branch_id,
 							   "",
 							   PGC_POSTMASTER,
 							   0,	/* no flags required */
 							   NULL, NULL, NULL);
-	DefineCustomStringVariable("neon.endpoint_id",
-							   "Neon endpoint_id the server is running on",
+	DefineCustomStringVariable("serendb.endpoint_id",
+							   "SerenDB endpoint_id the server is running on",
 							   NULL,
-							   &neon_endpoint_id,
+							   &serendb_endpoint_id,
 							   "",
 							   PGC_POSTMASTER,
 							   0,	/* no flags required */
 							   NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.stripe_size",
+	DefineCustomIntVariable("serendb.stripe_size",
 							"sharding stripe size",
 							NULL,
 							&stripe_size,
@@ -1530,7 +1530,7 @@ pg_init_libpagestore(void)
 							GUC_UNIT_BLOCKS,
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.max_cluster_size",
+	DefineCustomIntVariable("serendb.max_cluster_size",
 							"cluster size limit",
 							NULL,
 							&max_cluster_size,
@@ -1538,7 +1538,7 @@ pg_init_libpagestore(void)
 							PGC_SIGHUP,
 							GUC_UNIT_MB,
 							NULL, NULL, NULL);
-	DefineCustomIntVariable("neon.flush_output_after",
+	DefineCustomIntVariable("serendb.flush_output_after",
 							"Flush the output buffer after every N unflushed requests",
 							NULL,
 							&flush_every_n_requests,
@@ -1546,7 +1546,7 @@ pg_init_libpagestore(void)
 							PGC_USERSET,
 							0,	/* no flags required */
 							NULL, NULL, NULL);
-	DefineCustomIntVariable("neon.max_reconnect_attempts",
+	DefineCustomIntVariable("serendb.max_reconnect_attempts",
 							"Maximal attempts to reconnect to pages server (with 1 second timeout)",
 							NULL,
 							&max_reconnect_attempts,
@@ -1554,7 +1554,7 @@ pg_init_libpagestore(void)
 							PGC_USERSET,
 							0,
 							NULL, NULL, NULL);
-	DefineCustomIntVariable("neon.readahead_buffer_size",
+	DefineCustomIntVariable("serendb.readahead_buffer_size",
 							"number of prefetches to buffer",
 							"This buffer is used to hold and manage prefetched "
 							"data; so it is important that this buffer is at "
@@ -1567,7 +1567,7 @@ pg_init_libpagestore(void)
 							PGC_USERSET,
 							0,	/* no flags required */
 							NULL, (GucIntAssignHook) &readahead_buffer_resize, NULL);
-	DefineCustomIntVariable("neon.readahead_getpage_pull_timeout",
+	DefineCustomIntVariable("serendb.readahead_getpage_pull_timeout",
 							"readahead response pull timeout",
 							"Time between active tries to pull data from the "
 							"PageStream connection when we have pages which "
@@ -1577,10 +1577,10 @@ pg_init_libpagestore(void)
 							PGC_USERSET,
 							GUC_UNIT_MS,
 							NULL, NULL, NULL);
-	DefineCustomIntVariable("neon.protocol_version",
+	DefineCustomIntVariable("serendb.protocol_version",
 							"Version of compute<->page server protocol",
 							NULL,
-							&neon_protocol_version,
+							&serendb_protocol_version,
 							3,	/* use protocol version 3 */
 							2,	/* min */
 							3,	/* max */
@@ -1598,7 +1598,7 @@ pg_init_libpagestore(void)
 							0,
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.pageserver_response_log_timeout",
+	DefineCustomIntVariable("serendb.pageserver_response_log_timeout",
 							"pageserver response log timeout",
 							"If the pageserver doesn't respond to a request within this timeout, "
 							"a message is printed to the log.",
@@ -1608,7 +1608,7 @@ pg_init_libpagestore(void)
 							GUC_UNIT_MS,
 							NULL, NULL, NULL);
 
-	DefineCustomIntVariable("neon.pageserver_response_disconnect_timeout",
+	DefineCustomIntVariable("serendb.pageserver_response_disconnect_timeout",
 							"pageserver response diconnect timeout",
 							"If the pageserver doesn't respond to a request within this timeout, "
 							"disconnect and reconnect.",
@@ -1619,36 +1619,36 @@ pg_init_libpagestore(void)
 							NULL, NULL, NULL);
 
 	DefineCustomEnumVariable(
-							"neon.compute_mode",
+							"serendb.compute_mode",
 							"The compute endpoint node type",
 							NULL,
-							&neon_compute_mode,
+							&serendb_compute_mode,
 							CP_MODE_PRIMARY,
-							neon_compute_modes,
+							serendb_compute_modes,
 							PGC_POSTMASTER,
 							0,
 							NULL, NULL, NULL);
 
 	if (page_server != NULL)
-		neon_log(ERROR, "libpagestore already loaded");
+		serendb_log(ERROR, "libpagestore already loaded");
 
-	neon_log(PageStoreTrace, "libpagestore already loaded");
+	serendb_log(PageStoreTrace, "libpagestore already loaded");
 	page_server = &api;
 
 	/*
 	 * Retrieve the auth token to use when connecting to pageserver and
 	 * safekeepers
 	 */
-	neon_auth_token = getenv("NEON_AUTH_TOKEN");
-	if (neon_auth_token)
-		neon_log(LOG, "using storage auth token from NEON_AUTH_TOKEN environment variable");
+	serendb_auth_token = getenv("SERENDB_AUTH_TOKEN");
+	if (serendb_auth_token)
+		serendb_log(LOG, "using storage auth token from SERENDB_AUTH_TOKEN environment variable");
 
 	if (pageserver_connstring[0])
 	{
-		neon_log(PageStoreTrace, "set neon_smgr hook");
-		smgr_hook = smgr_neon;
-		smgr_init_hook = smgr_init_neon;
-		dbsize_hook = neon_dbsize;
+		serendb_log(PageStoreTrace, "set serendb_smgr hook");
+		smgr_hook = smgr_serendb;
+		smgr_init_hook = smgr_init_serendb;
+		dbsize_hook = serendb_dbsize;
 	}
 
 	memset(page_servers, 0, sizeof(page_servers));

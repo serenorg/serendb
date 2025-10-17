@@ -1006,10 +1006,10 @@ impl PageServerHandler {
         fail::fail_point!("ps::handle-pagerequest-message");
 
         // parse request
-        let neon_fe_msg =
+        let serendb_fe_msg =
             PagestreamFeMessage::parse(&mut copy_data_bytes.reader(), protocol_version)?;
 
-        let batched_msg = match neon_fe_msg {
+        let batched_msg = match serendb_fe_msg {
             PagestreamFeMessage::Exists(req) => {
                 let shard = timeline_handles
                     .get(tenant_id, timeline_id, ShardSelector::Zero)
@@ -3096,7 +3096,7 @@ where
         _pgb: &mut PostgresBackend<IO>,
         jwt_response: &[u8],
     ) -> Result<(), QueryError> {
-        // this unwrap is never triggered, because check_auth_jwt only called when auth_type is NeonJWT
+        // this unwrap is never triggered, because check_auth_jwt only called when auth_type is SerenDBJWT
         // which requires auth to be present
         let data: TokenData<Claims> = self
             .auth
@@ -3135,7 +3135,7 @@ where
             if let Some(options) = params.get("options") {
                 let (config, _) = parse_options(options);
                 for (key, value) in config {
-                    if key == "neon.compute_mode" {
+                    if key == "serendb.compute_mode" {
                         self.perf_span_fields.compute_mode = Some(value.clone());
                         Span::current().record("compute_mode", field::display(value));
                     }
@@ -4235,32 +4235,32 @@ impl tonic::service::Interceptor for TenantMetadataInterceptor {
         // Decode the tenant ID.
         let tenant_id = req
             .metadata()
-            .get("neon-tenant-id")
-            .ok_or_else(|| tonic::Status::invalid_argument("missing neon-tenant-id"))?
+            .get("serendb-tenant-id")
+            .ok_or_else(|| tonic::Status::invalid_argument("missing serendb-tenant-id"))?
             .to_str()
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-tenant-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-tenant-id"))?;
         let tenant_id = TenantId::from_str(tenant_id)
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-tenant-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-tenant-id"))?;
 
         // Decode the timeline ID.
         let timeline_id = req
             .metadata()
-            .get("neon-timeline-id")
-            .ok_or_else(|| tonic::Status::invalid_argument("missing neon-timeline-id"))?
+            .get("serendb-timeline-id")
+            .ok_or_else(|| tonic::Status::invalid_argument("missing serendb-timeline-id"))?
             .to_str()
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-timeline-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-timeline-id"))?;
         let timeline_id = TimelineId::from_str(timeline_id)
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-timeline-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-timeline-id"))?;
 
         // Decode the shard ID.
         let shard_id = req
             .metadata()
-            .get("neon-shard-id")
-            .ok_or_else(|| tonic::Status::invalid_argument("missing neon-shard-id"))?
+            .get("serendb-shard-id")
+            .ok_or_else(|| tonic::Status::invalid_argument("missing serendb-shard-id"))?
             .to_str()
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-shard-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-shard-id"))?;
         let shard_id = ShardIndex::from_str(shard_id)
-            .map_err(|_| tonic::Status::invalid_argument("invalid neon-shard-id"))?;
+            .map_err(|_| tonic::Status::invalid_argument("invalid serendb-shard-id"))?;
 
         // Stash them in the request.
         let extensions = req.extensions_mut();
@@ -4620,29 +4620,29 @@ mod tests {
 
     #[test]
     fn test_parse_options() {
-        let (config, has_error) = parse_options(" -c neon.compute_mode=primary ");
+        let (config, has_error) = parse_options(" -c serendb.compute_mode=primary ");
         assert!(!has_error);
         assert_eq!(
             config,
-            vec![("neon.compute_mode".to_string(), "primary".to_string())]
+            vec![("serendb.compute_mode".to_string(), "primary".to_string())]
         );
 
-        let (config, has_error) = parse_options(" -c neon.compute_mode=primary -c foo=bar ");
+        let (config, has_error) = parse_options(" -c serendb.compute_mode=primary -c foo=bar ");
         assert!(!has_error);
         assert_eq!(
             config,
             vec![
-                ("neon.compute_mode".to_string(), "primary".to_string()),
+                ("serendb.compute_mode".to_string(), "primary".to_string()),
                 ("foo".to_string(), "bar".to_string()),
             ]
         );
 
-        let (config, has_error) = parse_options(" -c neon.compute_mode=primary -cfoo=bar");
+        let (config, has_error) = parse_options(" -c serendb.compute_mode=primary -cfoo=bar");
         assert!(!has_error);
         assert_eq!(
             config,
             vec![
-                ("neon.compute_mode".to_string(), "primary".to_string()),
+                ("serendb.compute_mode".to_string(), "primary".to_string()),
                 ("foo".to_string(), "bar".to_string()),
             ]
         );
@@ -4656,7 +4656,7 @@ mod tests {
         let (_, has_error) = parse_options("    ");
         assert!(!has_error);
 
-        let (_, has_error) = parse_options(" -c neon.compute_mode");
+        let (_, has_error) = parse_options(" -c serendb.compute_mode");
         assert!(has_error);
     }
 }

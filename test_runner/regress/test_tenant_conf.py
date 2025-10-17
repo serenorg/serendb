@@ -13,12 +13,12 @@ from fixtures.workload import Workload
 if TYPE_CHECKING:
     from typing import Any
 
-    from fixtures.neon_fixtures import (
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnvBuilder,
     )
 
 
-def test_tenant_config(neon_env_builder: NeonEnvBuilder):
+def test_tenant_config(serendb_env_builder: SerenDBEnvBuilder):
     """Test per tenant configuration"""
 
     def set_some_nondefault_global_config(ps_cfg: dict[str, Any]):
@@ -35,9 +35,9 @@ def test_tenant_config(neon_env_builder: NeonEnvBuilder):
             "threshold": "23 hours",
         }
 
-    neon_env_builder.pageserver_config_override = set_some_nondefault_global_config
+    serendb_env_builder.pageserver_config_override = set_some_nondefault_global_config
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     # we configure eviction but no remote storage, there might be error lines
     env.pageserver.allowed_errors.append(".* no remote storage configured, cannot evict layers .*")
     http_client = env.pageserver.http_client()
@@ -213,10 +213,10 @@ def test_tenant_config(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_creating_tenant_conf_after_attach(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_creating_tenant_conf_after_attach(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     assert isinstance(env.pageserver_remote_storage, LocalFsStorage)
 
     # tenant is created with defaults, as in without config file
@@ -249,11 +249,11 @@ def test_creating_tenant_conf_after_attach(neon_env_builder: NeonEnvBuilder):
 
 
 def test_live_reconfig_get_evictions_low_residence_duration_metric_threshold(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # disable compaction so that it will not download the layer for repartitioning
             "compaction_period": "0s"
@@ -336,7 +336,7 @@ def test_live_reconfig_get_evictions_low_residence_duration_metric_threshold(
 
 @run_only_on_default_postgres("Test does not start a compute")
 @pytest.mark.parametrize("ps_managed_by", ["storcon", "cplane"])
-def test_tenant_config_patch(neon_env_builder: NeonEnvBuilder, ps_managed_by: str):
+def test_tenant_config_patch(serendb_env_builder: SerenDBEnvBuilder, ps_managed_by: str):
     """
     Test tenant config patching (i.e. additive updates)
 
@@ -355,7 +355,7 @@ def test_tenant_config_patch(neon_env_builder: NeonEnvBuilder, ps_managed_by: st
 
         assert lhs == rhs
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     if ps_managed_by == "storcon":
         api = env.storage_controller.pageserver_api()

@@ -8,15 +8,15 @@ from pathlib import Path
 import pytest
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     tenant_get_shards,
 )
 
 
 @pytest.mark.timeout(600)
-def test_sharding_autosplit(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def test_sharding_autosplit(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     """
     Check that sharding, including auto-splitting, "just works" under pgbench workloads.
 
@@ -32,8 +32,8 @@ def test_sharding_autosplit(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
     - Client workloads are not interrupted while that happens
     """
 
-    neon_env_builder.num_pageservers = 8
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_pageservers = 8
+    serendb_env_builder.storage_controller_config = {
         # Initial splits at 64 MB, then repeated splits at 192 MB shard sizes, which typically ends
         # up with a mix of 4 and 8 shards. Often, but not always, the relation is fully extended
         # to the final size before splitting.
@@ -56,7 +56,7 @@ def test_sharding_autosplit(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
         "image_layer_creation_check_threshold": "0",
     }
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     for ps in env.pageservers:
         ps.allowed_errors.extend(
@@ -69,7 +69,7 @@ def test_sharding_autosplit(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
 
     env.storage_controller.allowed_errors.extend(
         [
-            # The neon_local functionality for updating computes is flaky for unknown reasons
+            # The serendb_local functionality for updating computes is flaky for unknown reasons
             ".*Local notification hook failed.*",
             ".*Marking shard.*for notification retry.*",
             ".*Failed to notify compute.*",

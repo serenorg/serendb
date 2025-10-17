@@ -7,7 +7,7 @@ easier to see if you have compile errors without scrolling up.
 You may also need to run `./scripts/pysync`.
 
 Then run the tests
-`DEFAULT_PG_VERSION=17 NEON_BIN=./target/release poetry run pytest test_runner/performance`
+`DEFAULT_PG_VERSION=17 SERENDB_BIN=./target/release poetry run pytest test_runner/performance`
 
 Some handy pytest flags for local development:
 - `-x` tells pytest to stop on first error
@@ -20,7 +20,7 @@ Some handy pytest flags for local development:
 
 # What performance tests do we have and how we run them
 
-Performance tests are built using the same infrastructure as our usual python integration tests. There are some extra fixtures that help to collect performance metrics, and to run tests against both vanilla PostgreSQL and Neon for comparison.
+Performance tests are built using the same infrastructure as our usual python integration tests. There are some extra fixtures that help to collect performance metrics, and to run tests against both vanilla PostgreSQL and SerenDB for comparison.
 
 ## Tests that are run against local installation
 
@@ -38,6 +38,6 @@ All tests run only once. Usually to obtain more consistent performance numbers, 
 
 ## Results collection
 
-Local test results for main branch, and results of daily performance tests, are stored in a [neon project](https://console.neon.tech/app/projects/withered-sky-69117821) deployed in production environment. There is a Grafana dashboard that visualizes the results. Here is the [dashboard](https://observer.zenith.tech/d/DGKBm9Jnz/perf-test-results?orgId=1). The main problem with it is the unavailability to point at particular commit, though the data for that is available in the database. Needs some tweaking from someone who knows Grafana tricks.
+Local test results for main branch, and results of daily performance tests, are stored in a [serendb project](https://console.serendb.com/app/projects/withered-sky-69117821) deployed in production environment. There is a Grafana dashboard that visualizes the results. Here is the [dashboard](https://observer.zenith.tech/d/DGKBm9Jnz/perf-test-results?orgId=1). The main problem with it is the unavailability to point at particular commit, though the data for that is available in the database. Needs some tweaking from someone who knows Grafana tricks.
 
-There is also an inconsistency in test naming. Test name should be the same across platforms, and results can be differentiated by the platform field. But currently, platform is sometimes included in test name because of the way how parametrization works in pytest. I.e. there is a platform switch in the dashboard with neon-local-ci and neon-staging variants. I.e. some tests under neon-local-ci value for a platform switch are displayed as `Test test_runner/performance/test_bulk_insert.py::test_bulk_insert[vanilla]` and `Test test_runner/performance/test_bulk_insert.py::test_bulk_insert[neon]` which is highly confusing.
+There is also an inconsistency in test naming. Test name should be the same across platforms, and results can be differentiated by the platform field. But currently, platform is sometimes included in test name because of the way how parametrization works in pytest. I.e. there is a platform switch in the dashboard with serendb-local-ci and serendb-staging variants. I.e. some tests under serendb-local-ci value for a platform switch are displayed as `Test test_runner/performance/test_bulk_insert.py::test_bulk_insert[vanilla]` and `Test test_runner/performance/test_bulk_insert.py::test_bulk_insert[serendb]` which is highly confusing.

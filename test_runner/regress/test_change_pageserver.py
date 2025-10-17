@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder
+from fixtures.serendb_fixtures import SerenDBEnvBuilder
 from fixtures.remote_storage import RemoteStorageKind
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import Endpoint, NeonEnvBuilder
+    from fixtures.serendb_fixtures import Endpoint, SerenDBEnvBuilder
 
 
 def reconfigure_endpoint(endpoint: Endpoint, pageserver_id: int, use_explicit_reconfigure: bool):
@@ -30,7 +30,7 @@ def reconfigure_endpoint(endpoint: Endpoint, pageserver_id: int, use_explicit_re
 
 @pytest.mark.parametrize("use_explicit_reconfigure_for_failover", [False, True])
 def test_change_pageserver(
-    neon_env_builder: NeonEnvBuilder, use_explicit_reconfigure_for_failover: bool
+    serendb_env_builder: SerenDBEnvBuilder, use_explicit_reconfigure_for_failover: bool
 ):
     """
     A relatively low level test of reconfiguring a compute's pageserver at runtime.  Usually this
@@ -39,11 +39,11 @@ def test_change_pageserver(
     """
     num_connections = 3
 
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.create_branch("test_change_pageserver")
     endpoint = env.endpoints.create_start("test_change_pageserver")
@@ -98,8 +98,8 @@ def test_change_pageserver(
     # compute-initiated reconfiguration scenario upon detecting failures.
     reconfigure_endpoint(endpoint, pageserver_id=alt_pageserver_id, use_explicit_reconfigure=True)
 
-    # Verify that the neon.pageserver_connstring GUC is set to the correct thing
-    execute("SELECT setting FROM pg_settings WHERE name='neon.pageserver_connstring'")
+    # Verify that the serendb.pageserver_connstring GUC is set to the correct thing
+    execute("SELECT setting FROM pg_settings WHERE name='serendb.pageserver_connstring'")
     connstring = fetchone()
     assert connstring is not None
     expected_connstring = f"postgresql://no_user:@localhost:{env.pageservers[1].service_port.pg}"

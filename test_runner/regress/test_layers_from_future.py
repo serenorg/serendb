@@ -5,7 +5,7 @@ import time
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, flush_ep_to_pageserver
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, flush_ep_to_pageserver
 from fixtures.pageserver.common_types import (
     DeltaLayerName,
     ImageLayerName,
@@ -27,7 +27,7 @@ from fixtures.utils import query_scalar, wait_until
     "attach_mode",
     ["default_generation", "same_generation"],
 )
-def test_issue_5878(neon_env_builder: NeonEnvBuilder, attach_mode: str):
+def test_issue_5878(serendb_env_builder: SerenDBEnvBuilder, attach_mode: str):
     """
     Regression test for issue https://github.com/neondatabase/neon/issues/5878 .
 
@@ -45,9 +45,9 @@ def test_issue_5878(neon_env_builder: NeonEnvBuilder, attach_mode: str):
     Due to lack of an upload queue barrier, the PUT and DELETE could be re-ordered.
     The result was IndexPart referencing a non-existent object.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     ps_http = env.pageserver.http_client()

@@ -44,7 +44,7 @@
 
 #include "postgres.h"
 
-#include "../neon/neon_pgversioncompat.h"
+#include "../serendb/serendb_pgversioncompat.h"
 
 #include <fcntl.h>
 #include <limits.h>
@@ -122,7 +122,7 @@
 #include "inmem_smgr.h"
 
 #ifdef HAVE_LIBSECCOMP
-#include "neon_seccomp.h"
+#include "serendb_seccomp.h"
 #endif
 
 PG_MODULE_MAGIC;
@@ -275,7 +275,7 @@ WalRedoMain(int argc, char *argv[])
 #if PG_VERSION_NUM >= 160000
 	/* make rmgr registry believe we can register the resource manager */
 	process_shared_preload_libraries_in_progress = true;
-	load_file("$libdir/neon_rmgr", false);
+	load_file("$libdir/serendb_rmgr", false);
 	process_shared_preload_libraries_in_progress = false;
 #endif
 
@@ -473,7 +473,7 @@ CreateFakeSharedMemoryAndSemaphores(void)
 		if (!hdr)
 			ereport(FATAL,
 					(errcode(ERRCODE_OUT_OF_MEMORY),
-					 errmsg("[neon-wal-redo] can not allocate (pseudo-) shared memory")));
+					 errmsg("[serendb-wal-redo] can not allocate (pseudo-) shared memory")));
 
 		hdr->creatorPID = getpid();
 		hdr->magic = PGShmemMagic;
@@ -497,7 +497,7 @@ CreateFakeSharedMemoryAndSemaphores(void)
 	if (!getcwd(cwd, MAXPGPATH))
 		ereport(FATAL,
 			(errcode(ERRCODE_INTERNAL_ERROR),
-			 errmsg("[neon-wal-redo] can not read current directory name")));
+			 errmsg("[serendb-wal-redo] can not read current directory name")));
 	DataDir = cwd;
 	PGReserveSemaphores(numSemas);
 	DataDir = NULL;
@@ -603,7 +603,7 @@ CreateFakeSharedMemoryAndSemaphores(void)
 
 /* Version compatility wrapper for ReadBufferWithoutRelcache */
 static inline Buffer
-NeonRedoReadBuffer(NRelFileInfo rinfo,
+SerenDBRedoReadBuffer(NRelFileInfo rinfo,
 		   ForkNumber forkNum, BlockNumber blockNum,
 		   ReadBufferMode mode)
 {
@@ -794,7 +794,7 @@ PushPage(StringInfo input_message)
 	blknum = pq_getmsgint(input_message, 4);
 	content = pq_getmsgbytes(input_message, BLCKSZ);
 
-	buf = NeonRedoReadBuffer(rinfo, forknum, blknum, RBM_ZERO_AND_LOCK);
+	buf = SerenDBRedoReadBuffer(rinfo, forknum, blknum, RBM_ZERO_AND_LOCK);
 	wal_redo_buffer = buf;
 	page = BufferGetPage(buf);
 	memcpy(page, content, BLCKSZ);
@@ -903,7 +903,7 @@ ApplyRecord(StringInfo input_message)
 	 */
 	if (BufferIsInvalid(wal_redo_buffer))
 	{
-		wal_redo_buffer = NeonRedoReadBuffer(BufTagGetNRelFileInfo(target_redo_tag),
+		wal_redo_buffer = SerenDBRedoReadBuffer(BufTagGetNRelFileInfo(target_redo_tag),
 											 target_redo_tag.forkNum,
 											 target_redo_tag.blockNum,
 											 RBM_NORMAL);
@@ -1025,7 +1025,7 @@ GetPage(StringInfo input_message)
 
 	/* FIXME: check that we got a BeginRedoForBlock message or this earlier */
 
-	buf = NeonRedoReadBuffer(rinfo, forknum, blknum, RBM_NORMAL);
+	buf = SerenDBRedoReadBuffer(rinfo, forknum, blknum, RBM_NORMAL);
 	Assert(buf == wal_redo_buffer);
 	page = BufferGetPage(buf);
 	/* single thread, so don't bother locking the page */

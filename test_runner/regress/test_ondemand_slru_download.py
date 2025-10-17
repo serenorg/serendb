@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, tenant_get_shards
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, tenant_get_shards
 from fixtures.utils import query_scalar
 
 
@@ -11,16 +11,16 @@ from fixtures.utils import query_scalar
 # Test on-demand download of the pg_xact SLRUs
 #
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_ondemand_download_pg_xact(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
+def test_ondemand_download_pg_xact(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
+        serendb_env_builder.num_pageservers = shard_count
 
     tenant_conf = {
         "lazy_slru_download": True,
         # set PITR interval to be small, so we can do GC
         "pitr_interval": "0 s",
     }
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=tenant_conf, initial_tenant_shard_count=shard_count
     )
 
@@ -31,7 +31,7 @@ def test_ondemand_download_pg_xact(neon_env_builder: NeonEnvBuilder, shard_count
     pg_conn = endpoint.connect()
     cur = pg_conn.cursor()
 
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Create a test table
     cur.execute("CREATE TABLE clogtest (id integer)")
@@ -77,14 +77,14 @@ def test_ondemand_download_pg_xact(neon_env_builder: NeonEnvBuilder, shard_count
 
 
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_ondemand_download_replica(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
+def test_ondemand_download_replica(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
+        serendb_env_builder.num_pageservers = shard_count
 
     tenant_conf = {
         "lazy_slru_download": True,
     }
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=tenant_conf, initial_tenant_shard_count=shard_count
     )
 
@@ -93,7 +93,7 @@ def test_ondemand_download_replica(neon_env_builder: NeonEnvBuilder, shard_count
     pg_conn = endpoint.connect()
     cur = pg_conn.cursor()
 
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Create a test table
     cur.execute("CREATE TABLE clogtest (id integer)")
@@ -131,7 +131,7 @@ def test_ondemand_download_replica(neon_env_builder: NeonEnvBuilder, shard_count
     assert cur_replica.fetchall() == [(1,), (3,)]
 
 
-def test_ondemand_download_after_wal_switch(neon_env_builder: NeonEnvBuilder):
+def test_ondemand_download_after_wal_switch(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test on-demand SLRU download on standby, when starting right after
     WAL segment switch.
@@ -143,7 +143,7 @@ def test_ondemand_download_after_wal_switch(neon_env_builder: NeonEnvBuilder):
     tenant_conf = {
         "lazy_slru_download": True,
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
 
     endpoint = env.endpoints.create_start("main")
     pg_conn = endpoint.connect()

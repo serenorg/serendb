@@ -1,5 +1,5 @@
 # It's possible to run any regular test with the local fs remote storage via
-# env ZENITH_PAGESERVER_OVERRIDES="remote_storage={local_path='/tmp/neon_zzz/'}" poetry ......
+# env ZENITH_PAGESERVER_OVERRIDES="remote_storage={local_path='/tmp/serendb_zzz/'}" poetry ......
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     flush_ep_to_pageserver,
     last_flush_lsn_upload,
     wait_for_last_flush_lsn,
@@ -55,10 +55,10 @@ def get_num_downloaded_layers(client: PageserverHttpClient):
 # If you have a large relation, check that the pageserver downloads parts of it as
 # require by queries.
 #
-def test_ondemand_download_large_rel(neon_env_builder: NeonEnvBuilder):
+def test_ondemand_download_large_rel(serendb_env_builder: SerenDBEnvBuilder):
     # thinking about using a shared environment? the test assumes that global
     # metrics are for single tenant.
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # disable background GC
             "gc_period": "0s",
@@ -149,11 +149,11 @@ def test_ondemand_download_large_rel(neon_env_builder: NeonEnvBuilder):
 # If you have a relation with a long history of updates, the pageserver downloads the layer
 # files containing the history as needed by timetravel queries.
 #
-def test_ondemand_download_timetravel(neon_env_builder: NeonEnvBuilder):
+def test_ondemand_download_timetravel(serendb_env_builder: SerenDBEnvBuilder):
     # thinking about using a shared environment? the test assumes that global
     # metrics are for single tenant.
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # Disable background GC & compaction
             # We don't want GC, that would break the assertion about num downloads.
@@ -322,12 +322,12 @@ def test_ondemand_download_timetravel(neon_env_builder: NeonEnvBuilder):
 # Ensure that the `download_remote_layers` API works
 #
 def test_download_remote_layers_api(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     ##### First start, insert data and upload it to the remote storage
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # Disable background GC & compaction
             # We don't want GC, that would break the assertion about num downloads.
@@ -489,11 +489,11 @@ def test_download_remote_layers_api(
         assert query_scalar(cur, "select count(*) from testtab") == table_len
 
 
-def test_compaction_downloads_on_demand_without_image_creation(neon_env_builder: NeonEnvBuilder):
+def test_compaction_downloads_on_demand_without_image_creation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Create a few layers, then evict, then make sure compaction runs successfully.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
     conf = {
         # Disable background GC & compaction
@@ -510,7 +510,7 @@ def test_compaction_downloads_on_demand_without_image_creation(neon_env_builder:
         # pitr_interval and gc_horizon are not interesting because we dont run gc
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=stringify(conf))
+    env = serendb_env_builder.init_start(initial_tenant_conf=stringify(conf))
 
     def downloaded_bytes_and_count(pageserver_http: PageserverHttpClient) -> tuple[int, int]:
         m = pageserver_http.get_metrics()
@@ -567,14 +567,14 @@ def test_compaction_downloads_on_demand_without_image_creation(neon_env_builder:
     assert post_compact[1] >= 3, "should had downloaded the three layers"
 
 
-def test_compaction_downloads_on_demand_with_image_creation(neon_env_builder: NeonEnvBuilder):
+def test_compaction_downloads_on_demand_with_image_creation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Create layers, compact with high image_creation_threshold, then run final compaction with all layers evicted.
 
     Due to current implementation, this will make image creation on-demand download layers, but we cannot really
     directly test for it.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
     conf = {
         # Disable background GC & compaction
@@ -592,7 +592,7 @@ def test_compaction_downloads_on_demand_with_image_creation(neon_env_builder: Ne
         # pitr_interval and gc_horizon are not interesting because we dont run gc
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=stringify(conf))
+    env = serendb_env_builder.init_start(initial_tenant_conf=stringify(conf))
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -665,14 +665,14 @@ def test_compaction_downloads_on_demand_with_image_creation(neon_env_builder: Ne
     assert dict(kinds_after) == {"Delta": 4, "Image": 1}
 
 
-def test_layer_download_cancelled_by_config_location(neon_env_builder: NeonEnvBuilder):
+def test_layer_download_cancelled_by_config_location(serendb_env_builder: SerenDBEnvBuilder):
     """
     Demonstrates that tenant shutdown will cancel on-demand download and secondary doing warmup.
     """
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
     # turn off background tasks so that they don't interfere with the downloads
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "0s",
             "compaction_period": "0s",
@@ -755,18 +755,18 @@ def test_layer_download_cancelled_by_config_location(neon_env_builder: NeonEnvBu
         warmup.result()
 
 
-def test_layer_download_timeouted(neon_env_builder: NeonEnvBuilder):
+def test_layer_download_timeouted(serendb_env_builder: SerenDBEnvBuilder):
     """
     Pause using a pausable_failpoint longer than the client timeout to simulate the timeout happening.
     """
     # running this test is not reliable against REAL_S3, because operations can
     # take longer than 1s we want to use as a timeout
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
-    assert isinstance(neon_env_builder.pageserver_remote_storage, S3Storage)
-    neon_env_builder.pageserver_remote_storage.custom_timeout = "1s"
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    assert isinstance(serendb_env_builder.pageserver_remote_storage, S3Storage)
+    serendb_env_builder.pageserver_remote_storage.custom_timeout = "1s"
 
     # turn off background tasks so that they don't interfere with the downloads
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "0s",
             "compaction_period": "0s",

@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     flush_ep_to_pageserver,
     wait_for_last_flush_lsn,
     wait_for_wal_insert_lsn,
@@ -28,8 +28,8 @@ if TYPE_CHECKING:
     from fixtures.pg_version import PgVersion
 
 
-def test_empty_tenant_size(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_configs()
+def test_empty_tenant_size(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_configs()
     env.start()
 
     (tenant_id, timeline_id) = env.create_tenant()
@@ -60,7 +60,7 @@ def test_empty_tenant_size(neon_env_builder: NeonEnvBuilder):
     assert size >= initial_size and size - initial_size < 1024
 
 
-def test_branched_empty_timeline_size(neon_simple_env: NeonEnv, test_output_dir: Path):
+def test_branched_empty_timeline_size(serendb_simple_env: SerenDBEnv, test_output_dir: Path):
     """
     Issue found in production. Because the ancestor branch was under
     gc_horizon, the branchpoint was "dangling" and the computation could not be
@@ -71,7 +71,7 @@ def test_branched_empty_timeline_size(neon_simple_env: NeonEnv, test_output_dir:
     branch:              |-------------------I---------->150
                                    gc_horizon
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     (tenant_id, _) = env.create_tenant()
     http_client = env.pageserver.http_client()
 
@@ -96,7 +96,7 @@ def test_branched_empty_timeline_size(neon_simple_env: NeonEnv, test_output_dir:
     size_debug_file.write(size_debug)
 
 
-def test_branched_from_many_empty_parents_size(neon_simple_env: NeonEnv, test_output_dir: Path):
+def test_branched_from_many_empty_parents_size(serendb_simple_env: SerenDBEnv, test_output_dir: Path):
     """
     More general version of test_branched_empty_timeline_size
 
@@ -108,7 +108,7 @@ def test_branched_from_many_empty_parents_size(neon_simple_env: NeonEnv, test_ou
     nth_1: I        10
     nth_n:          10------------I--------100
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     (tenant_id, _) = env.create_tenant()
     http_client = env.pageserver.http_client()
 
@@ -153,7 +153,7 @@ def test_branched_from_many_empty_parents_size(neon_simple_env: NeonEnv, test_ou
     size_debug_file.write(size_debug)
 
 
-def test_branch_point_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Path):
+def test_branch_point_within_horizon(serendb_simple_env: SerenDBEnv, test_output_dir: Path):
     """
     gc_horizon = 15
 
@@ -162,7 +162,7 @@ def test_branch_point_within_horizon(neon_simple_env: NeonEnv, test_output_dir: 
                                    gc_horizon
     """
 
-    env = neon_simple_env
+    env = serendb_simple_env
     gc_horizon = 20_000
     (tenant_id, main_id) = env.create_tenant(conf={"gc_horizon": str(gc_horizon)})
     http_client = env.pageserver.http_client()
@@ -193,7 +193,7 @@ def test_branch_point_within_horizon(neon_simple_env: NeonEnv, test_output_dir: 
     size_debug_file.write(size_debug)
 
 
-def test_parent_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Path):
+def test_parent_within_horizon(serendb_simple_env: SerenDBEnv, test_output_dir: Path):
     """
     gc_horizon = 5
 
@@ -202,7 +202,7 @@ def test_parent_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Path):
                                    gc_horizon
     """
 
-    env = neon_simple_env
+    env = serendb_simple_env
     gc_horizon = 5_000
     (tenant_id, main_id) = env.create_tenant(conf={"gc_horizon": str(gc_horizon)})
     http_client = env.pageserver.http_client()
@@ -239,7 +239,7 @@ def test_parent_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Path):
     size_debug_file.write(size_debug)
 
 
-def test_only_heads_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Path):
+def test_only_heads_within_horizon(serendb_simple_env: SerenDBEnv, test_output_dir: Path):
     """
     gc_horizon = small
 
@@ -248,7 +248,7 @@ def test_only_heads_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Pa
     second:        |---------I>30
     """
 
-    env = neon_simple_env
+    env = serendb_simple_env
     (tenant_id, main_id) = env.create_tenant(conf={"gc_horizon": "1024"})
     http_client = env.pageserver.http_client()
 
@@ -285,7 +285,7 @@ def test_only_heads_within_horizon(neon_simple_env: NeonEnv, test_output_dir: Pa
 
 @skip_in_debug_build("only run with release build")
 def test_single_branch_get_tenant_size_grows(
-    neon_env_builder: NeonEnvBuilder, test_output_dir: Path, pg_version: PgVersion
+    serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path, pg_version: PgVersion
 ):
     """
     Operate on single branch reading the tenants size after each transaction.
@@ -299,7 +299,7 @@ def test_single_branch_get_tenant_size_grows(
         "pitr_interval": "3600s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_config)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_config)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -312,7 +312,7 @@ def test_single_branch_get_tenant_size_grows(
     size_debug_file = open(test_output_dir / "size_debug.html", "w")
 
     def get_current_consistent_size(
-        env: NeonEnv,
+        env: SerenDBEnv,
         endpoint: Endpoint,
         size_debug_file,  # apparently there is no public signature for open()...
         http_client: PageserverHttpClient,
@@ -492,7 +492,7 @@ def assert_size_approx_equal(size_a, size_b):
 
 
 def test_get_tenant_size_with_multiple_branches(
-    neon_env_builder: NeonEnvBuilder, test_output_dir: Path
+    serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path
 ):
     """
     Reported size goes up while branches or rows are being added, goes down after removing branches.
@@ -500,7 +500,7 @@ def test_get_tenant_size_with_multiple_branches(
 
     gc_horizon = 128 * 1024
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "compaction_period": "0s",
             "gc_period": "0s",
@@ -623,13 +623,13 @@ def test_get_tenant_size_with_multiple_branches(
     size_debug_file.write(size_debug)
 
 
-def test_synthetic_size_while_deleting(neon_env_builder: NeonEnvBuilder):
+def test_synthetic_size_while_deleting(serendb_env_builder: SerenDBEnvBuilder):
     """
     Makes sure synthetic size can still be calculated even if one of the
     timelines is deleted or the tenant is deleted.
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     failpoint = "Timeline::find_gc_cutoffs-pausable"
     client = env.pageserver.http_client()
 
@@ -711,7 +711,7 @@ def mask_model_inputs(x):
 
 
 @pytest.mark.parametrize("zero_gc", [True, False])
-def test_lsn_lease_size(neon_env_builder: NeonEnvBuilder, test_output_dir: Path, zero_gc: bool):
+def test_lsn_lease_size(serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path, zero_gc: bool):
     """
     Compare a LSN lease to a read-only branch for synthetic size calculation.
     They should have the same effect.
@@ -747,7 +747,7 @@ def test_lsn_lease_size(neon_env_builder: NeonEnvBuilder, test_output_dir: Path,
         "lsn_lease_length": "600s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
 
     ro_branch_res = insert_with_action(
         env, env.initial_tenant, env.initial_timeline, test_output_dir, action="branch"
@@ -762,13 +762,13 @@ def test_lsn_lease_size(neon_env_builder: NeonEnvBuilder, test_output_dir: Path,
     env.stop(immediate=True)
 
 
-def test_lsn_lease_storcon(neon_env_builder: NeonEnvBuilder):
+def test_lsn_lease_storcon(serendb_env_builder: SerenDBEnvBuilder):
     conf = {
         "pitr_interval": "0s",
         "gc_period": "0s",
         "compaction_period": "0s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
     # ShardSplit is slow in debug builds, so ignore the warning
     if os.getenv("BUILD_TYPE", "debug") == "debug":
         env.storage_controller.allowed_errors.extend(
@@ -796,13 +796,13 @@ def test_lsn_lease_storcon(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_mark_invisible_storcon(neon_env_builder: NeonEnvBuilder):
+def test_mark_invisible_storcon(serendb_env_builder: SerenDBEnvBuilder):
     conf = {
         "pitr_interval": "0s",
         "gc_period": "0s",
         "compaction_period": "0s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=conf)
     env.storage_controller.pageserver_api().timeline_mark_invisible(
         env.initial_tenant, env.initial_timeline
     )
@@ -812,7 +812,7 @@ def test_mark_invisible_storcon(neon_env_builder: NeonEnvBuilder):
 
 
 def insert_with_action(
-    env: NeonEnv,
+    env: SerenDBEnv,
     tenant: TenantId,
     timeline: TimelineId,
     test_output_dir: Path,

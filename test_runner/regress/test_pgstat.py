@@ -1,19 +1,19 @@
 import pytest
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 from fixtures.pg_version import PgVersion
 
 
 #
 # Test that pgstat statistic is preserved across sessions
 #
-def test_pgstat(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_pgstat(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     if env.pg_version == PgVersion.V14:
         pytest.skip("PG14 doesn't support pgstat statistic persistence")
 
     n = 10000
     endpoint = env.endpoints.create_start(
-        "main", config_lines=["neon.pgstat_file_size_limit=100kB", "autovacuum=off"]
+        "main", config_lines=["serendb.pgstat_file_size_limit=100kB", "autovacuum=off"]
     )
 
     con = endpoint.connect()

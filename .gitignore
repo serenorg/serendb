@@ -6,14 +6,14 @@
 /tmp_check_cli
 __pycache__/
 test_output/
-neon_previous/
+serendb_previous/
 .vscode
 .idea
 *.swp
 tags
-neon.iml
-/.neon
-/integration_tests/.neon
+serendb.iml
+/.serendb
+/integration_tests/.serendb
 compaction-suite-results.*
 docker-compose/docker-compose-parallel.yml
 

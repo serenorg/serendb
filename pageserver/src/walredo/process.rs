@@ -17,7 +17,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{Instrument, debug, error, instrument};
 use utils::lsn::Lsn;
 use utils::poison::Poison;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
 use self::no_leak_child::NoLeakChild;
 use crate::config::PageServerConf;
@@ -198,7 +198,7 @@ impl WalRedoProcess {
         rel: RelTag,
         blknum: u32,
         base_img: &Option<Bytes>,
-        records: &[(Lsn, NeonWalRecord)],
+        records: &[(Lsn, SerenDBWalRecord)],
         wal_redo_timeout: Duration,
     ) -> anyhow::Result<Bytes> {
         debug_assert_current_span_has_tenant_id();
@@ -220,14 +220,14 @@ impl WalRedoProcess {
             protocol::build_push_page_msg(tag, img, &mut writebuf);
         }
         for (lsn, rec) in records.iter() {
-            if let NeonWalRecord::Postgres {
+            if let SerenDBWalRecord::Postgres {
                 will_init: _,
                 rec: postgres_rec,
             } = rec
             {
                 protocol::build_apply_record_msg(*lsn, postgres_rec, &mut writebuf);
             } else {
-                anyhow::bail!("tried to pass neon wal record to postgres WAL redo");
+                anyhow::bail!("tried to pass SerenDB wal record to postgres WAL redo");
             }
         }
         protocol::build_get_page_msg(tag, &mut writebuf);

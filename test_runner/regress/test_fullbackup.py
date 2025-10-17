@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     VanillaPostgres,
 )
@@ -22,12 +22,12 @@ num_rows = 1000
 
 # Ensure that regular postgres can start from fullbackup
 def test_fullbackup(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     port_distributor: PortDistributor,
     test_output_dir: Path,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # endpoint needs to be alive until the fullbackup so that we have
     # prev_record_lsn for the vanilla_pg to start in read-write mode
@@ -58,7 +58,7 @@ def test_fullbackup(
     )
 
     # HACK
-    # fullbackup returns neon specific pg_control and first WAL segment
+    # fullbackup returns SerenDB specific pg_control and first WAL segment
     # use resetwal to overwrite it
     pg_resetwal_path = os.path.join(pg_bin.pg_bin_path, "pg_resetwal")
     cmd = [pg_resetwal_path, "-D", str(restored_dir_path)]

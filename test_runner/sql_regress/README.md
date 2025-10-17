@@ -4,8 +4,8 @@ the PostgreSQL pg_regress utility.
 
 To add a new SQL test:
 
-- add sql script to run to neon_regress/sql/testname.sql
-- add expected output to neon_regress/expected/testname.out
+- add sql script to run to serendb_regress/sql/testname.sql
+- add expected output to serendb_regress/expected/testname.out
 - add testname to parallel_schedule
 
 That's it.

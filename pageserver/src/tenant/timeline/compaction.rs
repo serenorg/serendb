@@ -41,7 +41,7 @@ use tracing::{Instrument, debug, error, info, info_span, trace, warn};
 use utils::critical_timeline;
 use utils::id::TimelineId;
 use utils::lsn::Lsn;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 use wal_decoder::models::value::Value;
 
 use crate::context::{AccessStatsBehavior, RequestContext, RequestContextBuilder};
@@ -967,7 +967,7 @@ impl KeyHistoryRetention {
             key: Key,
             lsn: Lsn,
             base_img: &Option<(Lsn, &Bytes)>,
-            history: &[(Lsn, &NeonWalRecord)],
+            history: &[(Lsn, &SerenDBWalRecord)],
             tline: &Arc<Timeline>,
             skip_empty: bool,
         ) -> anyhow::Result<()> {
@@ -1109,8 +1109,8 @@ impl CompactionStatistics {
     fn estimated_size_of_value(val: &Value) -> usize {
         match val {
             Value::Image(img) => img.len(),
-            Value::WalRecord(NeonWalRecord::Postgres { rec, .. }) => rec.len(),
-            _ => std::mem::size_of::<NeonWalRecord>(),
+            Value::WalRecord(SerenDBWalRecord::Postgres { rec, .. }) => rec.len(),
+            _ => std::mem::size_of::<SerenDBWalRecord>(),
         }
     }
     fn estimated_size_of_key() -> usize {

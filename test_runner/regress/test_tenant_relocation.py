@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Any
 
-    from fixtures.neon_fixtures import Endpoint, NeonEnvBuilder, NeonPageserver
+    from fixtures.serendb_fixtures import Endpoint, SerenDBEnvBuilder, SerenDBPageserver
     from fixtures.pageserver.http import PageserverHttpClient
 
 
@@ -83,7 +83,7 @@ def populate_branch(
 ) -> tuple[TimelineId, Lsn]:
     # insert some data
     with pg_cur(endpoint) as cur:
-        cur.execute("SHOW neon.timeline_id")
+        cur.execute("SHOW serendb.timeline_id")
         timeline_id = TimelineId(cur.fetchone()[0])
         log.info("timeline to relocate %s", timeline_id)
 
@@ -146,7 +146,7 @@ def check_timeline_attached(
 
 
 def switch_pg_to_new_pageserver(
-    origin_ps: NeonPageserver,
+    origin_ps: SerenDBPageserver,
     endpoint: Endpoint,
     new_pageserver_id: int,
     tenant_id: TenantId,
@@ -194,14 +194,14 @@ def post_migration_check(endpoint: Endpoint, sum_before_migration: int, old_loca
 )
 @pytest.mark.parametrize("with_load", ["with_load", "without_load"])
 def test_tenant_relocation(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     method: str,
     with_load: str,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id = env.initial_tenant
 
@@ -317,7 +317,7 @@ def test_tenant_relocation(
             current_lsn_second,
         )
 
-    # rewrite neon cli config to use new pageserver for basebackup to start new compute
+    # rewrite SerenDB cli config to use new pageserver for basebackup to start new compute
     lines = (env.repo_dir / "config").read_text().splitlines()
     for i, line in enumerate(lines):
         if line.startswith("listen_http_addr"):
@@ -375,7 +375,7 @@ def test_tenant_relocation(
         load_thread.join(timeout=10)
         log.info("load thread stopped")
 
-    # bring old pageserver back for clean shutdown via neon cli
+    # bring old pageserver back for clean shutdown via SerenDB cli
     # new pageserver will be shut down by the context manager
     lines = (env.repo_dir / "config").read_text().splitlines()
     for i, line in enumerate(lines):
@@ -394,9 +394,9 @@ def test_tenant_relocation(
 # timeline to the ancestor without waiting for the missing WAL to
 # arrive.
 def test_emergency_relocate_with_branches_slow_replay(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.is_testing_enabled_or_skip()
     pageserver_http = env.pageserver.http_client()
 
@@ -413,7 +413,7 @@ def test_emergency_relocate_with_branches_slow_replay(
         cur.execute("CREATE TABLE test_reattach (t text)")
         cur.execute("INSERT INTO test_reattach VALUES ('before pause')")
 
-        cur.execute("SELECT pg_logical_emit_message(false, 'neon-test', 'between inserts')")
+        cur.execute("SELECT pg_logical_emit_message(false, 'serendb-test', 'between inserts')")
 
         cur.execute("INSERT INTO test_reattach VALUES ('after pause')")
         current_lsn = Lsn(query_scalar(cur, "SELECT pg_current_wal_flush_lsn()"))
@@ -474,7 +474,7 @@ def test_emergency_relocate_with_branches_slow_replay(
 # test reproduced one such case; the symptom was an error on the child, when
 # trying to connect to the child endpoint after re-attaching the tenant:
 #
-# FATAL: database "neondb" does not exist
+# FATAL: database "serendb" does not exist
 #
 # In the original case where we bumped into this, the error was slightly
 # different:
@@ -548,9 +548,9 @@ def test_emergency_relocate_with_branches_slow_replay(
 # DbDirectory with 'false' to indicate there is no PG_VERSION file.
 #
 def test_emergency_relocate_with_branches_createdb(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     # create new nenant
@@ -558,18 +558,18 @@ def test_emergency_relocate_with_branches_createdb(
 
     main_endpoint = env.endpoints.create_start("main", tenant_id=tenant_id)
     with main_endpoint.cursor() as cur:
-        cur.execute("SELECT pg_logical_emit_message(false, 'neon-test', 'between inserts')")
+        cur.execute("SELECT pg_logical_emit_message(false, 'serendb-test', 'between inserts')")
 
-        cur.execute("CREATE DATABASE neondb")
+        cur.execute("CREATE DATABASE serendb")
         current_lsn = Lsn(query_scalar(cur, "SELECT pg_current_wal_flush_lsn()"))
     env.create_branch("child", tenant_id=tenant_id, ancestor_start_lsn=current_lsn)
 
-    with main_endpoint.cursor(dbname="neondb") as cur:
+    with main_endpoint.cursor(dbname="serendb") as cur:
         cur.execute("CREATE TABLE test_migrate_one AS SELECT generate_series(1,100)")
     main_endpoint.stop()
 
     child_endpoint = env.endpoints.create_start("child", tenant_id=tenant_id)
-    with child_endpoint.cursor(dbname="neondb") as cur:
+    with child_endpoint.cursor(dbname="serendb") as cur:
         cur.execute("CREATE TABLE test_migrate_one AS SELECT generate_series(1,200)")
     child_endpoint.stop()
 
@@ -589,7 +589,7 @@ def test_emergency_relocate_with_branches_createdb(
     env.pageserver.tenant_attach(tenant_id)
 
     child_endpoint.start()
-    with child_endpoint.cursor(dbname="neondb") as cur:
+    with child_endpoint.cursor(dbname="serendb") as cur:
         assert query_scalar(cur, "SELECT count(*) FROM test_migrate_one") == 200
 
     # Sanity check that the failpoint was reached

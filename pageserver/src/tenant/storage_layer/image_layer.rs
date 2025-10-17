@@ -86,7 +86,7 @@ use crate::{IMAGE_FILE_MAGIC, STORAGE_FORMAT_VERSION, TEMP_FILE_SUFFIX};
 ///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Summary {
-    /// Magic value to identify this as a neon image file. Always IMAGE_FILE_MAGIC.
+    /// Magic value to identify this as a SerenDB image file. Always IMAGE_FILE_MAGIC.
     pub magic: u16,
     pub format_version: u16,
 

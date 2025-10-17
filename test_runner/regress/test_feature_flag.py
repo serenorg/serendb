@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 from fixtures.utils import run_only_on_default_postgres
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @run_only_on_default_postgres("Pageserver-only test only needs to run on one version")
-def test_feature_flag(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_feature_flag(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     env.pageserver.http_client().force_override_feature_flag("test-feature-flag", "true")
     assert env.pageserver.http_client().evaluate_feature_flag_boolean(
         env.initial_tenant, "test-feature-flag"

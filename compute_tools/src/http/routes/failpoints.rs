@@ -27,7 +27,7 @@ pub(in crate::http) async fn configure_failpoints(
     if !fail::has_failpoints() {
         return JsonResponse::error(
             StatusCode::PRECONDITION_FAILED,
-            "Cannot manage failpoints because neon was compiled without failpoints support",
+            "Cannot manage failpoints because SerenDB was compiled without failpoints support",
         );
     }
 

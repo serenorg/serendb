@@ -7,7 +7,7 @@ from fixtures.log_helper import log
 from fixtures.utils import print_gc_result, query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 # just a hint that the page hasn't been modified since that LSN, and the page
 # server should return the latest page version regardless of the LSN.
 #
-def test_old_request_lsn(neon_env_builder: NeonEnvBuilder):
+def test_old_request_lsn(serendb_env_builder: SerenDBEnvBuilder):
     # Disable pitr, because here we want to test branch creation after GC
-    env = neon_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
+    env = serendb_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
     env.create_branch("test_old_request_lsn", ancestor_branch_name="main")
     endpoint = env.endpoints.create_start("test_old_request_lsn")
 
@@ -30,7 +30,7 @@ def test_old_request_lsn(neon_env_builder: NeonEnvBuilder):
     cur = pg_conn.cursor()
 
     # Get the timeline ID of our branch. We need it for the 'do_gc' command
-    timeline = TimelineId(query_scalar(cur, "SHOW neon.timeline_id"))
+    timeline = TimelineId(query_scalar(cur, "SHOW serendb.timeline_id"))
 
     pageserver_http = env.pageserver.http_client()
 

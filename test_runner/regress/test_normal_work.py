@@ -6,16 +6,16 @@ import pytest
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder
     from fixtures.pageserver.http import PageserverHttpClient
 
 
 def check_tenant(
-    env: NeonEnv, pageserver_http: PageserverHttpClient, safekeeper_proto_version: int
+    env: SerenDBEnv, pageserver_http: PageserverHttpClient, safekeeper_proto_version: int
 ):
     tenant_id, timeline_id = env.create_tenant()
     config_lines = [
-        f"neon.safekeeper_proto_version = {safekeeper_proto_version}",
+        f"serendb.safekeeper_proto_version = {safekeeper_proto_version}",
     ]
     endpoint = env.endpoints.create_start("main", tenant_id=tenant_id, config_lines=config_lines)
     # we rely upon autocommit after each statement
@@ -45,7 +45,7 @@ def check_tenant(
 # Test both proto versions until we fully migrate.
 @pytest.mark.parametrize("safekeeper_proto_version", [2, 3])
 def test_normal_work(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     num_timelines: int,
     num_safekeepers: int,
     safekeeper_proto_version: int,
@@ -63,13 +63,13 @@ def test_normal_work(
     Repeat check for several tenants/timelines.
     """
 
-    neon_env_builder.num_safekeepers = num_safekeepers
+    serendb_env_builder.num_safekeepers = num_safekeepers
 
     if safekeeper_proto_version == 2:
-        neon_env_builder.storage_controller_config = {
+        serendb_env_builder.storage_controller_config = {
             "timelines_onto_safekeepers": False,
         }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     for _ in range(num_timelines):

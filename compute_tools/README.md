@@ -1,7 +1,7 @@
 # Compute node tools
 
 Postgres wrapper (`compute_ctl`) is intended to be run as a Docker entrypoint or as a `systemd`
-`ExecStart` option. It will handle all the `Neon` specifics during compute node
+`ExecStart` option. It will handle all the `SerenDB` specifics during compute node
 initialization:
 - `compute_ctl` accepts cluster (compute node) specification as a JSON file.
 - Every start is a fresh start, so the data directory is removed and
@@ -20,7 +20,7 @@ Also `compute_ctl` spawns two separate service threads:
   last activity requests.
 
 If `AUTOSCALING` environment variable is set, `compute_ctl` will start the
-`vm-monitor` located in [`neon/libs/vm_monitor`]. For VM compute nodes,
+`vm-monitor` located in [`serendb/libs/vm_monitor`]. For VM compute nodes,
 `vm-monitor` communicates with the VM autoscaling system. It coordinates
 downscaling and requests immediate upscaling under resource pressure.
 

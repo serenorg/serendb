@@ -85,7 +85,7 @@ impl ComputeNode {
 
         // using $1 doesn't work with ALTER SYSTEM SET
         let safekeepers_sql = format!(
-            "ALTER SYSTEM SET neon.safekeepers='{}'",
+            "ALTER SYSTEM SET serendb.safekeepers='{}'",
             cfg.spec.safekeeper_connstrings.join(",")
         );
         client

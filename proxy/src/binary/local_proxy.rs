@@ -40,7 +40,7 @@ use crate::url::ApiUrl;
 project_git_version!(GIT_VERSION);
 project_build_tag!(BUILD_TAG);
 
-/// Neon proxy/router
+/// SerenDB proxy/router
 #[derive(Parser)]
 #[command(version = GIT_VERSION, about)]
 struct LocalProxyCliArgs {
@@ -117,7 +117,7 @@ pub async fn run() -> anyhow::Result<()> {
     // TODO: refactor these to use labels
     debug!("Version: {GIT_VERSION}");
     debug!("Build_tag: {BUILD_TAG}");
-    let neon_metrics = ::metrics::NeonMetrics::new(::metrics::BuildInfo {
+    let serendb_metrics = ::metrics::SerenDBMetrics::new(::metrics::BuildInfo {
         revision: GIT_VERSION,
         build_tag: BUILD_TAG,
     });
@@ -191,7 +191,7 @@ pub async fn run() -> anyhow::Result<()> {
         metrics_listener,
         AppMetrics {
             jemalloc,
-            neon_metrics,
+            serendb_metrics,
             proxy: crate::metrics::Metrics::get(),
         },
     ));
@@ -268,10 +268,10 @@ fn build_config(args: &LocalProxyCliArgs) -> anyhow::Result<&'static ProxyConfig
         timeout: Duration::from_secs(2),
     };
 
-    let greetings = env::var_os("NEON_MOTD").map_or(String::new(), |s| match s.into_string() {
+    let greetings = env::var_os("SERENDB_MOTD").map_or(String::new(), |s| match s.into_string() {
         Ok(s) => s,
         Err(_) => {
-            debug!("NEON_MOTD environment variable is not valid UTF-8");
+            debug!("SERENDB_MOTD environment variable is not valid UTF-8");
             String::new()
         }
     });

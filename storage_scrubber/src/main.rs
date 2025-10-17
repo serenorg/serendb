@@ -31,7 +31,7 @@ struct Cli {
     delete: bool,
 
     #[arg(long)]
-    /// URL to storage controller.  e.g. http://127.0.0.1:1234 when using `neon_local`
+    /// URL to storage controller.  e.g. http://127.0.0.1:1234 when using `serendb_local`
     controller_api: Option<Url>,
 
     #[arg(long)]

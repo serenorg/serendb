@@ -6,7 +6,7 @@ This is an RFC describing a new storage strategy for storing relation directorie
 
 ## Motivation
 
-Postgres maintains a directory structure for databases and relations. In Neon, we store these information
+Postgres maintains a directory structure for databases and relations. In SerenDB, we store these information
 by serializing the directory data in a single key (see `pgdatadir_mapping.rs`).
 
 ```rust

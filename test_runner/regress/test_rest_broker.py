@@ -9,7 +9,7 @@ from jwcrypto import jwt
 
 @skip_if_proxy_lacks_rest_broker()
 def test_rest_broker_happy(
-    local_proxy_fixed_port, rest_broker_proxy, vanilla_pg, neon_authorize_jwk, httpserver
+    local_proxy_fixed_port, rest_broker_proxy, vanilla_pg, serendb_authorize_jwk, httpserver
 ):
     """Test REST API endpoint using local_proxy and rest_broker_proxy."""
 
@@ -57,7 +57,7 @@ def test_rest_broker_happy(
 
     # Set up HTTP server to serve JWKS (like static_auth_broker)
     # Generate public key from the JWK
-    public_key = neon_authorize_jwk.export_public(as_dict=True)
+    public_key = serendb_authorize_jwk.export_public(as_dict=True)
 
     # Set up the httpserver to serve the JWKS
     httpserver.expect_request("/.well-known/jwks.json").respond_with_json({"keys": [public_key]})
@@ -95,7 +95,7 @@ def test_rest_broker_happy(
 
     # Generate a proper JWT token using the JWK (similar to test_auth_broker.py)
     token = jwt.JWT(
-        header={"kid": neon_authorize_jwk.key_id, "alg": "RS256"},
+        header={"kid": serendb_authorize_jwk.key_id, "alg": "RS256"},
         claims={
             "sub": "user",
             "role": "authenticated",  # role that's in role_names
@@ -103,7 +103,7 @@ def test_rest_broker_happy(
             "iat": 1000000000,  # issued at
         },
     )
-    token.make_signed_token(neon_authorize_jwk)
+    token.make_signed_token(serendb_authorize_jwk)
 
     # Debug: Print the JWT claims and config for troubleshooting
     print(f"JWT claims: {token.claims}")
@@ -113,8 +113,8 @@ def test_rest_broker_happy(
 
     # Test REST API call - following SUBZERO.md pattern
     # REST API is served on the WSS port with HTTPS and includes database name
-    # ep-purple-glitter-adqior4l-pooler.c-2.us-east-1.aws.neon.tech
-    url = f"https://foo.apirest.c-2.local.neon.build:{rest_broker_proxy.wss_port}/postgres/rest/v1/items"
+    # ep-purple-glitter-adqior4l-pooler.c-2.us-east-1.aws.serendb.com
+    url = f"https://foo.apirest.c-2.local.serendb.build:{rest_broker_proxy.wss_port}/postgres/rest/v1/items"
 
     response = requests.get(
         url,

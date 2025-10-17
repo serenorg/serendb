@@ -10,12 +10,12 @@ from fixtures.utils import wait_until
 if TYPE_CHECKING:
     from typing import Any
 
-    from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder
 
 
 # Checks that all active safekeepers are shown in pageserver's walreceiver state printed on WAL wait timeout.
 # Kills one of the safekeepers and ensures that only the active ones are printed in the state.
-def test_pageserver_lsn_wait_error_safekeeper_stop(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_lsn_wait_error_safekeeper_stop(serendb_env_builder: SerenDBEnvBuilder):
     # Trigger WAL wait timeout faster
     def customize_pageserver_toml(ps_cfg: dict[str, Any]):
         ps_cfg["wait_lsn_timeout"] = "2s"
@@ -25,13 +25,13 @@ def test_pageserver_lsn_wait_error_safekeeper_stop(neon_env_builder: NeonEnvBuil
 
     # In this test we force 'Timed out while waiting for WAL record error' while
     # fetching basebackup and don't want any retries.
-    os.environ["NEON_COMPUTE_TESTING_BASEBACKUP_RETRIES"] = "1"
-    neon_env_builder.pageserver_config_override = customize_pageserver_toml
+    os.environ["SERENDB_COMPUTE_TESTING_BASEBACKUP_RETRIES"] = "1"
+    serendb_env_builder.pageserver_config_override = customize_pageserver_toml
 
     # Have notable SK ids to ensure we check logs for their presence, not some other random numbers
-    neon_env_builder.safekeepers_id_start = 12345
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.safekeepers_id_start = 12345
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
     env.pageserver.http_client()
 
     tenant_id, timeline_id = env.create_tenant()
@@ -91,7 +91,7 @@ def test_pageserver_lsn_wait_error_safekeeper_stop(neon_env_builder: NeonEnvBuil
     wait_until(all_but_stopped_sks_in_wareceiver_state, timeout=30)
 
 
-def insert_test_elements(env: NeonEnv, tenant_id: TenantId, start: int, count: int):
+def insert_test_elements(env: SerenDBEnv, tenant_id: TenantId, start: int, count: int):
     first_element_id = start
     last_element_id = first_element_id + count
     with env.endpoints.create_start("main", tenant_id=tenant_id) as endpoint:
@@ -105,7 +105,7 @@ def insert_test_elements(env: NeonEnv, tenant_id: TenantId, start: int, count: i
 future_lsn = Lsn("0/FFFFFFFF")
 
 
-def trigger_wait_lsn_timeout(env: NeonEnv, tenant_id: TenantId):
+def trigger_wait_lsn_timeout(env: SerenDBEnv, tenant_id: TenantId):
     with env.endpoints.create_start(
         "main",
         tenant_id=tenant_id,

@@ -1,5 +1,5 @@
 """
-Run the regression tests on the cloud instance of Neon
+Run the regression tests on the cloud instance of SerenDB
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_fixtures import RemotePostgres
+    from fixtures.serendb_fixtures import RemotePostgres
     from fixtures.pg_version import PgVersion
 
 

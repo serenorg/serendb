@@ -193,7 +193,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeTlsStream<IO> {
 pub enum AuthType {
     Trust,
     // This mimics postgres's AuthenticationCleartextPassword but instead of password expects JWT
-    NeonJWT,
+    SerenDBJWT,
 }
 
 impl FromStr for AuthType {
@@ -202,7 +202,7 @@ impl FromStr for AuthType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Trust" => Ok(Self::Trust),
-            "NeonJWT" => Ok(Self::NeonJWT),
+            "SerenDBJWT" => Ok(Self::SerenDBJWT),
             _ => anyhow::bail!("invalid value \"{s}\" for auth type"),
         }
     }
@@ -212,7 +212,7 @@ impl fmt::Display for AuthType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             AuthType::Trust => "Trust",
-            AuthType::NeonJWT => "NeonJWT",
+            AuthType::SerenDBJWT => "SerenDBJWT",
         })
     }
 }
@@ -613,7 +613,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> PostgresBackend<IO> {
         if self.state == ProtoState::Authentication {
             match self.framed.read_message().await? {
                 Some(FeMessage::PasswordMessage(m)) => {
-                    assert!(self.auth_type == AuthType::NeonJWT);
+                    assert!(self.auth_type == AuthType::SerenDBJWT);
 
                     let (_, jwt_response) = m.split_last().context("protocol violation")?;
 
@@ -655,7 +655,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> PostgresBackend<IO> {
 
     /// Process startup packet:
     /// - transition to Established if auth type is trust
-    /// - transition to Authentication if auth type is NeonJWT.
+    /// - transition to Authentication if auth type is SerenDBJWT.
     /// - or perform TLS handshake -- then need to call this again to receive
     ///   actual startup packet.
     async fn process_startup_message(
@@ -712,7 +712,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> PostgresBackend<IO> {
                             .await?;
                         self.state = ProtoState::Established;
                     }
-                    AuthType::NeonJWT => {
+                    AuthType::SerenDBJWT => {
                         self.write_message(&BeMessage::AuthenticationCleartextPassword)
                             .await?;
                         self.state = ProtoState::Authentication;

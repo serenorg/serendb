@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from fixtures.neon_fixtures import NeonEnvBuilder, PgBin, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, PgBin, wait_for_last_flush_lsn
 from fixtures.pageserver.common_types import ImageLayerName, parse_layer_file_name
 from fixtures.pageserver.utils import (
     wait_for_last_record_lsn,
@@ -11,7 +11,7 @@ from fixtures.remote_storage import LocalFsStorage, RemoteStorageKind
 from requests.exceptions import ConnectionError
 
 
-def test_local_only_layers_after_crash(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def test_local_only_layers_after_crash(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     """
     Test case for docs/rfcs/027-crash-consistent-layer-map-through-index-part.md.
 
@@ -20,9 +20,9 @@ def test_local_only_layers_after_crash(neon_env_builder: NeonEnvBuilder, pg_bin:
 
     Startup handles this situation by deleting the not yet uploaded L1 layer files.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "checkpoint_distance": f"{10 * 1024**2}",
             "compaction_period": "0 s",

@@ -44,7 +44,7 @@ mod test {
     use super::*;
 
     fn testdir() -> camino_tempfile::Utf8TempDir {
-        match crate::env::var("NEON_UTILS_RENAME_NOREPLACE_TESTDIR") {
+        match crate::env::var("SERENDB_UTILS_RENAME_NOREPLACE_TESTDIR") {
             Some(path) => {
                 let path: camino::Utf8PathBuf = path;
                 camino_tempfile::tempdir_in(path).unwrap()

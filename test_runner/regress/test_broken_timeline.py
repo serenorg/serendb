@@ -6,10 +6,10 @@ import os
 import pytest
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     wait_for_last_flush_lsn,
 )
 from fixtures.pg_version import PgVersion
@@ -17,8 +17,8 @@ from fixtures.pg_version import PgVersion
 
 # Test restarting page server, while safekeeper and compute node keep
 # running.
-def test_local_corruption(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_local_corruption(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(
         [
@@ -81,8 +81,8 @@ def test_local_corruption(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_create_multiple_timelines_parallel(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_create_multiple_timelines_parallel(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     tenant_id, _ = env.create_tenant()
 
@@ -95,8 +95,8 @@ def test_create_multiple_timelines_parallel(neon_simple_env: NeonEnv):
             future.result()
 
 
-def test_timeline_init_break_before_checkpoint(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_timeline_init_break_before_checkpoint(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     env.pageserver.allowed_errors.extend(
@@ -108,7 +108,7 @@ def test_timeline_init_break_before_checkpoint(neon_env_builder: NeonEnvBuilder)
     tenant_id = env.initial_tenant
 
     timelines_dir = env.pageserver.timeline_dir(tenant_id)
-    old_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    old_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     initial_timeline_dirs = [d for d in timelines_dir.iterdir()]
 
     # Introduce failpoint during timeline init (some intermediate files are on disk), before it's checkpointed.
@@ -120,7 +120,7 @@ def test_timeline_init_break_before_checkpoint(neon_env_builder: NeonEnvBuilder)
     env.pageserver.restart(immediate=True)
 
     # Creating the timeline didn't finish. The other timelines on tenant should still be present and work normally.
-    new_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    new_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     assert new_tenant_timelines == old_tenant_timelines, (
         f"Pageserver after restart should ignore non-initialized timelines for tenant {tenant_id}"
     )
@@ -134,9 +134,9 @@ def test_timeline_init_break_before_checkpoint(neon_env_builder: NeonEnvBuilder)
 # The "exit" case is for a reproducer of issue 6007: an unclean shutdown where we can't do local fs cleanups
 @pytest.mark.parametrize("exit_or_return", ["return", "exit"])
 def test_timeline_init_break_before_checkpoint_recreate(
-    neon_env_builder: NeonEnvBuilder, exit_or_return: str
+    serendb_env_builder: SerenDBEnvBuilder, exit_or_return: str
 ):
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     pageserver_http = env.pageserver.http_client()
 
@@ -151,7 +151,7 @@ def test_timeline_init_break_before_checkpoint_recreate(
     tenant_id = env.initial_tenant
 
     timelines_dir = env.pageserver.timeline_dir(tenant_id)
-    old_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    old_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     initial_timeline_dirs = [d for d in timelines_dir.iterdir()]
 
     # Some fixed timeline ID (like control plane does)
@@ -172,7 +172,7 @@ def test_timeline_init_break_before_checkpoint_recreate(
     env.pageserver.restart(immediate=True)
 
     # Creating the timeline didn't finish. The other timelines on tenant should still be present and work normally.
-    new_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    new_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     assert new_tenant_timelines == old_tenant_timelines, (
         f"Pageserver after restart should ignore non-initialized timelines for tenant {tenant_id}"
     )
@@ -190,14 +190,14 @@ def test_timeline_init_break_before_checkpoint_recreate(
     assert timeline_id == new_timeline_id
 
 
-def test_timeline_create_break_after_dir_creation(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_timeline_create_break_after_dir_creation(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     tenant_id = env.initial_tenant
 
     timelines_dir = env.pageserver.timeline_dir(tenant_id)
-    old_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    old_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     initial_timeline_dirs = [d for d in timelines_dir.iterdir()]
 
     # Introduce failpoint when creating a new timeline, right after creating its directory
@@ -207,7 +207,7 @@ def test_timeline_create_break_after_dir_creation(neon_env_builder: NeonEnvBuild
 
     # Creating the timeline didn't finish. The other timelines on tenant should still be present and work normally.
     # "New" timeline is not present in the list, allowing pageserver to retry the same request
-    new_tenant_timelines = env.neon_cli.timeline_list(tenant_id)
+    new_tenant_timelines = env.serendb_cli.timeline_list(tenant_id)
     assert new_tenant_timelines == old_tenant_timelines, (
         f"Pageserver after restart should ignore non-initialized timelines for tenant {tenant_id}"
     )

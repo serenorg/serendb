@@ -15,7 +15,7 @@ pub enum IdError {
     SliceParseError(usize),
 }
 
-/// Neon ID is a 128-bit random ID.
+/// SerenDB ID is a 128-bit random ID.
 /// Used to represent various identifiers. Provides handy utility methods and impls.
 ///
 /// NOTE: It (de)serializes as an array of hex bytes, so the string representation would look
@@ -240,7 +240,7 @@ macro_rules! id_newtype {
     };
 }
 
-/// Neon timeline ID.
+/// SerenDB timeline ID.
 ///
 /// They are different from PostgreSQL timeline
 /// IDs, but serve a similar purpose: they differentiate
@@ -250,7 +250,7 @@ macro_rules! id_newtype {
 /// timeline history.  Those limitations mean that we cannot generate a
 /// new PostgreSQL timeline ID by just generating a random number. And
 /// that in turn is problematic for the "pull/push" workflow, where you
-/// have a local copy of a Neon repository, and you periodically sync
+/// have a local copy of a SerenDB repository, and you periodically sync
 /// the local changes with a remote server. When you work "detached"
 /// from the remote server, you cannot create a PostgreSQL timeline ID
 /// that's guaranteed to be different from all existing timelines in
@@ -260,9 +260,9 @@ macro_rules! id_newtype {
 /// branches? If they pick the same one, and later try to push the
 /// branches to the same remote server, they will get mixed up.
 ///
-/// To avoid those issues, Neon has its own concept of timelines that
+/// To avoid those issues, SerenDB has its own concept of timelines that
 /// is separate from PostgreSQL timelines, and doesn't have those
-/// limitations. A Neon timeline is identified by a 128-bit ID, which
+/// limitations. A SerenDB timeline is identified by a 128-bit ID, which
 /// is usually printed out as a hex string.
 ///
 /// NOTE: It (de)serializes as an array of hex bytes, so the string representation would look
@@ -284,7 +284,7 @@ impl TryFrom<Option<&str>> for TimelineId {
     }
 }
 
-/// Neon Tenant Id represents identifiar of a particular tenant.
+/// SerenDB Tenant Id represents identifiar of a particular tenant.
 /// Is used for distinguishing requests and data belonging to different users.
 ///
 /// NOTE: It (de)serializes as an array of hex bytes, so the string representation would look
@@ -298,7 +298,7 @@ id_newtype!(TenantId);
 /// If needed, reuse small string from proxy/src/types.rc
 pub type EndpointId = String;
 
-// A pair uniquely identifying Neon instance.
+// A pair uniquely identifying SerenDB instance.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TenantTimelineId {
     pub tenant_id: TenantId,

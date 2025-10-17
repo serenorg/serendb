@@ -9,14 +9,14 @@ use utils::lsn::Lsn;
 
 use crate::api_bindings::{Level, create_api, take_vec_u8};
 use crate::bindings::{
-    NeonWALReadResult, Safekeeper, WalProposer, WalProposerBroadcast, WalProposerConfig,
+    SerenDBWALReadResult, Safekeeper, WalProposer, WalProposerBroadcast, WalProposerConfig,
     WalProposerCreate, WalProposerFree, WalProposerPoll, WalProposerStart,
 };
 
 /// Rust high-level wrapper for C walproposer API. Many methods are not required
 /// for simple cases, hence todo!() in default implementations.
 ///
-/// Refer to `pgxn/neon/walproposer.h` for documentation.
+/// Refer to `pgxn/serendb/walproposer.h` for documentation.
 pub trait ApiImpl {
     fn get_shmem_state(&self) -> *mut crate::bindings::WalproposerShmemState {
         todo!()
@@ -100,11 +100,11 @@ pub trait ApiImpl {
         todo!()
     }
 
-    fn wal_reader_allocate(&self, _sk: &mut Safekeeper) -> NeonWALReadResult {
+    fn wal_reader_allocate(&self, _sk: &mut Safekeeper) -> SerenDBWALReadResult {
         todo!()
     }
 
-    fn wal_read(&self, _sk: &mut Safekeeper, _buf: &mut [u8], _startpos: u64) -> NeonWALReadResult {
+    fn wal_read(&self, _sk: &mut Safekeeper, _buf: &mut [u8], _startpos: u64) -> SerenDBWALReadResult {
         todo!()
     }
 
@@ -208,10 +208,10 @@ pub struct Wrapper {
 
 impl Wrapper {
     pub fn new(api: Box<dyn ApiImpl>, config: Config) -> Wrapper {
-        let neon_tenant = CString::new(config.ttid.tenant_id.to_string())
+        let serendb_tenant = CString::new(config.ttid.tenant_id.to_string())
             .unwrap()
             .into_raw();
-        let neon_timeline = CString::new(config.ttid.timeline_id.to_string())
+        let serendb_timeline = CString::new(config.ttid.timeline_id.to_string())
             .unwrap()
             .into_raw();
 
@@ -227,8 +227,8 @@ impl Wrapper {
         let callback_data = Box::into_raw(Box::new(api)) as *mut ::std::os::raw::c_void;
 
         let c_config = WalProposerConfig {
-            neon_tenant,
-            neon_timeline,
+            serendb_tenant,
+            serendb_timeline,
             safekeepers_list,
             safekeeper_conninfo_options,
             safekeeper_reconnect_timeout: config.safekeeper_reconnect_timeout,
@@ -262,8 +262,8 @@ impl Drop for Wrapper {
             drop(Box::from_raw(
                 (*config).callback_data as *mut Box<dyn ApiImpl>,
             ));
-            drop(CString::from_raw((*config).neon_tenant));
-            drop(CString::from_raw((*config).neon_timeline));
+            drop(CString::from_raw((*config).serendb_tenant));
+            drop(CString::from_raw((*config).serendb_timeline));
             drop(Box::from_raw(config));
 
             for i in 0..(*self.wp).n_safekeepers {
@@ -306,7 +306,7 @@ mod tests {
 
     use super::ApiImpl;
     use crate::api_bindings::Level;
-    use crate::bindings::{NeonWALReadResult, PG_VERSION_NUM};
+    use crate::bindings::{SerenDBWALReadResult, PG_VERSION_NUM};
     use crate::walproposer::Wrapper;
 
     #[derive(Clone, Copy, Debug)]
@@ -433,9 +433,9 @@ mod tests {
             true
         }
 
-        fn wal_reader_allocate(&self, _: &mut crate::bindings::Safekeeper) -> NeonWALReadResult {
+        fn wal_reader_allocate(&self, _: &mut crate::bindings::Safekeeper) -> SerenDBWALReadResult {
             println!("wal_reader_allocate");
-            crate::bindings::NeonWALReadResult_NEON_WALREAD_SUCCESS
+            crate::bindings::SerenDBWALReadResult_SERENDB_WALREAD_SUCCESS
         }
 
         fn init_event_set(&self, _: &mut crate::bindings::WalProposer) {

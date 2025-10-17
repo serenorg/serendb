@@ -13,7 +13,7 @@ use crate::context::RequestContext;
 use crate::error::{ReportableError, UserFacingError};
 use crate::metrics::{Metrics, SniGroup, SniKind};
 use crate::pqproto::StartupMessageParams;
-use crate::proxy::NeonOptions;
+use crate::proxy::SerenDBOptions;
 use crate::serverless::{AUTH_BROKER_SNI, SERVERLESS_DRIVER_SNI};
 use crate::types::{EndpointId, RoleName};
 
@@ -50,7 +50,7 @@ impl ReportableError for ComputeUserInfoParseError {
 pub(crate) struct ComputeUserInfoMaybeEndpoint {
     pub(crate) user: RoleName,
     pub(crate) endpoint_id: Option<EndpointId>,
-    pub(crate) options: NeonOptions,
+    pub(crate) options: SerenDBOptions,
 }
 
 impl ComputeUserInfoMaybeEndpoint {
@@ -146,7 +146,7 @@ impl ComputeUserInfoMaybeEndpoint {
             .accepted_connections_by_sni
             .inc(SniGroup { protocol, kind });
 
-        let options = NeonOptions::parse_params(params);
+        let options = SerenDBOptions::parse_params(params);
 
         Ok(Self {
             user,
@@ -436,10 +436,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_neon_options() -> anyhow::Result<()> {
+    fn parse_serendb_options() -> anyhow::Result<()> {
         let options = StartupMessageParams::new([
             ("user", "john_doe"),
-            ("options", "neon_lsn:0/2 neon_endpoint_type:read_write"),
+            ("options", "serendb_lsn:0/2 serendb_endpoint_type:read_write"),
         ]);
 
         let sni = Some("project.localhost");

@@ -11,7 +11,7 @@
 #ifndef FILE_CACHE_h
 #define FILE_CACHE_h
 
-#include "neon_pgversioncompat.h"
+#include "serendb_pgversioncompat.h"
 
 typedef struct FileCacheState
 {

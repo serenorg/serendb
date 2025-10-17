@@ -88,7 +88,7 @@ use crate::{DELTA_FILE_MAGIC, STORAGE_FORMAT_VERSION, TEMP_FILE_SUFFIX};
 ///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Summary {
-    /// Magic value to identify this as a neon delta file. Always DELTA_FILE_MAGIC.
+    /// Magic value to identify this as a SerenDB delta file. Always DELTA_FILE_MAGIC.
     pub magic: u16,
     pub format_version: u16,
 
@@ -1989,7 +1989,7 @@ pub(crate) mod test {
     #[tokio::test]
     async fn copy_delta_prefix_smoke() {
         use bytes::Bytes;
-        use wal_decoder::models::record::NeonWalRecord;
+        use wal_decoder::models::record::SerenDBWalRecord;
 
         let h = crate::tenant::harness::TenantHarness::create("truncate_delta_smoke")
             .await
@@ -2019,7 +2019,7 @@ pub(crate) mod test {
                 (
                     0x30,
                     12,
-                    Value::WalRecord(NeonWalRecord::Postgres {
+                    Value::WalRecord(SerenDBWalRecord::Postgres {
                         will_init: false,
                         rec: Bytes::from_static(b"1"),
                     }),
@@ -2027,7 +2027,7 @@ pub(crate) mod test {
                 (
                     0x40,
                     12,
-                    Value::WalRecord(NeonWalRecord::Postgres {
+                    Value::WalRecord(SerenDBWalRecord::Postgres {
                         will_init: true,
                         rec: Bytes::from_static(b"2"),
                     }),
@@ -2037,7 +2037,7 @@ pub(crate) mod test {
                 (
                     0x50,
                     12,
-                    Value::WalRecord(NeonWalRecord::Postgres {
+                    Value::WalRecord(SerenDBWalRecord::Postgres {
                         will_init: true,
                         rec: {
                             let mut buf =
@@ -2054,7 +2054,7 @@ pub(crate) mod test {
                 (
                     0x60,
                     12,
-                    Value::WalRecord(NeonWalRecord::Postgres {
+                    Value::WalRecord(SerenDBWalRecord::Postgres {
                         will_init: true,
                         rec: Bytes::from_static(b"3"),
                     }),

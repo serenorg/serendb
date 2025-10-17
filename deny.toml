@@ -115,7 +115,7 @@ allow-git = [
 
 [sources.allow-org]
 github = [
-    "neondatabase",
+    "serendb",
 ]
 gitlab = []
 bitbucket = []

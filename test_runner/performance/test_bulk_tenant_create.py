@@ -7,7 +7,7 @@ import pytest
 from fixtures.benchmark_fixture import MetricReport
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 # Run bulk tenant creation test.
 #
@@ -19,12 +19,12 @@ if TYPE_CHECKING:
 
 @pytest.mark.parametrize("tenants_count", [1, 5, 10])
 def test_bulk_tenant_create(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     tenants_count: int,
     zenbenchmark,
 ):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     time_slices = []
 

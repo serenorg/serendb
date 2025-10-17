@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from typing import Self, TypedDict
 
     from fixtures.endpoint.http import EndpointHttpClient
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
     from fixtures.pg_version import PgVersion
     from fixtures.port_distributor import PortDistributor
     from prometheus_client.samples import Sample
@@ -129,12 +129,12 @@ class SqlExporterProcess(StrEnum):
 
 @pytest.mark.parametrize(
     "collector_name",
-    ["neon_collector", "neon_collector_autoscaling"],
+    ["serendb_collector", "serendb_collector_autoscaling"],
     ids=[SqlExporterProcess.COMPUTE, SqlExporterProcess.AUTOSCALING],
 )
 def test_sql_exporter_metrics_smoke(
     pg_version: PgVersion,
-    neon_simple_env: NeonEnv,
+    serendb_simple_env: SerenDBEnv,
     compute_config_dir: Path,
     collector_name: str,
 ):
@@ -142,7 +142,7 @@ def test_sql_exporter_metrics_smoke(
     This is a smoke test to ensure the metrics SQL queries for sql_exporter
     work without errors.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create("main")
     endpoint.respec(skip_pg_catalog_updates=False)
@@ -361,7 +361,7 @@ else:
 )
 def test_sql_exporter_metrics_e2e(
     pg_version: PgVersion,
-    neon_simple_env: NeonEnv,
+    serendb_simple_env: SerenDBEnv,
     test_output_dir: Path,
     compute_config_dir: Path,
     exporter: SqlExporterProcess,
@@ -393,7 +393,7 @@ def test_sql_exporter_metrics_e2e(
     that you may also need the docker(1) Podman frontend. I am unsure if the
     docker Python package supports Podman natively.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create("main")
     endpoint.respec(skip_pg_catalog_updates=False)
@@ -405,10 +405,10 @@ def test_sql_exporter_metrics_e2e(
         stem_suffix = "_autoscaling"
 
     # Write the collector file
-    collector_file = test_output_dir / f"neon_collector{stem_suffix}.yml"
+    collector_file = test_output_dir / f"serendb_collector{stem_suffix}.yml"
     with open(collector_file, "w", encoding="utf-8") as o:
         collector = evaluate_collector(
-            compute_config_dir / f"neon_collector{stem_suffix}.jsonnet", pg_version
+            compute_config_dir / f"serendb_collector{stem_suffix}.jsonnet", pg_version
         )
         o.write(collector)
 
@@ -450,12 +450,12 @@ def test_sql_exporter_metrics_e2e(
         resp.raise_for_status()
 
 
-def test_perf_counters(neon_simple_env: NeonEnv):
+def test_perf_counters(serendb_simple_env: SerenDBEnv):
     """
-    Test compute metrics, exposed in the neon_backend_perf_counters and
-    neon_perf_counters views
+    Test compute metrics, exposed in the serendb_backend_perf_counters and
+    serendb_perf_counters views
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()
@@ -465,12 +465,12 @@ def test_perf_counters(neon_simple_env: NeonEnv):
     # basic check that the server doesn't crash or something like that.
     #
     # 1.5 is the minimum version to contain these views.
-    cur.execute("CREATE EXTENSION neon VERSION '1.5'")
-    cur.execute("set neon.monitor_query_exec_time = on")
-    cur.execute("SELECT * FROM neon_perf_counters")
-    cur.execute("SELECT * FROM neon_backend_perf_counters")
+    cur.execute("CREATE EXTENSION serendb VERSION '1.5'")
+    cur.execute("set serendb.monitor_query_exec_time = on")
+    cur.execute("SELECT * FROM serendb_perf_counters")
+    cur.execute("SELECT * FROM serendb_backend_perf_counters")
     cur.execute(
-        "select value from neon_backend_perf_counters where metric='query_time_seconds_count' and pid=pg_backend_pid()"
+        "select value from serendb_backend_perf_counters where metric='query_time_seconds_count' and pid=pg_backend_pid()"
     )
     assert cur.fetchall()[0][0] == 2
 
@@ -497,17 +497,17 @@ def collect_metric(
     return __collect_metric
 
 
-def test_compute_installed_extensions_metric(neon_simple_env: NeonEnv):
+def test_compute_installed_extensions_metric(serendb_simple_env: SerenDBEnv):
     """
     Test that the compute_installed_extensions properly reports accurate
     results. Important to note that currently this metric is only gathered on
-    compute start. We install the neon extension into a database other than
-    postgres because compute_ctl will run `ALTER EXTENSION neon UPDATE` during
+    compute start. We install the SerenDB extension into a database other than
+    postgres because compute_ctl will run `ALTER EXTENSION serendb UPDATE` during
     Postgres startup in the postgres database, creating a race condition.
     """
     DB_NAME = "test"
 
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
     endpoint.safe_psql(f"CREATE DATABASE {DB_NAME}")
@@ -537,25 +537,25 @@ def test_compute_installed_extensions_metric(neon_simple_env: NeonEnv):
         name="compute_installed_extensions",
     )
 
-    # Install the neon extension, so we can check for it on the restart.
-    endpoint.safe_psql("CREATE EXTENSION neon VERSION '1.0'", dbname=DB_NAME)
+    # Install the SerenDB extension, so we can check for it on the restart.
+    endpoint.safe_psql("CREATE EXTENSION serendb VERSION '1.0'", dbname=DB_NAME)
 
     # The metric is only gathered on compute start, so restart to check if the
-    # neon extension will now be there.
+    # serendb extension will now be there.
     endpoint.stop()
     endpoint.start()
 
     client = endpoint.http_client()
 
-    def __has_neon(samples: list[Sample]) -> bool:
+    def __has_serendb(samples: list[Sample]) -> bool:
         return len(samples) == 1 and samples[0].value == 1
 
     wait_until(
         collect_metric(
             client,
             "compute_installed_extensions",
-            {"extension_name": "neon", "version": "1.0", "owned_by_superuser": "1"},
-            __has_neon,
+            {"extension_name": "serendb", "version": "1.0", "owned_by_superuser": "1"},
+            __has_serendb,
         ),
         name="compute_installed_extensions",
     )

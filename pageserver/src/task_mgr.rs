@@ -145,14 +145,14 @@ impl FromStr for TokioRuntimeMode {
 }
 
 static TOKIO_THREAD_STACK_SIZE: Lazy<NonZeroUsize> = Lazy::new(|| {
-    env::var("NEON_PAGESERVER_TOKIO_THREAD_STACK_SIZE")
+    env::var("SERENDB_PAGESERVER_TOKIO_THREAD_STACK_SIZE")
         // the default 2MiB are insufficent, especially in debug mode
         .unwrap_or_else(|| NonZeroUsize::new(4 * 1024 * 1024).unwrap())
 });
 
 static ONE_RUNTIME: Lazy<Option<tokio::runtime::Runtime>> = Lazy::new(|| {
     let thread_name = "pageserver-tokio";
-    let Some(mode) = env::var("NEON_PAGESERVER_USE_ONE_RUNTIME") else {
+    let Some(mode) = env::var("SERENDB_PAGESERVER_USE_ONE_RUNTIME") else {
         // If the env var is not set, leave this static as None.
         set_tokio_runtime_setup(
             "multiple-runtimes",
@@ -186,13 +186,13 @@ static ONE_RUNTIME: Lazy<Option<tokio::runtime::Runtime>> = Lazy::new(|| {
 });
 
 /// Declare a lazy static variable named `$varname` that will resolve
-/// to a tokio runtime handle. If the env var `NEON_PAGESERVER_USE_ONE_RUNTIME`
+/// to a tokio runtime handle. If the env var `SERENDB_PAGESERVER_USE_ONE_RUNTIME`
 /// is set, this will resolve to `ONE_RUNTIME`. Otherwise, the macro invocation
 /// declares a separate runtime and the lazy static variable `$varname`
 /// will resolve to that separate runtime.
 ///
 /// The result is is that `$varname.spawn()` will use `ONE_RUNTIME` if
-/// `NEON_PAGESERVER_USE_ONE_RUNTIME` is set, and will use the separate runtime
+/// `SERENDB_PAGESERVER_USE_ONE_RUNTIME` is set, and will use the separate runtime
 /// otherwise.
 macro_rules! pageserver_runtime {
     ($varname:ident, $name:literal) => {

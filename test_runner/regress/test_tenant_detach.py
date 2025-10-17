@@ -23,10 +23,10 @@ from fixtures.remote_storage import (
 from fixtures.utils import query_scalar, wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         Endpoint,
-        NeonEnv,
-        NeonEnvBuilder,
+        SerenDBEnv,
+        SerenDBEnvBuilder,
     )
     from prometheus_client.samples import Sample
 
@@ -66,13 +66,13 @@ class ReattachMode(StrEnum):
     "mode",
     [ReattachMode.REATTACH_EXPLICIT, ReattachMode.REATTACH_RESET, ReattachMode.REATTACH_RESET_DROP],
 )
-def test_tenant_reattach(neon_env_builder: NeonEnvBuilder, mode: str):
+def test_tenant_reattach(serendb_env_builder: SerenDBEnvBuilder, mode: str):
     # Exercise retry code path by making all uploads and downloads fail for the
     # first time. The retries print INFO-messages to the log; we will check
     # that they are present after the test.
-    neon_env_builder.pageserver_config_override = "test_remote_failures=1"
+    serendb_env_builder.pageserver_config_override = "test_remote_failures=1"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     # create new nenant
@@ -182,13 +182,13 @@ num_rows = 100000
 # I don't know what's causing that...
 @pytest.mark.skip(reason="fixme")
 def test_tenant_reattach_while_busy(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     updates_started = 0
     updates_finished = 0
     updates_to_perform = 0
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Run random UPDATEs on test table. On failure, try again.
     async def update_table(pg_conn: asyncpg.Connection):
@@ -229,7 +229,7 @@ def test_tenant_reattach_while_busy(
 
     # async guts of test_tenant_reattach_while_bysy test
     async def reattach_while_busy(
-        env: NeonEnv, endpoint: Endpoint, pageserver_http: PageserverHttpClient, tenant_id: TenantId
+        env: SerenDBEnv, endpoint: Endpoint, pageserver_http: PageserverHttpClient, tenant_id: TenantId
     ):
         nonlocal updates_to_perform, updates_finished
         workers = []
@@ -269,8 +269,8 @@ def test_tenant_reattach_while_busy(
     assert query_scalar(cur, "SELECT sum(counter) FROM t") == updates_to_perform
 
 
-def test_tenant_detach_smoke(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+def test_tenant_detach_smoke(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
     pageserver_http = env.pageserver.http_client()
 
     env.pageserver.allowed_errors.extend(PERMIT_PAGE_SERVICE_ERRORS)
@@ -335,10 +335,10 @@ def test_tenant_detach_smoke(neon_env_builder: NeonEnvBuilder):
 
 
 def test_detach_while_attaching(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     ##### First start, insert secret data and upload it to the remote storage
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
     endpoint = env.endpoints.create_start("main")
 
@@ -399,15 +399,15 @@ def test_detach_while_attaching(
 
 
 def test_detach_while_activating(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test cancellation behavior for tenants that are stuck somewhere between
     being attached and reaching Active state.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
     endpoint = env.endpoints.create_start("main")
 
@@ -487,9 +487,9 @@ def ensure_test_data(data_id: int, data: str, endpoint: Endpoint):
 
 
 def test_metrics_while_ignoring_broken_tenant_and_reloading(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     client = env.pageserver.http_client()
     env.pageserver.allowed_errors.append(

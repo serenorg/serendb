@@ -1,5 +1,5 @@
-#ifndef __NEON_UTILS_H__
-#define __NEON_UTILS_H__
+#ifndef __SERENDB_UTILS_H__
+#define __SERENDB_UTILS_H__
 
 #include "lib/stringinfo.h"
 #include "storage/buf_internals.h"
@@ -26,4 +26,4 @@ CURL *		alloc_curl_handle(void);
 
 #endif
 
-#endif							/* __NEON_UTILS_H__ */
+#endif							/* __SERENDB_UTILS_H__ */

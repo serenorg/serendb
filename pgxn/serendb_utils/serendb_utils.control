@@ -1,6 +1,6 @@
-# neon_utils extension
-comment = 'neon_utils - small useful functions'
+# serendb_utils extension
+comment = 'serendb_utils - small useful functions'
 default_version = '1.0'
-module_pathname = '$libdir/neon_utils'
+module_pathname = '$libdir/serendb_utils'
 relocatable = true
 trusted = true

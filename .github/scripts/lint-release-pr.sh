@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DOCS_URL="https://docs.neon.build/overview/repositories/neon.html"
+DOCS_URL="https://docs.serendb.com/overview/repositories/serendb.html"
 
 message() {
   if [[ -n "${GITHUB_PR_NUMBER:-}" ]]; then

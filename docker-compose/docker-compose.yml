@@ -22,14 +22,14 @@ services:
       - "until (/usr/bin/mc alias set minio http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD) do
              echo 'Waiting to start minio...' && sleep 1;
          done;
-         /usr/bin/mc mb minio/neon --region=eu-north-1;
+         /usr/bin/mc mb minio/serendb --region=eu-north-1;
          exit 0;"
     depends_on:
       - minio
 
   pageserver:
     restart: always
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon:${TAG:-latest}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb:${TAG:-latest}
     environment:
       - AWS_ACCESS_KEY_ID=minio
       - AWS_SECRET_ACCESS_KEY=password
@@ -38,14 +38,14 @@ services:
        #- 6400:6400  # pg protocol handler
        - 9898:9898 # http endpoints
     volumes:
-      - ./pageserver_config:/data/.neon/
+      - ./pageserver_config:/data/.serendb/
     depends_on:
       - storage_broker
       - minio_create_buckets
 
   safekeeper1:
     restart: always
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon:${TAG:-latest}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb:${TAG:-latest}
     environment:
       - SAFEKEEPER_ADVERTISE_URL=safekeeper1:5454
       - SAFEKEEPER_ID=1
@@ -66,7 +66,7 @@ services:
                     --broker-endpoint=$$BROKER_ENDPOINT
                     -D /data
                     --remote-storage=\"{endpoint='http://minio:9000',
-                                        bucket_name='neon',
+                                        bucket_name='serendb',
                                         bucket_region='eu-north-1',
                                         prefix_in_bucket='/safekeeper/'}\""
     depends_on:
@@ -75,7 +75,7 @@ services:
 
   safekeeper2:
     restart: always
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon:${TAG:-latest}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb:${TAG:-latest}
     environment:
       - SAFEKEEPER_ADVERTISE_URL=safekeeper2:5454
       - SAFEKEEPER_ID=2
@@ -96,7 +96,7 @@ services:
                     --broker-endpoint=$$BROKER_ENDPOINT
                     -D /data
                     --remote-storage=\"{endpoint='http://minio:9000',
-                                        bucket_name='neon',
+                                        bucket_name='serendb',
                                         bucket_region='eu-north-1',
                                         prefix_in_bucket='/safekeeper/'}\""
     depends_on:
@@ -105,7 +105,7 @@ services:
 
   safekeeper3:
     restart: always
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon:${TAG:-latest}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb:${TAG:-latest}
     environment:
       - SAFEKEEPER_ADVERTISE_URL=safekeeper3:5454
       - SAFEKEEPER_ID=3
@@ -126,7 +126,7 @@ services:
                     --broker-endpoint=$$BROKER_ENDPOINT
                     -D /data
                     --remote-storage=\"{endpoint='http://minio:9000',
-                                        bucket_name='neon',
+                                        bucket_name='serendb',
                                         bucket_region='eu-north-1',
                                         prefix_in_bucket='/safekeeper/'}\""
     depends_on:
@@ -135,7 +135,7 @@ services:
 
   storage_broker:
     restart: always
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon:${TAG:-latest}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb:${TAG:-latest}
     ports:
       - 50051:50051
     command:
@@ -147,7 +147,7 @@ services:
     build:
       context: ./compute_wrapper/
       args:
-        - REPOSITORY=${REPOSITORY:-ghcr.io/neondatabase}
+        - REPOSITORY=${REPOSITORY:-ghcr.io/serenorg}
         - COMPUTE_IMAGE=compute-node-v${PG_VERSION:-16}
         - TAG=${COMPUTE_TAG:-${TAG:-latest}}
         - http_proxy=${http_proxy:-}
@@ -195,9 +195,9 @@ services:
     depends_on:
       - compute1
 
-  neon-test-extensions:
+  serendb-test-extensions:
     profiles: ["test-extensions"]
-    image: ${REPOSITORY:-ghcr.io/neondatabase}/neon-test-extensions-v${PG_TEST_VERSION:-${PG_VERSION:-16}}:${TEST_EXTENSIONS_TAG:-${TAG:-latest}}
+    image: ${REPOSITORY:-ghcr.io/serenorg}/serendb-test-extensions-v${PG_TEST_VERSION:-${PG_VERSION:-16}}:${TEST_EXTENSIONS_TAG:-${TAG:-latest}}
     environment:
       - PGUSER=${PGUSER:-cloud_admin}
       - PGPASSWORD=${PGPASSWORD:-cloud_admin}

@@ -33,7 +33,7 @@ index d777d76..3b54396 100644
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT ALL ON FUNCTION duckdb.install_extension(TEXT) TO %I', privileged_role_name);
 +  EXECUTE format('GRANT ALL ON TABLE duckdb.extensions TO %I', privileged_role_name);

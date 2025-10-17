@@ -63,9 +63,9 @@
 #include "bitmap.h"
 #include "communicator.h"
 #include "file_cache.h"
-#include "neon.h"
-#include "neon_lwlsncache.h"
-#include "neon_perf_counters.h"
+#include "serendb.h"
+#include "serendb_lwlsncache.h"
+#include "serendb_perf_counters.h"
 #include "pagestore_client.h"
 
 #if PG_VERSION_NUM >= 150000
@@ -99,10 +99,10 @@ int debug_compare_local;
 static NRelFileInfo unlogged_build_rel_info;
 static UnloggedBuildPhase unlogged_build_phase = UNLOGGED_BUILD_NOT_IN_PROGRESS;
 
-static bool neon_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id);
+static bool serendb_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id);
 static bool (*old_redo_read_buffer_filter) (XLogReaderState *record, uint8 block_id) = NULL;
 
-static BlockNumber neon_nblocks(SMgrRelation reln, ForkNumber forknum);
+static BlockNumber serendb_nblocks(SMgrRelation reln, ForkNumber forknum);
 
 /*
  * Wrapper around log_newpage() that makes a temporary copy of the block and
@@ -178,7 +178,7 @@ PageIsEmptyHeapPage(char *buffer)
 
 #if PG_MAJORVERSION_NUM >= 17
 static void
-neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+serendb_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 				  BlockNumber nblocks, const char **buffers, bool force)
 {
 #define BLOCK_BATCH_SIZE	16
@@ -216,7 +216,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			PageSetLSN(unconstify(char *, buffers[i]), recptr);
 
 		ereport(SmgrTrace,
-				(errmsg(NEON_TAG "Page %u through %u of relation %u/%u/%u.%u "
+				(errmsg(SERENDB_TAG "Page %u through %u of relation %u/%u/%u.%u "
 								 "were force logged, lsn=%X/%X",
 						blocknum, blocknum + nblocks,
 						RelFileInfoFmt(InfoFromSMgrRel(reln)),
@@ -233,7 +233,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		{
 			/*
 			 * When PostgreSQL extends a relation, it calls smgrextend() with an
-			 * all-zeros pages, and we can just ignore that in Neon. We do need to
+			 * all-zeros pages, and we can just ignore that in SerenDB. We do need to
 			 * remember the new size, though, so that smgrnblocks() returns the
 			 * right answer after the rel has been extended. We rely on the
 			 * relsize cache for that.
@@ -252,7 +252,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			if (PageIsNew(page))
 			{
 				ereport(SmgrTrace,
-						(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is all-zeros",
+						(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is all-zeros",
 								blkno,
 								RelFileInfoFmt(InfoFromSMgrRel(reln)),
 								forknum)));
@@ -260,7 +260,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			else if (PageIsEmptyHeapPage(page))
 			{
 				ereport(SmgrTrace,
-						(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is an empty heap page with no LSN",
+						(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is an empty heap page with no LSN",
 								blkno,
 								RelFileInfoFmt(InfoFromSMgrRel(reln)),
 								forknum)));
@@ -277,7 +277,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 				 * value in that case, which is the last replayed LSN.
 				 */
 				ereport(RecoveryInProgress() ? LOG : PANIC,
-						(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is evicted with zero LSN",
+						(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is evicted with zero LSN",
 								blkno,
 								RelFileInfoFmt(InfoFromSMgrRel(reln)),
 								forknum)));
@@ -289,7 +289,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		else
 		{
 			ereport(SmgrTrace,
-					(errmsg(NEON_TAG "Evicting page %u of relation %u/%u/%u.%u with lsn=%X/%X",
+					(errmsg(SERENDB_TAG "Evicting page %u of relation %u/%u/%u.%u with lsn=%X/%X",
 							blkno,
 							RelFileInfoFmt(InfoFromSMgrRel(reln)),
 							forknum, LSN_FORMAT_ARGS(lsn))));
@@ -303,7 +303,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 
 		if (batch_size >= BLOCK_BATCH_SIZE)
 		{
-			neon_set_lwlsn_block_v(lsns, InfoFromSMgrRel(reln), forknum,
+			serendb_set_lwlsn_block_v(lsns, InfoFromSMgrRel(reln), forknum,
 									   batch_blockno,
 									   batch_size);
 			batch_blockno += batch_size;
@@ -313,7 +313,7 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 
 	if (batch_size != 0)
 	{
-		neon_set_lwlsn_block_v(lsns, InfoFromSMgrRel(reln), forknum,
+		serendb_set_lwlsn_block_v(lsns, InfoFromSMgrRel(reln), forknum,
 								   batch_blockno,
 								   batch_size);
 	}
@@ -326,10 +326,10 @@ neon_wallog_pagev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  */
 #if PG_MAJORVERSION_NUM < 16
 static void
-neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, char *buffer, bool force)
+serendb_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, char *buffer, bool force)
 #else
 static void
-neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const char *buffer, bool force)
+serendb_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const char *buffer, bool force)
 #endif
 {
 	XLogRecPtr	lsn = PageGetLSN((Page) buffer);
@@ -364,7 +364,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 		XLogFlush(recptr);
 		lsn = recptr;
 		ereport(SmgrTrace,
-				(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u was force logged. Evicted at lsn=%X/%X",
+				(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u was force logged. Evicted at lsn=%X/%X",
 						blocknum,
 						RelFileInfoFmt(InfoFromSMgrRel(reln)),
 						forknum, LSN_FORMAT_ARGS(lsn))));
@@ -374,7 +374,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 	{
 		/*
 		 * When PostgreSQL extends a relation, it calls smgrextend() with an
-		 * all-zeros pages, and we can just ignore that in Neon. We do need to
+		 * all-zeros pages, and we can just ignore that in SerenDB. We do need to
 		 * remember the new size, though, so that smgrnblocks() returns the
 		 * right answer after the rel has been extended. We rely on the
 		 * relsize cache for that.
@@ -393,7 +393,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 		if (PageIsNew((Page) buffer))
 		{
 			ereport(SmgrTrace,
-					(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is all-zeros",
+					(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is all-zeros",
 							blocknum,
 							RelFileInfoFmt(InfoFromSMgrRel(reln)),
 							forknum)));
@@ -401,7 +401,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 		else if (PageIsEmptyHeapPage((Page) buffer))
 		{
 			ereport(SmgrTrace,
-					(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is an empty heap page with no LSN",
+					(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is an empty heap page with no LSN",
 							blocknum,
 							RelFileInfoFmt(InfoFromSMgrRel(reln)),
 							forknum)));
@@ -418,7 +418,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 			 * value in that case, which is the last replayed LSN.
 			 */
 			ereport(RecoveryInProgress() ? LOG : PANIC,
-					(errmsg(NEON_TAG "Page %u of relation %u/%u/%u.%u is evicted with zero LSN",
+					(errmsg(SERENDB_TAG "Page %u of relation %u/%u/%u.%u is evicted with zero LSN",
 							blocknum,
 							RelFileInfoFmt(InfoFromSMgrRel(reln)),
 							forknum)));
@@ -430,7 +430,7 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 	else
 	{
 		ereport(SmgrTrace,
-				(errmsg(NEON_TAG "Evicting page %u of relation %u/%u/%u.%u with lsn=%X/%X",
+				(errmsg(SERENDB_TAG "Evicting page %u of relation %u/%u/%u.%u with lsn=%X/%X",
 						blocknum,
 						RelFileInfoFmt(InfoFromSMgrRel(reln)),
 						forknum, LSN_FORMAT_ARGS(lsn))));
@@ -440,14 +440,14 @@ neon_wallog_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, co
 	 * Remember the LSN on this page. When we read the page again, we must
 	 * read the same or newer version of it.
 	 */
-	neon_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forknum, blocknum);
+	serendb_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forknum, blocknum);
 }
 
 /*
- *	neon_init() -- Initialize private state
+ *	serendb_init() -- Initialize private state
  */
 static void
-neon_init(void)
+serendb_init(void)
 {
 	/*
 	 * Sanity check that theperf counters array is sized correctly. We got
@@ -459,12 +459,12 @@ neon_init(void)
 	 * releases.
 	 */
 #if PG_VERSION_NUM>=150000
-	if (MyNeonCounters >= &neon_per_backend_counters_shared[NUM_NEON_PERF_COUNTER_SLOTS])
-		elog(ERROR, "MyNeonCounters points past end of array");
+	if (MySerenDBCounters >= &serendb_per_backend_counters_shared[NUM_SERENDB_PERF_COUNTER_SLOTS])
+		elog(ERROR, "MySerenDBCounters points past end of array");
 #endif
 
 	old_redo_read_buffer_filter = redo_read_buffer_filter;
-	redo_read_buffer_filter = neon_redo_read_buffer_filter;
+	redo_read_buffer_filter = serendb_redo_read_buffer_filter;
 
 	if (debug_compare_local)
 	{
@@ -504,14 +504,14 @@ nm_adjust_lsn(XLogRecPtr lsn)
  * XXX: exposed so that prefetch_do_request() can call back here.
  */
 void
-neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
-					  neon_request_lsns *output, BlockNumber nblocks)
+serendb_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
+					  serendb_request_lsns *output, BlockNumber nblocks)
 {
 	XLogRecPtr	last_written_lsns[PG_IOV_MAX];
 
 	Assert(nblocks <= PG_IOV_MAX);
 
-	neon_get_lwlsn_v(rinfo, forknum, blkno, (int) nblocks, last_written_lsns);
+	serendb_get_lwlsn_v(rinfo, forknum, blkno, (int) nblocks, last_written_lsns);
 
 	for (int i = 0; i < nblocks; i++)
 	{
@@ -561,7 +561,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 		 *    hold the locks on pages that they modify, until all the changes
 		 *    have been modified (?), which would make that impossible.
 		 *    However, we skip the locking, if the page isn't currently in the
-		 *    page cache (see neon_redo_read_buffer_filter below).
+		 *    page cache (see serendb_redo_read_buffer_filter below).
 		 *
 		 * Even if the one of the above cases were possible in theory, they
 		 * would also require the pages being modified by the redo function to
@@ -579,7 +579,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 		 *
 		 * This can happen, if the redo function has started to run, and saw
 		 * that the page isn't present in the page cache (see
-		 * neon_redo_read_buffer_filter below).  Normally, in a normal
+		 * serendb_redo_read_buffer_filter below).  Normally, in a normal
 		 * Postgres server, the redo function would hold a lock on the page,
 		 * so we would get blocked waiting the redo function to release the
 		 * lock. To emulate that, wait for the WAL replay of the record to
@@ -590,7 +590,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 
 		for (int i = 0; i < nblocks; i++)
 		{
-			neon_request_lsns *result = &output[i];
+			serendb_request_lsns *result = &output[i];
 			XLogRecPtr	last_written_lsn = last_written_lsns[i];
 
 			if (last_written_lsn > replay_lsn)
@@ -602,7 +602,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 
 				/*
 				 * Cases 2 and 4. If this is a backend (case 4), the
-				 * neon_read_at_lsn() call later will wait for the WAL record to be
+				 * serendb_read_at_lsn() call later will wait for the WAL record to be
 				 * fully replayed.
 				 */
 				result->request_lsn = last_written_lsn;
@@ -617,7 +617,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 			result->effective_request_lsn = result->request_lsn;
 			Assert(last_written_lsn <= result->request_lsn);
 
-			neon_log(DEBUG1, "neon_get_request_lsns request lsn %X/%X, not_modified_since %X/%X",
+			serendb_log(DEBUG1, "serendb_get_request_lsns request lsn %X/%X, not_modified_since %X/%X",
 					 LSN_FORMAT_ARGS(result->request_lsn), LSN_FORMAT_ARGS(result->not_modified_since));
 		}
 	}
@@ -632,7 +632,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 
 		for (int i = 0; i < nblocks; i++)
 		{
-			neon_request_lsns *result = &output[i];
+			serendb_request_lsns *result = &output[i];
 			XLogRecPtr	last_written_lsn = last_written_lsns[i];
 
 			/*
@@ -641,7 +641,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 			 * must still in the buffer cache, so our request cannot concern
 			 * those.
 			 */
-			neon_log(DEBUG1, "neon_get_request_lsns GetLastWrittenLSN lsn %X/%X",
+			serendb_log(DEBUG1, "serendb_get_request_lsns GetLastWrittenLSN lsn %X/%X",
 					 LSN_FORMAT_ARGS(last_written_lsn));
 
 			/*
@@ -654,7 +654,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 			 */
 			if (last_written_lsn > flushlsn)
 			{
-				neon_log(DEBUG5, "last-written LSN %X/%X is ahead of last flushed LSN %X/%X",
+				serendb_log(DEBUG5, "last-written LSN %X/%X is ahead of last flushed LSN %X/%X",
 						 LSN_FORMAT_ARGS(last_written_lsn),
 						 LSN_FORMAT_ARGS(flushlsn));
 				XLogFlush(last_written_lsn);
@@ -678,11 +678,11 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 			 * but it is not correct. Consider the following scenario:
 			 * 1. Backend A wants to prefetch block X
 			 * 2. Backend A checks that block X is not present in the shared buffer cache
-			 * 3. Backend A calls prefetch_do_request, which calls neon_get_request_lsns
-			 * 4. neon_get_request_lsns obtains LwLSN=11 for the block
+			 * 3. Backend A calls prefetch_do_request, which calls serendb_get_request_lsns
+			 * 4. serendb_get_request_lsns obtains LwLSN=11 for the block
 			 * 5. Backend B downloads block X, updates and wallogs it with LSN=13
 			 * 6. Block X is once again evicted from shared buffers, its LwLSN is set to LSN=13
-			 * 7. Backend A is still executing in neon_get_request_lsns(). It calls 'flushlsn = GetFlushRecPtr();'.
+			 * 7. Backend A is still executing in serendb_get_request_lsns(). It calls 'flushlsn = GetFlushRecPtr();'.
 			 *    Let's say that it is LSN=14
 			 * 8. Backend A uses LSN=14 as effective_lsn in the prefetch slot. The request stored in the slot is
 			 *    [not_modified_since=11, effective_request_lsn=14]
@@ -690,7 +690,7 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 			 *    The last LSN that the pageserver had processed was LSN=12, so the page image in the response is valid at LSN=12.
 			 * 10. Backend A calls smgrread() for page X with LwLSN=13
 			 * 11. Backend A finds in prefetch ring the response for the prefetch request with [not_modified_since=11, effective_lsn=Lsn14],
-			 * so it satisfies neon_prefetch_response_usable condition.
+			 * so it satisfies serendb_prefetch_response_usable condition.
 			 *
 			 * Things go wrong in step 7-8, when [not_modified_since=11, effective_request_lsn=14] is determined for the request.
 			 * That is incorrect, because the page has in fact been modified at LSN=13. The invariant is that for any request,
@@ -707,13 +707,13 @@ neon_get_request_lsns(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno,
 }
 
 /*
- *	neon_exists() -- Does the physical file exist?
+ *	serendb_exists() -- Does the physical file exist?
  */
 static bool
-neon_exists(SMgrRelation reln, ForkNumber forkNum)
+serendb_exists(SMgrRelation reln, ForkNumber forkNum)
 {
 	BlockNumber n_blocks;
-	neon_request_lsns request_lsns;
+	serendb_request_lsns request_lsns;
 
 	switch (reln->smgr_relpersistence)
 	{
@@ -737,7 +737,7 @@ neon_exists(SMgrRelation reln, ForkNumber forkNum)
 			return mdexists(reln, forkNum);
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	if (get_cached_relsize(InfoFromSMgrRel(reln), forkNum, &n_blocks))
@@ -768,24 +768,24 @@ neon_exists(SMgrRelation reln, ForkNumber forkNum)
 		return false;
 	}
 
-	neon_get_request_lsns(InfoFromSMgrRel(reln), forkNum,
+	serendb_get_request_lsns(InfoFromSMgrRel(reln), forkNum,
 						  REL_METADATA_PSEUDO_BLOCKNO, &request_lsns, 1);
 
 	return communicator_exists(InfoFromSMgrRel(reln), forkNum, &request_lsns);
 }
 
 /*
- *	neon_create() -- Create a new relation on neond storage
+ *	serendb_create() -- Create a new relation on SerenDB storage
  *
  * If isRedo is true, it's okay for the relation to exist already.
  */
 static void
-neon_create(SMgrRelation reln, ForkNumber forkNum, bool isRedo)
+serendb_create(SMgrRelation reln, ForkNumber forkNum, bool isRedo)
 {
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrcreate() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrcreate() on rel with unknown persistence");
 
 		case RELPERSISTENCE_PERMANENT:
 			break;
@@ -805,10 +805,10 @@ neon_create(SMgrRelation reln, ForkNumber forkNum, bool isRedo)
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
-	neon_log(SmgrTrace, "Create relation %u/%u/%u.%u",
+	serendb_log(SmgrTrace, "Create relation %u/%u/%u.%u",
 		 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 		 forkNum);
 
@@ -848,7 +848,7 @@ neon_create(SMgrRelation reln, ForkNumber forkNum, bool isRedo)
 }
 
 /*
- *	neon_unlink() -- Unlink a relation.
+ *	serendb_unlink() -- Unlink a relation.
  *
  * Note that we're passed a RelFileNodeBackend --- by the time this is called,
  * there won't be an SMgrRelation hashtable entry anymore.
@@ -866,7 +866,7 @@ neon_create(SMgrRelation reln, ForkNumber forkNum, bool isRedo)
  * we are usually not in a transaction anymore when this is called.
  */
 static void
-neon_unlink(NRelFileInfoBackend rinfo, ForkNumber forkNum, bool isRedo)
+serendb_unlink(NRelFileInfoBackend rinfo, ForkNumber forkNum, bool isRedo)
 {
 	/*
 	 * Might or might not exist locally, depending on whether it's an unlogged
@@ -881,7 +881,7 @@ neon_unlink(NRelFileInfoBackend rinfo, ForkNumber forkNum, bool isRedo)
 }
 
 /*
- *	neon_extend() -- Add a block to the specified relation.
+ *	serendb_extend() -- Add a block to the specified relation.
  *
  *		The semantics are nearly the same as mdwrite(): write at the
  *		specified position.  However, this is to be used for the case of
@@ -891,10 +891,10 @@ neon_unlink(NRelFileInfoBackend rinfo, ForkNumber forkNum, bool isRedo)
  */
 static void
 #if PG_MAJORVERSION_NUM < 16
-neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
+serendb_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 			char *buffer, bool skipFsync)
 #else
-neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
+serendb_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 			const void *buffer, bool skipFsync)
 #endif
 {
@@ -904,7 +904,7 @@ neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrextend() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrextend() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -921,7 +921,7 @@ neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	/*
@@ -935,14 +935,14 @@ neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 		reln->smgr_relpersistence == RELPERSISTENCE_PERMANENT &&
 		!AmAutoVacuumWorkerProcess())
 	{
-		uint64		current_size = GetNeonCurrentClusterSize();
+		uint64		current_size = GetSerenDBCurrentClusterSize();
 
 		if (current_size >= ((uint64) max_cluster_size) * 1024 * 1024)
 			ereport(ERROR,
 					(errcode(ERRCODE_DISK_FULL),
 					 errmsg("could not extend file because project size limit (%d MB) has been exceeded",
 							max_cluster_size),
-					 errhint("This limit is defined externally by the project size limit, and internally by neon.max_cluster_size GUC")));
+					 errhint("This limit is defined externally by the project size limit, and internally by serendb.max_cluster_size GUC")));
 	}
 
 	/*
@@ -951,15 +951,15 @@ neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 	 * CreateAndCopyRelationData call smgrextend for destination relation n
 	 * using size of source relation
 	 */
-	n_blocks = neon_nblocks(reln, forkNum);
+	n_blocks = serendb_nblocks(reln, forkNum);
 	while (n_blocks < blkno)
-		neon_wallog_page(reln, forkNum, n_blocks++, buffer, true);
+		serendb_wallog_page(reln, forkNum, n_blocks++, buffer, true);
 
-	neon_wallog_page(reln, forkNum, blkno, buffer, false);
+	serendb_wallog_page(reln, forkNum, blkno, buffer, false);
 	set_cached_relsize(InfoFromSMgrRel(reln), forkNum, blkno + 1);
 
 	lsn = PageGetLSN((Page) buffer);
-	neon_log(SmgrTrace, "smgrextend called for %u/%u/%u.%u blk %u, page LSN: %X/%08X",
+	serendb_log(SmgrTrace, "smgrextend called for %u/%u/%u.%u blk %u, page LSN: %X/%08X",
 		 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 		 forkNum, blkno,
 		 (uint32) (lsn >> 32), (uint32) lsn);
@@ -982,14 +982,14 @@ neon_extend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno,
 	if (lsn == InvalidXLogRecPtr)
 	{
 		lsn = GetXLogInsertRecPtr();
-		neon_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forkNum, blkno);
+		serendb_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forkNum, blkno);
 	}
-	neon_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forkNum);
+	serendb_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forkNum);
 }
 
 #if PG_MAJORVERSION_NUM >= 16
 static void
-neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
+serendb_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 				int nblocks, bool skipFsync)
 {
 	const PGIOAlignedBlock buffer = {0};
@@ -999,7 +999,7 @@ neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrextend() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrextend() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1016,21 +1016,21 @@ neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	if (max_cluster_size > 0 &&
 		reln->smgr_relpersistence == RELPERSISTENCE_PERMANENT &&
 		!AmAutoVacuumWorkerProcess())
 	{
-		uint64		current_size = GetNeonCurrentClusterSize();
+		uint64		current_size = GetSerenDBCurrentClusterSize();
 
 		if (current_size >= ((uint64) max_cluster_size) * 1024 * 1024)
 			ereport(ERROR,
 					(errcode(ERRCODE_DISK_FULL),
 					 errmsg("could not extend file because project size limit (%d MB) has been exceeded",
 							max_cluster_size),
-					 errhint("This limit is defined by neon.max_cluster_size GUC")));
+					 errhint("This limit is defined by serendb.max_cluster_size GUC")));
 	}
 
 	/*
@@ -1041,7 +1041,7 @@ neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 	if ((uint64) blocknum + nblocks >= (uint64) InvalidBlockNumber)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg(NEON_TAG "cannot extend file \"%s\" beyond %u blocks",
+				 errmsg(SERENDB_TAG "cannot extend file \"%s\" beyond %u blocks",
 						relpath(reln->smgr_rlocator, forkNum),
 						InvalidBlockNumber)));
 
@@ -1078,7 +1078,7 @@ neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 		for (int i = 0; i < count; i++)
 		{
 			lfc_write(InfoFromSMgrRel(reln), forkNum, blocknum + i, buffer.data);
-			neon_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forkNum,
+			serendb_set_lwlsn_block(lsn, InfoFromSMgrRel(reln), forkNum,
 									  blocknum + i);
 		}
 
@@ -1088,16 +1088,16 @@ neon_zeroextend(SMgrRelation reln, ForkNumber forkNum, BlockNumber blocknum,
 
 	Assert(lsn != 0);
 
-	neon_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forkNum);
+	serendb_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forkNum);
 	set_cached_relsize(InfoFromSMgrRel(reln), forkNum, blocknum);
 }
 #endif
 
 /*
- *  neon_open() -- Initialize newly-opened relation.
+ *  serendb_open() -- Initialize newly-opened relation.
  */
 static void
-neon_open(SMgrRelation reln)
+serendb_open(SMgrRelation reln)
 {
 	/*
 	 * We don't have anything special to do here. Call mdopen() to let md.c
@@ -1108,14 +1108,14 @@ neon_open(SMgrRelation reln)
 	mdopen(reln);
 
 	/* no work */
-	neon_log(SmgrTrace, "open noop");
+	serendb_log(SmgrTrace, "open noop");
 }
 
 /*
- *	neon_close() -- Close the specified relation, if it isn't closed already.
+ *	serendb_close() -- Close the specified relation, if it isn't closed already.
  */
 static void
-neon_close(SMgrRelation reln, ForkNumber forknum)
+serendb_close(SMgrRelation reln, ForkNumber forknum)
 {
 	/*
 	 * Let md.c close it, if it had it open. Doesn't hurt to do this even for
@@ -1127,10 +1127,10 @@ neon_close(SMgrRelation reln, ForkNumber forknum)
 
 #if PG_MAJORVERSION_NUM >= 17
 /*
- *	neon_prefetch() -- Initiate asynchronous read of the specified block of a relation
+ *	serendb_prefetch() -- Initiate asynchronous read of the specified block of a relation
  */
 static bool
-neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+serendb_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			  int nblocks)
 {
 	BufferTag	tag;
@@ -1146,7 +1146,7 @@ neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			return mdprefetch(reln, forknum, blocknum, nblocks);
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	tag.spcOid = reln->smgr_rlocator.locator.spcOid;
@@ -1183,10 +1183,10 @@ neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 
 #else /* PG_MAJORVERSION_NUM >= 17 */
 /*
- *	neon_prefetch() -- Initiate asynchronous read of the specified block of a relation
+ *	serendb_prefetch() -- Initiate asynchronous read of the specified block of a relation
  */
 static bool
-neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum)
+serendb_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum)
 {
 	BufferTag	tag;
 
@@ -1201,7 +1201,7 @@ neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum)
 			return mdprefetch(reln, forknum, blocknum);
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	if (lfc_cache_contains(InfoFromSMgrRel(reln), forknum, blocknum))
@@ -1222,13 +1222,13 @@ neon_prefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum)
 
 
 /*
- * neon_writeback() -- Tell the kernel to write pages back to storage.
+ * serendb_writeback() -- Tell the kernel to write pages back to storage.
  *
  * This accepts a range of blocks because flushing several pages at once is
  * considerably more efficient than doing so individually.
  */
 static void
-neon_writeback(SMgrRelation reln, ForkNumber forknum,
+serendb_writeback(SMgrRelation reln, ForkNumber forknum,
 			   BlockNumber blocknum, BlockNumber nblocks)
 {
 	switch (reln->smgr_relpersistence)
@@ -1247,7 +1247,7 @@ neon_writeback(SMgrRelation reln, ForkNumber forknum,
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	/*
@@ -1256,7 +1256,7 @@ neon_writeback(SMgrRelation reln, ForkNumber forknum,
 	 * persistently written, which does seem to be one of the assumed
 	 * properties of this smgr API call.
 	 */
-	neon_log(SmgrTrace, "writeback noop");
+	serendb_log(SmgrTrace, "writeback noop");
 
 	communicator_prefetch_pump_state();
 
@@ -1268,12 +1268,12 @@ neon_writeback(SMgrRelation reln, ForkNumber forknum,
 }
 
 /*
- * While function is defined in the neon extension it's used within neon_test_utils directly.
+ * While function is defined in the SerenDB extension it's used within serendb_test_utils directly.
  * To avoid breaking tests in the runtime please keep function signature in sync.
  */
 void
-neon_read_at_lsn(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
-				 neon_request_lsns request_lsns, void *buffer)
+serendb_read_at_lsn(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber blkno,
+				 serendb_request_lsns request_lsns, void *buffer)
 {
 	communicator_read_at_lsnv(rinfo, forkNum, blkno, &request_lsns, &buffer, 1, NULL);
 }
@@ -1303,7 +1303,7 @@ compare_with_local(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, voi
 		{
 			if (!PageIsNew((Page) pageserver_masked))
 			{
-				neon_log(PANIC, "page is new in MD but not in Page Server at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n%s\n",
+				serendb_log(PANIC, "page is new in MD but not in Page Server at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n%s\n",
 					 blkno,
 					 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 					 forkNum,
@@ -1313,7 +1313,7 @@ compare_with_local(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, voi
 		}
 		else if (PageIsNew((Page) buffer))
 		{
-			neon_log(PANIC, "page is new in Page Server but not in MD at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n%s\n",
+			serendb_log(PANIC, "page is new in Page Server but not in MD at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n%s\n",
 				 blkno,
 				 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 				 forkNum,
@@ -1328,7 +1328,7 @@ compare_with_local(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, voi
 
 			if (memcmp(mdbuf_masked.data, pageserver_masked, BLCKSZ) != 0)
 			{
-				neon_log(PANIC, "heap buffers differ at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n------ MD ------\n%s\n------ Page Server ------\n%s\n",
+				serendb_log(PANIC, "heap buffers differ at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n------ MD ------\n%s\n------ Page Server ------\n%s\n",
 					 blkno,
 					 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 					 forkNum,
@@ -1347,7 +1347,7 @@ compare_with_local(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, voi
 
 				if (memcmp(mdbuf_masked.data, pageserver_masked, BLCKSZ) != 0)
 				{
-					neon_log(PANIC, "btree buffers differ at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n------ MD ------\n%s\n------ Page Server ------\n%s\n",
+					serendb_log(PANIC, "btree buffers differ at blk %u in rel %u/%u/%u fork %u (request LSN %X/%08X):\n------ MD ------\n%s\n------ Page Server ------\n%s\n",
 						 blkno,
 						 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 						 forkNum,
@@ -1364,24 +1364,24 @@ compare_with_local(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, voi
 #if PG_MAJORVERSION_NUM < 17
 
 /*
- *	neon_read() -- Read the specified block from a relation.
+ *	serendb_read() -- Read the specified block from a relation.
  */
 #if PG_MAJORVERSION_NUM < 16
 static void
-neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, char *buffer)
+serendb_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, char *buffer)
 #else
 static void
-neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer)
+serendb_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer)
 #endif
 {
-	neon_request_lsns request_lsns;
+	serendb_request_lsns request_lsns;
 	bits8		present;
 	void	   *bufferp;
 
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrread() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrread() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1398,13 +1398,13 @@ neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	/* Try to read PS results if they are available */
 	communicator_prefetch_pump_state();
 
-	neon_get_request_lsns(InfoFromSMgrRel(reln), forkNum, blkno, &request_lsns, 1);
+	serendb_get_request_lsns(InfoFromSMgrRel(reln), forkNum, blkno, &request_lsns, 1);
 
 	present = 0;
 	bufferp = buffer;
@@ -1424,7 +1424,7 @@ neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer
 	/* Try to read from local file cache */
 	if (lfc_read(InfoFromSMgrRel(reln), forkNum, blkno, buffer))
 	{
-		MyNeonCounters->file_cache_hits_total++;
+		MySerenDBCounters->file_cache_hits_total++;
 		if (debug_compare_local >= DEBUG_COMPARE_LOCAL_LFC)
 		{
 			compare_with_local(reln, forkNum, blkno, buffer, request_lsns.request_lsn);
@@ -1435,7 +1435,7 @@ neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer
 		}
 	}
 
-	neon_read_at_lsn(InfoFromSMgrRel(reln), forkNum, blkno, request_lsns, buffer);
+	serendb_read_at_lsn(InfoFromSMgrRel(reln), forkNum, blkno, request_lsns, buffer);
 
 	/*
 	 * Try to receive prefetch results once again just to make sure we don't leave the smgr code while the OS might still have buffered bytes.
@@ -1452,7 +1452,7 @@ neon_read(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void *buffer
 #if PG_MAJORVERSION_NUM >= 17
 
 static void
-compare_with_localv(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void** buffers, BlockNumber nblocks, neon_request_lsns* request_lsns, bits8* read_pages)
+compare_with_localv(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, void** buffers, BlockNumber nblocks, serendb_request_lsns* request_lsns, bits8* read_pages)
 {
 	if (forkNum == MAIN_FORKNUM && IS_LOCAL_REL(reln))
 	{
@@ -1468,18 +1468,18 @@ compare_with_localv(SMgrRelation reln, ForkNumber forkNum, BlockNumber blkno, vo
 
 
 static void
-neon_readv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+serendb_readv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		   void **buffers, BlockNumber nblocks)
 {
 	bits8		read_pages[PG_IOV_MAX / 8];
-	neon_request_lsns request_lsns[PG_IOV_MAX];
+	serendb_request_lsns request_lsns[PG_IOV_MAX];
 	int			lfc_result;
 	int			prefetch_result;
 
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrread() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrread() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1496,17 +1496,17 @@ neon_readv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	if (nblocks > PG_IOV_MAX)
-		neon_log(ERROR, "Read request too large: %d is larger than max %d",
+		serendb_log(ERROR, "Read request too large: %d is larger than max %d",
 				 nblocks, PG_IOV_MAX);
 
 	/* Try to read PS results if they are available */
 	communicator_prefetch_pump_state();
 
-	neon_get_request_lsns(InfoFromSMgrRel(reln), forknum, blocknum,
+	serendb_get_request_lsns(InfoFromSMgrRel(reln), forknum, blocknum,
 						  request_lsns, nblocks);
 
 	memset(read_pages, 0, sizeof(read_pages));
@@ -1534,7 +1534,7 @@ neon_readv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 								  nblocks, read_pages);
 
 	if (lfc_result > 0)
-		MyNeonCounters->file_cache_hits_total += lfc_result;
+		MySerenDBCounters->file_cache_hits_total += lfc_result;
 
 	if (debug_compare_local >= DEBUG_COMPARE_LOCAL_LFC)
 	{
@@ -1587,7 +1587,7 @@ hexdump_page(char *page)
 
 #if PG_MAJORVERSION_NUM < 17
 /*
- *	neon_write() -- Write the supplied block at the appropriate location.
+ *	serendb_write() -- Write the supplied block at the appropriate location.
  *
  *		This is to be used only for updating already-existing blocks of a
  *		relation (ie, those before the current EOF).  To extend a relation,
@@ -1595,9 +1595,9 @@ hexdump_page(char *page)
  */
 static void
 #if PG_MAJORVERSION_NUM < 16
-neon_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, char *buffer, bool skipFsync)
+serendb_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, char *buffer, bool skipFsync)
 #else
-neon_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const void *buffer, bool skipFsync)
+serendb_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const void *buffer, bool skipFsync)
 #endif
 {
 	XLogRecPtr	lsn;
@@ -1646,13 +1646,13 @@ neon_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const vo
 			#endif
 			return;
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
-	neon_wallog_page(reln, forknum, blocknum, buffer, false);
+	serendb_wallog_page(reln, forknum, blocknum, buffer, false);
 
 	lsn = PageGetLSN((Page) buffer);
-	neon_log(SmgrTrace, "smgrwrite called for %u/%u/%u.%u blk %u, page LSN: %X/%08X",
+	serendb_log(SmgrTrace, "smgrwrite called for %u/%u/%u.%u blk %u, page LSN: %X/%08X",
 		 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 		 forknum, blocknum,
 		 (uint32) (lsn >> 32), (uint32) lsn);
@@ -1679,7 +1679,7 @@ neon_write(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, const vo
 
 #if PG_MAJORVERSION_NUM >= 17
 static void
-neon_writev(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
+serendb_writev(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 			 const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
 	switch (reln->smgr_relpersistence)
@@ -1715,10 +1715,10 @@ neon_writev(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 			mdwritev(reln, forknum, blkno, buffers, nblocks, skipFsync);
 			return;
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
-	neon_wallog_pagev(reln, forknum, blkno, nblocks, (const char **) buffers, false);
+	serendb_wallog_pagev(reln, forknum, blkno, nblocks, (const char **) buffers, false);
 
 	lfc_writev(InfoFromSMgrRel(reln), forknum, blkno, buffers, nblocks);
 
@@ -1734,18 +1734,18 @@ neon_writev(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 #endif
 
 /*
- *	neon_nblocks() -- Get the number of blocks stored in a relation.
+ *	serendb_nblocks() -- Get the number of blocks stored in a relation.
  */
 static BlockNumber
-neon_nblocks(SMgrRelation reln, ForkNumber forknum)
+serendb_nblocks(SMgrRelation reln, ForkNumber forknum)
 {
 	BlockNumber n_blocks;
-	neon_request_lsns request_lsns;
+	serendb_request_lsns request_lsns;
 
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrnblocks() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrnblocks() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1760,24 +1760,24 @@ neon_nblocks(SMgrRelation reln, ForkNumber forknum)
 			return mdnblocks(reln, forknum);
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	if (get_cached_relsize(InfoFromSMgrRel(reln), forknum, &n_blocks))
 	{
-		neon_log(SmgrTrace, "cached nblocks for %u/%u/%u.%u: %u blocks",
+		serendb_log(SmgrTrace, "cached nblocks for %u/%u/%u.%u: %u blocks",
 			 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 			 forknum, n_blocks);
 		return n_blocks;
 	}
 
-	neon_get_request_lsns(InfoFromSMgrRel(reln), forknum,
+	serendb_get_request_lsns(InfoFromSMgrRel(reln), forknum,
 						  REL_METADATA_PSEUDO_BLOCKNO, &request_lsns, 1);
 
 	n_blocks = communicator_nblocks(InfoFromSMgrRel(reln), forknum, &request_lsns);
 	update_cached_relsize(InfoFromSMgrRel(reln), forknum, n_blocks);
 
-	neon_log(SmgrTrace, "neon_nblocks: rel %u/%u/%u fork %u (request LSN %X/%08X): %u blocks",
+	serendb_log(SmgrTrace, "serendb_nblocks: rel %u/%u/%u fork %u (request LSN %X/%08X): %u blocks",
 			 RelFileInfoFmt(InfoFromSMgrRel(reln)),
 			 forknum,
 			 LSN_FORMAT_ARGS(request_lsns.effective_request_lsn),
@@ -1787,38 +1787,38 @@ neon_nblocks(SMgrRelation reln, ForkNumber forknum)
 }
 
 /*
- *	neon_db_size() -- Get the size of the database in bytes.
+ *	serendb_db_size() -- Get the size of the database in bytes.
  */
 int64
-neon_dbsize(Oid dbNode)
+serendb_dbsize(Oid dbNode)
 {
 	int64		db_size;
-	neon_request_lsns request_lsns;
+	serendb_request_lsns request_lsns;
 	NRelFileInfo dummy_node = {0};
 
-	neon_get_request_lsns(dummy_node, MAIN_FORKNUM,
+	serendb_get_request_lsns(dummy_node, MAIN_FORKNUM,
 						  REL_METADATA_PSEUDO_BLOCKNO, &request_lsns, 1);
 
 	db_size = communicator_dbsize(dbNode, &request_lsns);
 
-	neon_log(SmgrTrace, "neon_dbsize: db %u (request LSN %X/%08X): %ld bytes",
+	serendb_log(SmgrTrace, "serendb_dbsize: db %u (request LSN %X/%08X): %ld bytes",
 			 dbNode, LSN_FORMAT_ARGS(request_lsns.effective_request_lsn), db_size);
 
 	return db_size;
 }
 
 /*
- *	neon_truncate() -- Truncate relation to specified number of blocks.
+ *	serendb_truncate() -- Truncate relation to specified number of blocks.
  */
 static void
-neon_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, BlockNumber nblocks)
+serendb_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, BlockNumber nblocks)
 {
 	XLogRecPtr	lsn;
 
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrtruncate() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrtruncate() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1835,7 +1835,7 @@ neon_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, Blo
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 	set_cached_relsize(InfoFromSMgrRel(reln), forknum, nblocks);
@@ -1865,7 +1865,7 @@ neon_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, Blo
 	 * for the extended pages, so there's no harm in leaving behind obsolete
 	 * entries for the truncated chunks.
 	 */
-	neon_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forknum);
+	serendb_set_lwlsn_relation(lsn, InfoFromSMgrRel(reln), forknum);
 
 	if (debug_compare_local)
 	{
@@ -1875,7 +1875,7 @@ neon_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, Blo
 }
 
 /*
- *	neon_immedsync() -- Immediately sync a relation to stable storage.
+ *	serendb_immedsync() -- Immediately sync a relation to stable storage.
  *
  * Note that only writes already issued are synced; this routine knows
  * nothing of dirty buffers that may exist inside the buffer manager.  We
@@ -1886,12 +1886,12 @@ neon_truncate(SMgrRelation reln, ForkNumber forknum, BlockNumber old_blocks, Blo
  * segment may survive recovery, reintroducing unwanted data into the table.
  */
 static void
-neon_immedsync(SMgrRelation reln, ForkNumber forknum)
+serendb_immedsync(SMgrRelation reln, ForkNumber forknum)
 {
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrimmedsync() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrimmedsync() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1903,10 +1903,10 @@ neon_immedsync(SMgrRelation reln, ForkNumber forknum)
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
-	neon_log(SmgrTrace, "[NEON_SMGR] immedsync noop");
+	serendb_log(SmgrTrace, "[SERENDB_SMGR] immedsync noop");
 
 	communicator_prefetch_pump_state();
 
@@ -1919,12 +1919,12 @@ neon_immedsync(SMgrRelation reln, ForkNumber forknum)
 
 #if PG_MAJORVERSION_NUM >= 17
 static void
-neon_registersync(SMgrRelation reln, ForkNumber forknum)
+serendb_registersync(SMgrRelation reln, ForkNumber forknum)
 {
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgrregistersync() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgrregistersync() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1936,10 +1936,10 @@ neon_registersync(SMgrRelation reln, ForkNumber forknum)
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
-	neon_log(SmgrTrace, "[NEON_SMGR] registersync noop");
+	serendb_log(SmgrTrace, "[SERENDB_SMGR] registersync noop");
 
 	if (debug_compare_local)
 	{
@@ -1951,32 +1951,32 @@ neon_registersync(SMgrRelation reln, ForkNumber forknum)
 
 
 /*
- * neon_start_unlogged_build() -- Starting build operation on a rel.
+ * serendb_start_unlogged_build() -- Starting build operation on a rel.
  *
  * Some indexes are built in two phases, by first populating the table with
  * regular inserts, using the shared buffer cache but skipping WAL-logging,
- * and WAL-logging the whole relation after it's done. Neon relies on the
+ * and WAL-logging the whole relation after it's done. SerenDB relies on the
  * WAL to reconstruct pages, so we cannot use the page server in the
  * first phase when the changes are not logged.
  */
 static void
-neon_start_unlogged_build(SMgrRelation reln)
+serendb_start_unlogged_build(SMgrRelation reln)
 {
 	/*
 	 * Currently, there can be only one unlogged relation build operation in
 	 * progress at a time. That's enough for the current usage.
 	 */
 	if (unlogged_build_phase != UNLOGGED_BUILD_NOT_IN_PROGRESS)
-		neon_log(ERROR, "unlogged relation build is already in progress");
+		serendb_log(ERROR, "unlogged relation build is already in progress");
 
 	ereport(SmgrTrace,
-			(errmsg(NEON_TAG "starting unlogged build of relation %u/%u/%u",
+			(errmsg(SERENDB_TAG "starting unlogged build of relation %u/%u/%u",
 					RelFileInfoFmt(InfoFromSMgrRel(reln)))));
 
 	switch (reln->smgr_relpersistence)
 	{
 		case 0:
-			neon_log(ERROR, "cannot call smgr_start_unlogged_build() on rel with unknown persistence");
+			serendb_log(ERROR, "cannot call smgr_start_unlogged_build() on rel with unknown persistence");
 			break;
 
 		case RELPERSISTENCE_PERMANENT:
@@ -1994,7 +1994,7 @@ neon_start_unlogged_build(SMgrRelation reln)
 			return;
 
 		default:
-			neon_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
+			serendb_log(ERROR, "unknown relpersistence '%c'", reln->smgr_relpersistence);
 	}
 
 #if PG_MAJORVERSION_NUM >= 17
@@ -2003,7 +2003,7 @@ neon_start_unlogged_build(SMgrRelation reln)
 	 * to perform unlogged build several times
 	 */
 	if (smgrnblocks(reln, MAIN_FORKNUM) != 0)
-		neon_log(ERROR, "cannot perform unlogged index build, index is not empty ");
+		serendb_log(ERROR, "cannot perform unlogged index build, index is not empty ");
 #endif
 
 	unlogged_build_rel_info = InfoFromSMgrRel(reln);
@@ -2023,18 +2023,18 @@ neon_start_unlogged_build(SMgrRelation reln)
 }
 
 /*
- * neon_finish_unlogged_build_phase_1()
+ * serendb_finish_unlogged_build_phase_1()
  *
  * Call this after you have finished populating a relation in unlogged mode,
  * before you start WAL-logging it.
  */
 static void
-neon_finish_unlogged_build_phase_1(SMgrRelation reln)
+serendb_finish_unlogged_build_phase_1(SMgrRelation reln)
 {
 	Assert(RelFileInfoEquals(unlogged_build_rel_info, InfoFromSMgrRel(reln)));
 
 	ereport(SmgrTrace,
-			(errmsg(NEON_TAG "finishing phase 1 of unlogged build of relation %u/%u/%u",
+			(errmsg(SERENDB_TAG "finishing phase 1 of unlogged build of relation %u/%u/%u",
 					RelFileInfoFmt((unlogged_build_rel_info)))));
 
 	if (unlogged_build_phase == UNLOGGED_BUILD_NOT_PERMANENT)
@@ -2056,7 +2056,7 @@ neon_finish_unlogged_build_phase_1(SMgrRelation reln)
 }
 
 /*
- * neon_end_unlogged_build() -- Finish an unlogged rel build.
+ * serendb_end_unlogged_build() -- Finish an unlogged rel build.
  *
  * Call this after you have finished WAL-logging a relation that was
  * first populated without WAL-logging.
@@ -2065,14 +2065,14 @@ neon_finish_unlogged_build_phase_1(SMgrRelation reln)
  * WAL-logged and is present in the page server.
  */
 static void
-neon_end_unlogged_build(SMgrRelation reln)
+serendb_end_unlogged_build(SMgrRelation reln)
 {
 	NRelFileInfoBackend rinfob = InfoBFromSMgrRel(reln);
 
 	Assert(RelFileInfoEquals(unlogged_build_rel_info, InfoFromSMgrRel(reln)));
 
 	ereport(SmgrTrace,
-			(errmsg(NEON_TAG "ending unlogged build of relation %u/%u/%u",
+			(errmsg(SERENDB_TAG "ending unlogged build of relation %u/%u/%u",
 					RelFileInfoFmt(unlogged_build_rel_info))));
 
 	if (unlogged_build_phase != UNLOGGED_BUILD_NOT_PERMANENT)
@@ -2094,17 +2094,17 @@ neon_end_unlogged_build(SMgrRelation reln)
 		nblocks = mdnblocks(reln, MAIN_FORKNUM);
 		recptr = GetXLogInsertRecPtr();
 
-		neon_set_lwlsn_block_range(recptr,
+		serendb_set_lwlsn_block_range(recptr,
 								   InfoFromNInfoB(rinfob),
 								   MAIN_FORKNUM, 0, nblocks);
-		neon_set_lwlsn_relation(recptr,
+		serendb_set_lwlsn_relation(recptr,
 								InfoFromNInfoB(rinfob),
 								MAIN_FORKNUM);
 
 		/* Remove local copy */
 		for (int forknum = 0; forknum <= MAX_FORKNUM; forknum++)
 		{
-			neon_log(SmgrTrace, "forgetting cached relsize for %u/%u/%u.%u",
+			serendb_log(SmgrTrace, "forgetting cached relsize for %u/%u/%u.%u",
 				 RelFileInfoFmt(InfoFromNInfoB(rinfob)),
 				 forknum);
 
@@ -2128,16 +2128,16 @@ neon_end_unlogged_build(SMgrRelation reln)
 #define STRPREFIX(str, prefix) (strncmp(str, prefix, strlen(prefix)) == 0)
 
 static int
-neon_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* buffer)
+serendb_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* buffer)
 {
 	XLogRecPtr	request_lsn,
 				not_modified_since;
 	SlruKind	kind;
 	int			n_blocks;
-	neon_request_lsns request_lsns;
+	serendb_request_lsns request_lsns;
 
 	/*
-	 * Compute a request LSN to use, similar to neon_get_request_lsns() but the
+	 * Compute a request LSN to use, similar to serendb_get_request_lsns() but the
 	 * logic is a bit simpler.
 	 */
 	if (RecoveryInProgress())
@@ -2146,7 +2146,7 @@ neon_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* buf
 		if (request_lsn == InvalidXLogRecPtr)
 		{
 			/*
-			 * This happens in neon startup, we start up without replaying any
+			 * This happens in SerenDB startup, we start up without replaying any
 			 * records.
 			 */
 			request_lsn = GetRedoStartLsn();
@@ -2183,7 +2183,7 @@ neon_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* buf
 }
 
 static void
-AtEOXact_neon(XactEvent event, void *arg)
+AtEOXact_serendb(XactEvent event, void *arg)
 {
 	switch (event)
 	{
@@ -2210,74 +2210,74 @@ AtEOXact_neon(XactEvent event, void *arg)
 				unlogged_build_phase = UNLOGGED_BUILD_NOT_IN_PROGRESS;
 				ereport(ERROR,
 						(errcode(ERRCODE_INTERNAL_ERROR),
-						 (errmsg(NEON_TAG "unlogged index build was not properly finished"))));
+						 (errmsg(SERENDB_TAG "unlogged index build was not properly finished"))));
 			}
 			break;
 	}
 	communicator_reconfigure_timeout_if_needed();
 }
 
-static const struct f_smgr neon_smgr =
+static const struct f_smgr serendb_smgr =
 {
-	.smgr_init = neon_init,
+	.smgr_init = serendb_init,
 	.smgr_shutdown = NULL,
-	.smgr_open = neon_open,
-	.smgr_close = neon_close,
-	.smgr_create = neon_create,
-	.smgr_exists = neon_exists,
-	.smgr_unlink = neon_unlink,
-	.smgr_extend = neon_extend,
+	.smgr_open = serendb_open,
+	.smgr_close = serendb_close,
+	.smgr_create = serendb_create,
+	.smgr_exists = serendb_exists,
+	.smgr_unlink = serendb_unlink,
+	.smgr_extend = serendb_extend,
 #if PG_MAJORVERSION_NUM >= 16
-	.smgr_zeroextend = neon_zeroextend,
+	.smgr_zeroextend = serendb_zeroextend,
 #endif
 #if PG_MAJORVERSION_NUM >= 17
-	.smgr_prefetch = neon_prefetch,
-	.smgr_readv = neon_readv,
-	.smgr_writev = neon_writev,
+	.smgr_prefetch = serendb_prefetch,
+	.smgr_readv = serendb_readv,
+	.smgr_writev = serendb_writev,
 #else
-	.smgr_prefetch = neon_prefetch,
-	.smgr_read = neon_read,
-	.smgr_write = neon_write,
+	.smgr_prefetch = serendb_prefetch,
+	.smgr_read = serendb_read,
+	.smgr_write = serendb_write,
 #endif
 
-	.smgr_writeback = neon_writeback,
-	.smgr_nblocks = neon_nblocks,
-	.smgr_truncate = neon_truncate,
-	.smgr_immedsync = neon_immedsync,
+	.smgr_writeback = serendb_writeback,
+	.smgr_nblocks = serendb_nblocks,
+	.smgr_truncate = serendb_truncate,
+	.smgr_immedsync = serendb_immedsync,
 #if PG_MAJORVERSION_NUM >= 17
-	.smgr_registersync = neon_registersync,
+	.smgr_registersync = serendb_registersync,
 #endif
-	.smgr_start_unlogged_build = neon_start_unlogged_build,
-	.smgr_finish_unlogged_build_phase_1 = neon_finish_unlogged_build_phase_1,
-	.smgr_end_unlogged_build = neon_end_unlogged_build,
+	.smgr_start_unlogged_build = serendb_start_unlogged_build,
+	.smgr_finish_unlogged_build_phase_1 = serendb_finish_unlogged_build_phase_1,
+	.smgr_end_unlogged_build = serendb_end_unlogged_build,
 
-	.smgr_read_slru_segment = neon_read_slru_segment,
+	.smgr_read_slru_segment = serendb_read_slru_segment,
 };
 
 const f_smgr *
-smgr_neon(ProcNumber backend, NRelFileInfo rinfo)
+smgr_serendb(ProcNumber backend, NRelFileInfo rinfo)
 {
 
 	/* Don't use page server for temp relations */
 	if (backend != INVALID_PROC_NUMBER)
 		return smgr_standard(backend, rinfo);
 	else
-		return &neon_smgr;
+		return &serendb_smgr;
 }
 
 void
-smgr_init_neon(void)
+smgr_init_serendb(void)
 {
-	RegisterXactCallback(AtEOXact_neon, NULL);
+	RegisterXactCallback(AtEOXact_serendb, NULL);
 
 	smgr_init_standard();
-	neon_init();
+	serendb_init();
 	communicator_init();
 }
 
 
 static void
-neon_extend_rel_size(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno, XLogRecPtr end_recptr)
+serendb_extend_rel_size(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno, XLogRecPtr end_recptr)
 {
 	BlockNumber relsize;
 
@@ -2290,7 +2290,7 @@ neon_extend_rel_size(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno, 
 		if (relsize < blkno + 1)
 		{
 			update_cached_relsize(rinfo, forknum, blkno + 1);
-			neon_set_lwlsn_relation(end_recptr, rinfo, forknum);
+			serendb_set_lwlsn_relation(end_recptr, rinfo, forknum);
 		}
 	}
 	else
@@ -2302,9 +2302,9 @@ neon_extend_rel_size(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno, 
 		 * This length is later reused when we open the smgr to read the
 		 * block, which is fine and expected.
 		 */
-		neon_request_lsns request_lsns;
+		serendb_request_lsns request_lsns;
 
-		neon_get_request_lsns(rinfo, forknum,
+		serendb_get_request_lsns(rinfo, forknum,
 							  REL_METADATA_PSEUDO_BLOCKNO, &request_lsns, 1);
 
 		relsize = communicator_nblocks(rinfo, forknum, &request_lsns);
@@ -2312,9 +2312,9 @@ neon_extend_rel_size(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blkno, 
 		relsize = Max(relsize, blkno + 1);
 
 		set_cached_relsize(rinfo, forknum, relsize);
-		neon_set_lwlsn_relation(end_recptr, rinfo, forknum);
+		serendb_set_lwlsn_relation(end_recptr, rinfo, forknum);
 
-		neon_log(SmgrTrace, "Set length to %d", relsize);
+		serendb_log(SmgrTrace, "Set length to %d", relsize);
 	}
 }
 
@@ -2385,7 +2385,7 @@ get_fsm_physical_block(BlockNumber heapblk)
  * block 3 with post-REDO contents only.
  */
 static bool
-neon_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id)
+serendb_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id)
 {
 	XLogRecPtr	end_recptr = record->EndRecPtr;
 	NRelFileInfo rinfo;
@@ -2402,7 +2402,7 @@ neon_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id)
 
 #if PG_VERSION_NUM < 150000
 	if (!XLogRecGetBlockTag(record, block_id, &rinfo, &forknum, &blkno))
-		neon_log(PANIC, "failed to locate backup block with ID %d", block_id);
+		serendb_log(PANIC, "failed to locate backup block with ID %d", block_id);
 #else
 	XLogRecGetBlockTag(record, block_id, &rinfo, &forknum, &blkno);
 #endif
@@ -2443,7 +2443,7 @@ neon_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id)
 	 */
 	if (no_redo_needed)
 	{
-		neon_set_lwlsn_block(end_recptr, rinfo, forknum, blkno);
+		serendb_set_lwlsn_block(end_recptr, rinfo, forknum, blkno);
 		/*
 		 * Redo changes if page exists in LFC.
 		 * We should perform this check after assigning LwLSN to prevent
@@ -2454,10 +2454,10 @@ neon_redo_read_buffer_filter(XLogReaderState *record, uint8 block_id)
 
 	LWLockRelease(partitionLock);
 
-	neon_extend_rel_size(rinfo, forknum, blkno, end_recptr);
+	serendb_extend_rel_size(rinfo, forknum, blkno, end_recptr);
 	if (forknum == MAIN_FORKNUM)
 	{
-		neon_extend_rel_size(rinfo, FSM_FORKNUM, get_fsm_physical_block(blkno), end_recptr);
+		serendb_extend_rel_size(rinfo, FSM_FORKNUM, get_fsm_physical_block(blkno), end_recptr);
 	}
 	return no_redo_needed;
 }

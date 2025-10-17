@@ -156,7 +156,7 @@ The default distrib dir is `./pg_install/`.
 #### workdir (-D)
 
 A directory in the file system, where pageserver will store its files.
-The default is `./.neon/`.
+The default is `./.serendb/`.
 
 This parameter has a special CLI alias (`-D`) and can not be overridden with regular `-c` way.
 

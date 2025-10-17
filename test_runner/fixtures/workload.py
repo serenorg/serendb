@@ -4,9 +4,9 @@ import threading
 from typing import TYPE_CHECKING
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
+    SerenDBEnv,
     last_flush_lsn_upload,
     tenant_get_shards,
     wait_for_last_flush_lsn,
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
     from fixtures.common_types import TenantId, TimelineId
 
-# neon_local doesn't handle creating/modifying endpoints concurrently, so we use a mutex
+# serendb_local doesn't handle creating/modifying endpoints concurrently, so we use a mutex
 # to ensure we don't do that: this enables running lots of Workloads in parallel safely.
 ENDPOINT_LOCK = threading.Lock()
 
@@ -34,7 +34,7 @@ class Workload:
 
     def __init__(
         self,
-        env: NeonEnv,
+        env: SerenDBEnv,
         tenant_id: TenantId,
         timeline_id: TimelineId,
         branch_name: str | None = None,
@@ -45,7 +45,7 @@ class Workload:
         self.timeline_id = timeline_id
         self.table = "foo"
 
-        # By default, use the default branch name for initial tenant in NeonEnv
+        # By default, use the default branch name for initial tenant in SerenDBEnv
         self.branch_name = branch_name or "main"
 
         self.expect_rows = 0
@@ -106,7 +106,7 @@ class Workload:
                 self._endpoint.reconfigure(pageserver_id=pageserver_id)
 
         connstring = self._endpoint.safe_psql(
-            "SELECT setting FROM pg_settings WHERE name='neon.pageserver_connstring'"
+            "SELECT setting FROM pg_settings WHERE name='serendb.pageserver_connstring'"
         )
         log.info(f"Workload.endpoint: connstr={connstring}")
 
@@ -125,7 +125,7 @@ class Workload:
         if allow_recreate:
             endpoint.safe_psql(f"DROP TABLE IF EXISTS {self.table};")
         endpoint.safe_psql(f"CREATE TABLE {self.table} (id INTEGER PRIMARY KEY, val text);")
-        endpoint.safe_psql("CREATE EXTENSION IF NOT EXISTS neon_test_utils;")
+        endpoint.safe_psql("CREATE EXTENSION IF NOT EXISTS serendb_test_utils;")
         last_flush_lsn_upload(
             self.env, endpoint, self.tenant_id, self.timeline_id, pageserver_id=pageserver_id
         )

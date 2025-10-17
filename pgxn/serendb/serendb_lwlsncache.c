@@ -1,7 +1,7 @@
 #include "postgres.h"
 
-#include "neon.h"
-#include "neon_lwlsncache.h"
+#include "serendb.h"
+#include "serendb_lwlsncache.h"
 
 #include "miscadmin.h"
 #include "access/xlog.h"
@@ -55,8 +55,8 @@ static int lwlsn_cache_size = (128 * 1024);
 static void
 lwlc_register_gucs(void)
 {
-	DefineCustomIntVariable("neon.last_written_lsn_cache_size",
-							"Size of last written LSN cache used by Neon",
+	DefineCustomIntVariable("serendb.last_written_lsn_cache_size",
+							"Size of last written LSN cache used by SerenDB",
 							NULL,
 							&lwlsn_cache_size,
 							(128*1024), 1024, INT_MAX,
@@ -82,7 +82,7 @@ static set_max_lwlsn_hook_type prev_set_max_lwlsn_hook = NULL;
 static set_lwlsn_relation_hook_type prev_set_lwlsn_relation_hook = NULL;
 static set_lwlsn_db_hook_type prev_set_lwlsn_db_hook = NULL;
 
-static void neon_set_max_lwlsn(XLogRecPtr lsn);
+static void serendb_set_max_lwlsn(XLogRecPtr lsn);
 
 void
 init_lwlsncache(void)
@@ -93,17 +93,17 @@ init_lwlsncache(void)
 	lwlc_register_gucs();
 
 	prev_set_lwlsn_block_range_hook = set_lwlsn_block_range_hook;
-	set_lwlsn_block_range_hook = neon_set_lwlsn_block_range;
+	set_lwlsn_block_range_hook = serendb_set_lwlsn_block_range;
 	prev_set_lwlsn_block_v_hook = set_lwlsn_block_v_hook;
-	set_lwlsn_block_v_hook = neon_set_lwlsn_block_v;
+	set_lwlsn_block_v_hook = serendb_set_lwlsn_block_v;
 	prev_set_lwlsn_block_hook = set_lwlsn_block_hook;
-	set_lwlsn_block_hook = neon_set_lwlsn_block;
+	set_lwlsn_block_hook = serendb_set_lwlsn_block;
 	prev_set_max_lwlsn_hook = set_max_lwlsn_hook;
-	set_max_lwlsn_hook = neon_set_max_lwlsn;
+	set_max_lwlsn_hook = serendb_set_max_lwlsn;
 	prev_set_lwlsn_relation_hook = set_lwlsn_relation_hook;
-	set_lwlsn_relation_hook = neon_set_lwlsn_relation;
+	set_lwlsn_relation_hook = serendb_set_lwlsn_relation;
 	prev_set_lwlsn_db_hook = set_lwlsn_db_hook;
-	set_lwlsn_db_hook = neon_set_lwlsn_db;
+	set_lwlsn_db_hook = serendb_set_lwlsn_db;
 }
 
 
@@ -130,7 +130,7 @@ LwLsnCacheShmemInit(void)
 			lwlsn_cache_size, lwlsn_cache_size,
 										&info,
 										HASH_ELEM | HASH_BLOBS);
-		LwLsnCache = ShmemInitStruct("neon/LwLsnCacheCtl", sizeof(LwLsnCacheCtl), &found);
+		LwLsnCache = ShmemInitStruct("serendb/LwLsnCacheCtl", sizeof(LwLsnCacheCtl), &found);
 		// Now set the size in the struct
 		LwLsnCache->lastWrittenLsnCacheSize = lwlsn_cache_size;
 		if (found) {
@@ -142,15 +142,15 @@ LwLsnCacheShmemInit(void)
 }
 
 /*
- * neon_get_lwlsn -- Returns maximal LSN of written page.
+ * serendb_get_lwlsn -- Returns maximal LSN of written page.
  * It returns an upper bound for the last written LSN of a given page,
  * either from a cached last written LSN or a global maximum last written LSN.
  * If rnode is InvalidOid then we calculate maximum among all cached LSN and maxLastWrittenLsn.
  * If cache is large enough, iterating through all hash items may be rather expensive.
- * But neon_get_lwlsn(InvalidOid) is used only by neon_dbsize which is not performance critical.
+ * But serendb_get_lwlsn(InvalidOid) is used only by serendb_dbsize which is not performance critical.
  */
 XLogRecPtr
-neon_get_lwlsn(NRelFileInfo rlocator, ForkNumber forknum, BlockNumber blkno)
+serendb_get_lwlsn(NRelFileInfo rlocator, ForkNumber forknum, BlockNumber blkno)
 {
 	XLogRecPtr lsn;
 	LastWrittenLsnCacheEntry* entry;
@@ -207,7 +207,7 @@ neon_get_lwlsn(NRelFileInfo rlocator, ForkNumber forknum, BlockNumber blkno)
 	return lsn;
 }
 
-static void neon_set_max_lwlsn(XLogRecPtr lsn) {
+static void serendb_set_max_lwlsn(XLogRecPtr lsn) {
 	LWLockAcquire(LastWrittenLsnLock, LW_EXCLUSIVE);
 	LwLsnCache->maxLastWrittenLsn = lsn;
 	LWLockRelease(LastWrittenLsnLock);
@@ -219,10 +219,10 @@ static void neon_set_max_lwlsn(XLogRecPtr lsn) {
  * either from a cached last written LSN or a global maximum last written LSN.
  * If rnode is InvalidOid then we calculate maximum among all cached LSN and maxLastWrittenLsn.
  * If cache is large enough, iterating through all hash items may be rather expensive.
- * But GetLastWrittenLSN(InvalidOid) is used only by neon_dbsize which is not performance critical.
+ * But GetLastWrittenLSN(InvalidOid) is used only by serendb_dbsize which is not performance critical.
  */
 void
-neon_get_lwlsn_v(NRelFileInfo relfilenode, ForkNumber forknum,
+serendb_get_lwlsn_v(NRelFileInfo relfilenode, ForkNumber forknum,
 				   BlockNumber blkno, int nblocks, XLogRecPtr *lsns)
 {
 	LastWrittenLsnCacheEntry* entry;
@@ -374,7 +374,7 @@ SetLastWrittenLSNForBlockRangeInternal(XLogRecPtr lsn,
  * SetLastWrittenLsn with dummy rlocator is used by createdb and dbase_redo functions.
  */
 XLogRecPtr
-neon_set_lwlsn_block_range(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum, BlockNumber from, BlockNumber n_blocks)
+serendb_set_lwlsn_block_range(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum, BlockNumber from, BlockNumber n_blocks)
 {
 	if (lsn == InvalidXLogRecPtr || n_blocks == 0 || LwLsnCache->lastWrittenLsnCacheSize == 0)
 		return lsn;
@@ -388,7 +388,7 @@ neon_set_lwlsn_block_range(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber for
 }
 
 /*
- * neon_set_lwlsn_block_v -- Set maximal LSN of pages to their respective
+ * serendb_set_lwlsn_block_v -- Set maximal LSN of pages to their respective
  * LSNs.
  *
  * We maintain cache of last written LSNs with limited size and LRU replacement
@@ -400,7 +400,7 @@ neon_set_lwlsn_block_range(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber for
  * specifies per-block LSNs, rather than only a single LSN.
  */
 XLogRecPtr
-neon_set_lwlsn_block_v(const XLogRecPtr *lsns, NRelFileInfo relfilenode,
+serendb_set_lwlsn_block_v(const XLogRecPtr *lsns, NRelFileInfo relfilenode,
 						   ForkNumber forknum, BlockNumber blockno,
 						   int nblocks)
 {
@@ -467,27 +467,27 @@ neon_set_lwlsn_block_v(const XLogRecPtr *lsns, NRelFileInfo relfilenode,
  * SetLastWrittenLSNForBlock -- Set maximal LSN for block
  */
 XLogRecPtr
-neon_set_lwlsn_block(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum, BlockNumber blkno)
+serendb_set_lwlsn_block(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum, BlockNumber blkno)
 {
-	return neon_set_lwlsn_block_range(lsn, rlocator, forknum, blkno, 1);
+	return serendb_set_lwlsn_block_range(lsn, rlocator, forknum, blkno, 1);
 }
 
 /*
- * neon_set_lwlsn_relation -- Set maximal LSN for relation metadata
+ * serendb_set_lwlsn_relation -- Set maximal LSN for relation metadata
  */
 XLogRecPtr
-neon_set_lwlsn_relation(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum)
+serendb_set_lwlsn_relation(XLogRecPtr lsn, NRelFileInfo rlocator, ForkNumber forknum)
 {
-	return neon_set_lwlsn_block(lsn, rlocator, forknum, REL_METADATA_PSEUDO_BLOCKNO);
+	return serendb_set_lwlsn_block(lsn, rlocator, forknum, REL_METADATA_PSEUDO_BLOCKNO);
 }
 
 /*
- * neon_set_lwlsn_db -- Set maximal LSN for the whole database
+ * serendb_set_lwlsn_db -- Set maximal LSN for the whole database
  */
 XLogRecPtr
-neon_set_lwlsn_db(XLogRecPtr lsn)
+serendb_set_lwlsn_db(XLogRecPtr lsn)
 {
 	NRelFileInfo dummyNode = {InvalidOid, InvalidOid, InvalidOid};
-	return neon_set_lwlsn_block(lsn, dummyNode, MAIN_FORKNUM, 0);
+	return serendb_set_lwlsn_block(lsn, dummyNode, MAIN_FORKNUM, 0);
 }
 

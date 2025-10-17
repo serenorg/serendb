@@ -76,7 +76,7 @@ enum AuthBackendType {
     Local,
 }
 
-/// Neon proxy/router
+/// SerenDB proxy/router
 #[derive(Parser)]
 #[command(version = GIT_VERSION, about)]
 struct ProxyCliArgs {
@@ -116,7 +116,7 @@ struct ProxyCliArgs {
         long,
         value_name = "JWT",
         default_value = "",
-        env = "NEON_PROXY_TO_CONTROLPLANE_TOKEN"
+        env = "SERENDB_PROXY_TO_CONTROLPLANE_TOKEN"
     )]
     control_plane_token: Arc<str>,
     /// if this is not local proxy, this toggles whether we accept jwt or passwords for http
@@ -341,7 +341,7 @@ pub async fn run() -> anyhow::Result<()> {
     // TODO: refactor these to use labels
     info!("Version: {GIT_VERSION}");
     info!("Build_tag: {BUILD_TAG}");
-    let neon_metrics = ::metrics::NeonMetrics::new(::metrics::BuildInfo {
+    let serendb_metrics = ::metrics::SerenDBMetrics::new(::metrics::BuildInfo {
         revision: GIT_VERSION,
         build_tag: BUILD_TAG,
     });
@@ -526,7 +526,7 @@ pub async fn run() -> anyhow::Result<()> {
         http_listener,
         AppMetrics {
             jemalloc,
-            neon_metrics,
+            serendb_metrics,
             proxy: crate::metrics::Metrics::get(),
         },
     ));
@@ -732,10 +732,10 @@ fn build_config(args: &ProxyCliArgs) -> anyhow::Result<&'static ProxyConfig> {
         }
     };
 
-    let mut greetings = env::var_os("NEON_MOTD").map_or(String::new(), |s| match s.into_string() {
+    let mut greetings = env::var_os("SERENDB_MOTD").map_or(String::new(), |s| match s.into_string() {
         Ok(s) => s,
         Err(_) => {
-            debug!("NEON_MOTD environment variable is not valid UTF-8");
+            debug!("SERENDB_MOTD environment variable is not valid UTF-8");
             String::new()
         }
     });
@@ -821,7 +821,7 @@ fn build_auth_backend(
             let wake_compute_endpoint_rate_limiter =
                 Arc::new(WakeComputeRateLimiter::new(wake_compute_rps_limit));
 
-            let api = control_plane::client::cplane_proxy_v1::NeonControlPlaneClient::new(
+            let api = control_plane::client::cplane_proxy_v1::SerenDBControlPlaneClient::new(
                 endpoint,
                 args.control_plane_token.clone(),
                 caches,
@@ -899,8 +899,8 @@ fn build_auth_backend(
 
             // Since we use only get_allowed_ips_and_secret() wake_compute_endpoint_rate_limiter
             // and locks are not used in ConsoleRedirectBackend,
-            // but they are required by the NeonControlPlaneClient
-            let api = control_plane::client::cplane_proxy_v1::NeonControlPlaneClient::new(
+            // but they are required by the SerenDBControlPlaneClient
+            let api = control_plane::client::cplane_proxy_v1::SerenDBControlPlaneClient::new(
                 endpoint,
                 args.control_plane_token.clone(),
                 caches,

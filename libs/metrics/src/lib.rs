@@ -181,7 +181,7 @@ impl LabelGroup for BuildInfo {
 
 #[derive(MetricGroup)]
 #[metric(new(build_info: BuildInfo))]
-pub struct NeonMetrics {
+pub struct SerenDBMetrics {
     #[cfg(target_os = "linux")]
     #[metric(namespace = "process")]
     #[metric(init = measured_process::ProcessCollector::for_self())]

@@ -10,7 +10,7 @@ from performance.test_wal_backpressure import record_read_latency
 
 if TYPE_CHECKING:
     from fixtures.compare_fixtures import PgCompare
-    from fixtures.neon_fixtures import PgProtocol
+    from fixtures.serendb_fixtures import PgProtocol
 
 
 def start_write_workload(pg: PgProtocol, scale: int = 10):
@@ -22,8 +22,8 @@ def start_write_workload(pg: PgProtocol, scale: int = 10):
 # The fine-grained tracking of last-written LSNs helps to keep the latency low. Without it, the reads would
 # often need to wait for the WAL records of the unrelated writes to be processed by the pageserver.
 @pytest.mark.parametrize("scale", get_scales_matrix(1))
-def test_measure_read_latency_heavy_write_workload(neon_with_baseline: PgCompare, scale: int):
-    env = neon_with_baseline
+def test_measure_read_latency_heavy_write_workload(serendb_with_baseline: PgCompare, scale: int):
+    env = serendb_with_baseline
     pg = env.pg
 
     with pg.connect().cursor() as cur:
