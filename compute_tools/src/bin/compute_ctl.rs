@@ -1,6 +1,6 @@
 //!
 //! Postgres wrapper (`compute_ctl`) is intended to be run as a Docker entrypoint or as a `systemd`
-//! `ExecStart` option. It will handle all the `Neon` specifics during compute node
+//! `ExecStart` option. It will handle all the `SerenDB` specifics during compute node
 //! initialization:
 //! - `compute_ctl` accepts cluster (compute node) specification as a JSON file.
 //! - Every start is a fresh start, so the data directory is removed and
@@ -21,7 +21,7 @@
 //!   last activity requests.
 //!
 //! If `AUTOSCALING` environment variable is set, `compute_ctl` will start the
-//! `vm-monitor` located in [`neon/libs/vm_monitor`]. For VM compute nodes,
+//! `vm-monitor` located in [`serendb/libs/vm_monitor`]. For VM compute nodes,
 //! `vm-monitor` communicates with the VM autoscaling system. It coordinates
 //! downscaling and requests immediate upscaling under resource pressure.
 //!
@@ -78,7 +78,7 @@ struct Cli {
     pub external_http_port: u16,
 
     /// The port to bind the internal listening HTTP server to. Clients include
-    /// the neon extension (for installing remote extensions) and local_proxy.
+    /// the SerenDB extension (for installing remote extensions) and local_proxy.
     #[arg(long, default_value_t = 3081)]
     pub internal_http_port: u16,
 
@@ -99,14 +99,14 @@ struct Cli {
 
     #[arg(
         long,
-        default_value = "neon_superuser",
+        default_value = "serendb_superuser",
         value_name = "PRIVILEGED_ROLE_NAME",
         value_parser = Self::parse_privileged_role_name
     )]
     pub privileged_role_name: String,
 
     #[cfg(target_os = "linux")]
-    #[arg(long, default_value = "neon-postgres")]
+    #[arg(long, default_value = "serendb-postgres")]
     pub cgroup: String,
 
     #[cfg(target_os = "linux")]
@@ -436,7 +436,7 @@ mod test {
             "--connstr=test",
             "--compute-id=test",
             "--privileged-role-name",
-            "NeonSuperuser",
+            "SerenDBSuperuser",
         ])
         .expect_err("uppercase letters are not allowed");
 
@@ -446,7 +446,7 @@ mod test {
             "--connstr=test",
             "--compute-id=test",
             "--privileged-role-name",
-            "$'neon_superuser",
+            "$'serendb_superuser",
         ])
         .expect_err("special characters are not allowed");
 

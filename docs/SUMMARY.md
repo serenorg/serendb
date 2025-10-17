@@ -1,10 +1,10 @@
 # Summary
 
-# Looking for `neon.tech` docs?
+# Looking for `serendb.com` docs?
 
 This page linkes to a selection of technical content about the open source code in this repository.
 
-Please visit https://neon.tech/docs for documentation about using the Neon service, which is based on the code
+Please visit https://serendb.com/docs for documentation about using the SerenDB service, which is based on the code
 in this repository.
 
 # Architecture

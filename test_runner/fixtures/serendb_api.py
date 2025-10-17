@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def connstr_to_env(connstr: str) -> dict[str, str]:
-    # postgresql://neondb_owner:npg_kuv6Rqi1cB@ep-old-silence-w26pxsvz-pooler.us-east-2.aws.neon.build/neondb?sslmode=require&channel_binding=...'
+    # postgresql://serendb_owner:npg_kuv6Rqi1cB@ep-old-silence-w26pxsvz-pooler.us-east-2.aws.serendb.build/serendb?sslmode=require&channel_binding=...'
     parts = re.split(r":|@|\/|\?", connstr.removeprefix("postgresql://"))
     return {
         "PGUSER": parts[0],
@@ -37,10 +37,10 @@ def connection_parameters_to_env(params: dict[str, str]) -> dict[str, str]:
 # Some API calls not yet implemented.
 # You may want to copy not-yet-implemented methods from the PR https://github.com/neondatabase/neon/pull/11305
 @final
-class NeonAPI:
-    def __init__(self, neon_api_key: str, neon_api_base_url: str):
-        self.__neon_api_key = neon_api_key
-        self.__neon_api_base_url = neon_api_base_url.strip("/")
+class SerenDBAPI:
+    def __init__(self, serendb_api_key: str, serendb_api_base_url: str):
+        self.__serendb_api_key = serendb_api_key
+        self.__serendb_api_base_url = serendb_api_base_url.strip("/")
         self.retry_if_possible = False
         self.attempts = 10
         self.sleep_before_retry = 1
@@ -51,11 +51,11 @@ class NeonAPI:
         self, method: str | bytes, endpoint: str, retry404: bool = False, **kwargs: Any
     ) -> requests.Response:
         kwargs["headers"] = kwargs.get("headers", {})
-        kwargs["headers"]["Authorization"] = f"Bearer {self.__neon_api_key}"
+        kwargs["headers"]["Authorization"] = f"Bearer {self.__serendb_api_key}"
 
         for attempt in range(self.attempts):
             retry = False
-            resp = requests.request(method, f"{self.__neon_api_base_url}{endpoint}", **kwargs)
+            resp = requests.request(method, f"{self.__serendb_api_base_url}{endpoint}", **kwargs)
             if resp.status_code >= 400:
                 log.error(
                     "%s %s returned a %d: %s",
@@ -364,8 +364,8 @@ class NeonAPI:
         project_id: str,
         branch_id: str | None = None,
         endpoint_id: str | None = None,
-        database_name: str = "neondb",
-        role_name: str = "neondb_owner",
+        database_name: str = "serendb",
+        role_name: str = "serendb_owner",
         pooled: bool = True,
     ) -> dict[str, Any]:
         resp = self.__request(
@@ -413,7 +413,7 @@ class NeonAPI:
             f"/projects/{project_id}/operations",
             headers={
                 "Accept": "application/json",
-                "Authorization": f"Bearer {self.__neon_api_key}",
+                "Authorization": f"Bearer {self.__serendb_api_key}",
             },
         )
 
@@ -431,16 +431,16 @@ class NeonAPI:
 
 
 @final
-class NeonApiEndpoint:
-    def __init__(self, neon_api: NeonAPI, pg_version: PgVersion, project_id: str | None):
-        self.neon_api = neon_api
+class SerenDBApiEndpoint:
+    def __init__(self, serendb_api: SerenDBAPI, pg_version: PgVersion, project_id: str | None):
+        self.serendb_api = serendb_api
         self.project_id: str
         self.endpoint_id: str
         self.connstr: str
 
         if project_id is None:
-            project = neon_api.create_project(pg_version)
-            neon_api.wait_for_operation_to_finish(cast("str", project["project"]["id"]))
+            project = serendb_api.create_project(pg_version)
+            serendb_api.wait_for_operation_to_finish(cast("str", project["project"]["id"]))
             self.project_id = project["project"]["id"]
             self.endpoint_id = project["endpoints"][0]["id"]
             self.connstr = project["connection_uris"][0]["connection_uri"]
@@ -449,31 +449,31 @@ class NeonApiEndpoint:
             )
             self.is_new = True
         else:
-            project = neon_api.get_project_details(project_id)
+            project = serendb_api.get_project_details(project_id)
             if int(project["project"]["pg_version"]) != int(pg_version):
                 raise Exception(
                     f"A project with the provided ID exists, but it's not of the specified version (expected {pg_version}, got {project['project']['pg_version']})"
                 )
             self.project_id = project_id
-            eps = neon_api.get_endpoints(project_id)["endpoints"]
+            eps = serendb_api.get_endpoints(project_id)["endpoints"]
             self.endpoint_id = eps[0]["id"]
-            self.connstr = neon_api.get_connection_uri(
+            self.connstr = serendb_api.get_connection_uri(
                 project_id, endpoint_id=self.endpoint_id, pooled=False
             )["uri"]
             pw = self.connstr.split("@")[0].split(":")[-1]
             self.pgbench_env = {
                 "PGHOST": eps[0]["host"],
-                "PGDATABASE": "neondb",
-                "PGUSER": "neondb_owner",
+                "PGDATABASE": "serendb",
+                "PGUSER": "serendb_owner",
                 "PGPASSWORD": pw,
             }
             self.is_new = False
 
     def restart(self):
-        self.neon_api.restart_endpoint(self.project_id, self.endpoint_id)
-        self.neon_api.wait_for_operation_to_finish(self.project_id)
+        self.serendb_api.restart_endpoint(self.project_id, self.endpoint_id)
+        self.serendb_api.wait_for_operation_to_finish(self.project_id)
 
     def get_synthetic_storage_size(self) -> int:
         return int(
-            self.neon_api.get_project_details(self.project_id)["project"]["synthetic_storage_size"]
+            self.serendb_api.get_project_details(self.project_id)["project"]["synthetic_storage_size"]
         )

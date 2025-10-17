@@ -98,7 +98,7 @@ impl MockControlPlane {
             let allowed_ips = if self.ip_allowlist_check_enabled {
                 match get_execute_postgres_query(
                     &client,
-                    "select allowed_ips from neon_control_plane.endpoints where endpoint_id = $1",
+                    "select allowed_ips from serendb_control_plane.endpoints where endpoint_id = $1",
                     &[&endpoint.as_str()],
                     "allowed_ips",
                 )
@@ -144,7 +144,7 @@ impl MockControlPlane {
         let connection = tokio::spawn(connection);
 
         let res = client.query(
-                "select id, jwks_url, audience, role_names from neon_control_plane.endpoint_jwks where endpoint_id = $1",
+                "select id, jwks_url, audience, role_names from serendb_control_plane.endpoint_jwks where endpoint_id = $1",
                 &[&endpoint.as_str()],
             )
             .await?;
@@ -214,7 +214,7 @@ async fn get_execute_postgres_query(
     let Some(row) = rows.first() else {
         // This means that the user doesn't exist, so there can be no secret.
         // However, this is still a *valid* outcome which is very similar
-        // to getting `404 Not found` from the Neon console.
+        // to getting `404 Not found` from the SerenDB console.
         return Ok(None);
     };
 

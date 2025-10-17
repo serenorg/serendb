@@ -1,5 +1,5 @@
 -- run with pooled connection
--- pgbench -T 300 -c 100 -j20 -f pgbench_halfvec_queries.sql -postgresql://neondb_owner:<secret>@ep-floral-thunder-w1gzhaxi-pooler.eu-west-1.aws.neon.build/neondb?sslmode=require"
+++ pgbench -T 300 -c 100 -j20 -f pgbench_halfvec_queries.sql -postgresql://serendb_owner:<secret>@ep-floral-thunder-w1gzhaxi-pooler.eu-west-1.aws.serendb.build/serendb?sslmode=require"
 
 with x (x) as (
   select "embeddings" as x

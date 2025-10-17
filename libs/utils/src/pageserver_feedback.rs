@@ -10,7 +10,7 @@ use crate::lsn::Lsn;
 /// Feedback pageserver sends to safekeeper and safekeeper resends to compute.
 ///
 /// Serialized in custom flexible key/value format. In replication protocol, it
-/// is marked with NEON_STATUS_UPDATE_TAG_BYTE to differentiate from postgres
+/// is marked with SERENDB_STATUS_UPDATE_TAG_BYTE to differentiate from postgres
 /// Standby status update / Hot standby feedback messages.
 ///
 /// serde Serialize is used only for human readable dump to json (e.g. in

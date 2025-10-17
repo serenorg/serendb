@@ -79,7 +79,7 @@ pub struct Claims {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        // Neon control plane includes this field as empty in the claims.
+        // SerenDB control plane includes this field as empty in the claims.
         // Consider it None in those cases.
         deserialize_with = "deserialize_empty_string_as_none_uuid"
     )]
@@ -253,7 +253,7 @@ MC4CAQAwBQYDK2VwBCIEID/Drmc1AA6U/znNRWpF3zEGegOATQxfkdWxitcOMsIH
         // {
         //   "scope": "tenant",
         //   "tenant_id": "3d1f7595b468230304e0b73cecbcb081",
-        //   "iss": "neon.controlplane",
+        //   "iss": "serendb.controlplane",
         //   "iat": 1678442479
         // }
         // ```

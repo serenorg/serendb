@@ -14,9 +14,9 @@ import pytest
 import toml
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     Safekeeper,
     StorageControllerApiException,
@@ -35,15 +35,15 @@ if TYPE_CHECKING:
     from fixtures.compute_reconfigure import ComputeReconfigure
 
 #
-# A test suite that help to prevent unintentionally breaking backward or forward compatibility between Neon releases.
+# A test suite that help to prevent unintentionally breaking backward or forward compatibility between SerenDB releases.
 # - `test_create_snapshot` a script wrapped in a test that creates a data snapshot.
-# - `test_backward_compatibility` checks that the current version of Neon can start/read/interract with a data snapshot created by the previous version.
+# - `test_backward_compatibility` checks that the current version of SerenDB can start/read/interract with a data snapshot created by the previous version.
 #   The path to the snapshot is configured by COMPATIBILITY_SNAPSHOT_DIR environment variable.
-# - `test_forward_compatibility` checks that a snapshot created by the current version can be started/read/interracted by the previous version of Neon.
-#   Paths to Neon and Postgres are configured by COMPATIBILITY_NEON_BIN and COMPATIBILITY_POSTGRES_DISTRIB_DIR environment variables.
+# - `test_forward_compatibility` checks that a snapshot created by the current version can be started/read/interracted by the previous version of SerenDB.
+#   Paths to SerenDB and Postgres are configured by COMPATIBILITY_SERENDB_BIN and COMPATIBILITY_POSTGRES_DISTRIB_DIR environment variables.
 #
 # The file contains a couple of helper functions:
-# - check_neon_works performs the test itself, feel free to add more checks there.
+# - check_serendb_works performs the test itself, feel free to add more checks there.
 # - dump_differs compares two SQL dumps and writes the diff to a file.
 #
 #
@@ -74,17 +74,17 @@ if TYPE_CHECKING:
 #    export DEFAULT_PG_VERSION=17
 #    export BUILD_TYPE=release
 #    export CHECK_ONDISK_DATA_COMPATIBILITY=true
-#    export COMPATIBILITY_NEON_BIN=neon_previous/target/${BUILD_TYPE}
-#    export COMPATIBILITY_POSTGRES_DISTRIB_DIR=neon_previous/pg_install
+#    export COMPATIBILITY_SERENDB_BIN=serendb_previous/target/${BUILD_TYPE}
+#    export COMPATIBILITY_POSTGRES_DISTRIB_DIR=serendb_previous/pg_install
 #    export COMPATIBILITY_SNAPSHOT_DIR=test_output/compatibility_snapshot_pgv${DEFAULT_PG_VERSION}
 #
 #    # Build previous version of binaries and store them somewhere:
 #    rm -rf pg_install target
 #    git checkout <previous version>
 #    CARGO_BUILD_FLAGS="--features=testing" make -s -j`nproc`
-#    mkdir -p neon_previous/target
-#    cp -a target/${BUILD_TYPE} ./neon_previous/target/${BUILD_TYPE}
-#    cp -a pg_install ./neon_previous/pg_install
+#    mkdir -p serendb_previous/target
+#    cp -a target/${BUILD_TYPE} ./serendb_previous/target/${BUILD_TYPE}
+#    cp -a pg_install ./serendb_previous/pg_install
 #
 #    # Build current version of binaries and create a data snapshot:
 #    rm -rf pg_install target
@@ -101,19 +101,19 @@ if TYPE_CHECKING:
 #    export DEFAULT_PG_VERSION=17
 #    export BUILD_TYPE=release
 #    export CHECK_ONDISK_DATA_COMPATIBILITY=true
-#    export COMPATIBILITY_NEON_BIN=neon_previous/target/${BUILD_TYPE}
-#    export COMPATIBILITY_POSTGRES_DISTRIB_DIR=neon_previous/pg_install
+#    export COMPATIBILITY_SERENDB_BIN=serendb_previous/target/${BUILD_TYPE}
+#    export COMPATIBILITY_POSTGRES_DISTRIB_DIR=serendb_previous/pg_install
 #    export COMPATIBILITY_SNAPSHOT_DIR=test_output/compatibility_snapshot_pgv${DEFAULT_PG_VERSION}
-#    export NEON_BIN=target/${BUILD_TYPE}
+#    export SERENDB_BIN=target/${BUILD_TYPE}
 #    export POSTGRES_DISTRIB_DIR=pg_install
 #
 #    # Build previous version of binaries and store them somewhere:
 #    rm -rf pg_install target
 #    git checkout <previous version>
 #    CARGO_BUILD_FLAGS="--features=testing" make -s -j`nproc`
-#    mkdir -p neon_previous/target
-#    cp -a target/${BUILD_TYPE} ./neon_previous/target/${BUILD_TYPE}
-#    cp -a pg_install ./neon_previous/pg_install
+#    mkdir -p serendb_previous/target
+#    cp -a target/${BUILD_TYPE} ./serendb_previous/target/${BUILD_TYPE}
+#    cp -a pg_install ./serendb_previous/pg_install
 #
 #    # Build current version of binaries and create a data snapshot:
 #    rm -rf pg_install target
@@ -140,7 +140,7 @@ skip_old_debug_versions = pytest.mark.skipif(
 @pytest.mark.xdist_group("compatibility")
 @pytest.mark.order(before="test_forward_compatibility")
 def test_create_snapshot(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     top_output_dir: Path,
     test_output_dir: Path,
@@ -150,11 +150,11 @@ def test_create_snapshot(
     # it creates a new snapshot for releases after we tested the current version against the previous snapshot in `test_backward_compatibility`.
     #
     # There's no cleanup here, it allows to adjust the data in `test_backward_compatibility` itself without re-collecting it.
-    neon_env_builder.pg_version = pg_version
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.pg_version = pg_version
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # Miniature layers to enable generating non-trivial layer map without writing lots of data.
             "checkpoint_distance": f"{256 * 1024}",
@@ -197,13 +197,13 @@ def test_create_snapshot(
     shutil.copytree(
         test_output_dir,
         new_compatibility_snapshot_dir,
-        ignore=shutil.ignore_patterns("pg_dynshmem", "neon-communicator.socket"),
+        ignore=shutil.ignore_patterns("pg_dynshmem", "serendb-communicator.socket"),
     )
 
     log.info(f"Copied new compatibility snapshot dir to: {new_compatibility_snapshot_dir}")
 
 
-# check_neon_works does recovery from WAL => the compatibility snapshot's WAL is old => will log this warning
+# check_serendb_works does recovery from WAL => the compatibility snapshot's WAL is old => will log this warning
 ingest_lag_log_line = ".*ingesting record with timestamp lagging more than wait_lsn_timeout.*"
 
 
@@ -212,7 +212,7 @@ ingest_lag_log_line = ".*ingesting record with timestamp lagging more than wait_
 @pytest.mark.xdist_group("compatibility")
 @pytest.mark.order(after="test_create_snapshot")
 def test_backward_compatibility(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_version: PgVersion,
     compatibility_snapshot_dir: Path,
@@ -221,12 +221,12 @@ def test_backward_compatibility(
     Test that the new binaries can read old data
     """
     log.info(f"Using snapshot dir at {compatibility_snapshot_dir}")
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.from_repo_dir(compatibility_snapshot_dir / "repo")
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.from_repo_dir(compatibility_snapshot_dir / "repo")
     env.pageserver.allowed_errors.append(ingest_lag_log_line)
     env.start()
 
-    check_neon_works(
+    check_serendb_works(
         env,
         test_output_dir=test_output_dir,
         sql_dump_path=compatibility_snapshot_dir / "dump.sql",
@@ -241,7 +241,7 @@ def test_backward_compatibility(
 @pytest.mark.xdist_group("compatibility")
 @pytest.mark.order(after="test_create_snapshot")
 def test_forward_compatibility(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     top_output_dir: Path,
     pg_version: PgVersion,
@@ -251,22 +251,22 @@ def test_forward_compatibility(
     Test that the old binaries can read new data
     """
 
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
-    neon_env_builder.test_may_use_compatibility_snapshot_binaries = True
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    serendb_env_builder.test_may_use_compatibility_snapshot_binaries = True
 
-    neon_env_builder.num_safekeepers = 3
+    serendb_env_builder.num_safekeepers = 3
 
     # Use previous version's production binaries (pageserver, safekeeper, pg_distrib_dir, etc.).
-    # But always use the current version's neon_local binary.
-    # This is because we want to test the compatibility of the data format, not the compatibility of the neon_local CLI.
-    assert neon_env_builder.compatibility_neon_binpath is not None, (
-        "the environment variable COMPATIBILITY_NEON_BIN is required"
+    # But always use the current version's serendb_local binary.
+    # This is because we want to test the compatibility of the data format, not the compatibility of the serendb_local CLI.
+    assert serendb_env_builder.compatibility_serendb_binpath is not None, (
+        "the environment variable COMPATIBILITY_SERENDB_BIN is required"
     )
-    assert neon_env_builder.compatibility_pg_distrib_dir is not None, (
+    assert serendb_env_builder.compatibility_pg_distrib_dir is not None, (
         "the environment variable COMPATIBILITY_POSTGRES_DISTRIB_DIR is required"
     )
-    neon_env_builder.neon_binpath = neon_env_builder.compatibility_neon_binpath
-    neon_env_builder.pg_distrib_dir = neon_env_builder.compatibility_pg_distrib_dir
+    serendb_env_builder.serendb_binpath = serendb_env_builder.compatibility_serendb_binpath
+    serendb_env_builder.pg_distrib_dir = serendb_env_builder.compatibility_pg_distrib_dir
 
     # Note that we are testing with new data, so we should use `new_compatibility_snapshot_dir`, which is created by test_create_snapshot.
     new_compatibility_snapshot_dir = (
@@ -274,7 +274,7 @@ def test_forward_compatibility(
     )
 
     log.info(f"Using snapshot dir at {new_compatibility_snapshot_dir}")
-    env = neon_env_builder.from_repo_dir(
+    env = serendb_env_builder.from_repo_dir(
         new_compatibility_snapshot_dir / "repo",
     )
     # there may be an arbitrary number of unrelated tests run between create_snapshot and here
@@ -283,7 +283,7 @@ def test_forward_compatibility(
     # not using env.pageserver.version because it was initialized before
     prev_pageserver_version_str = env.get_binary_version("pageserver")
     prev_pageserver_version_match = re.search(
-        "Neon page server git(?:-env)?:(.*) failpoints: (.*), features: (.*)",
+        "SerenDB page server git(?:-env)?:(.*) failpoints: (.*), features: (.*)",
         prev_pageserver_version_str,
     )
     if prev_pageserver_version_match is not None:
@@ -301,7 +301,7 @@ def test_forward_compatibility(
     # ensure the specified pageserver is running
     assert env.pageserver.log_contains(f"git(-env)?:{prev_pageserver_version}")
 
-    check_neon_works(
+    check_serendb_works(
         env,
         test_output_dir=test_output_dir,
         sql_dump_path=new_compatibility_snapshot_dir / "dump.sql",
@@ -309,7 +309,7 @@ def test_forward_compatibility(
     )
 
 
-def check_neon_works(env: NeonEnv, test_output_dir: Path, sql_dump_path: Path, repo_dir: Path):
+def check_serendb_works(env: SerenDBEnv, test_output_dir: Path, sql_dump_path: Path, repo_dir: Path):
     ep = env.endpoints.create("main")
     ep_env = {"LD_LIBRARY_PATH": str(env.pg_distrib_dir / f"v{env.pg_version}/lib")}
 
@@ -341,7 +341,7 @@ def check_neon_works(env: NeonEnv, test_output_dir: Path, sql_dump_path: Path, r
     )
 
     # Check that project can be recovered from WAL
-    # loosely based on https://www.notion.so/neondatabase/Storage-Recovery-from-WAL-d92c0aac0ebf40df892b938045d7d720
+    # loosely based on https://www.notion.so/serendb/Storage-Recovery-from-WAL-d92c0aac0ebf40df892b938045d7d720
     pageserver_http = env.pageserver.http_client()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -504,7 +504,7 @@ HISTORIC_DATA_SETS = [
 @pytest.mark.parametrize("dataset", HISTORIC_DATA_SETS)
 @pytest.mark.xdist_group("compatibility")
 def test_historic_storage_formats(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_version: PgVersion,
     dataset: HistoricDataSet,
@@ -535,9 +535,9 @@ def test_historic_storage_formats(
             with tarfile.open(mode="r|", fileobj=stream) as tf:
                 tf.extractall(artifact_unpack_path)
 
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.pg_version = dataset.pg_version
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.pg_version = dataset.pg_version
+    env = serendb_env_builder.init_configs()
 
     env.start()
     assert isinstance(env.pageserver_remote_storage, S3Storage)
@@ -570,7 +570,7 @@ def test_historic_storage_formats(
     assert metadata_summary["tenant_count"] >= 1
     assert metadata_summary["timeline_count"] >= 1
 
-    env.neon_cli.tenant_import(dataset.tenant_id)
+    env.serendb_cli.tenant_import(dataset.tenant_id)
 
     # Discover timelines
     timelines = env.pageserver.http_client().timeline_list(dataset.tenant_id)
@@ -643,7 +643,7 @@ def test_historic_storage_formats(
     **fixtures.utils.allpairs_versions(),
 )
 def test_versions_mismatch(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_version: PgVersion,
     compatibility_snapshot_dir,
@@ -653,16 +653,16 @@ def test_versions_mismatch(
     """
     Checks compatibility of different combinations of versions of the components
     """
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
 
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.from_repo_dir(
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.from_repo_dir(
         compatibility_snapshot_dir / "repo",
     )
     env.pageserver.allowed_errors.extend(
         [".*ingesting record with timestamp lagging more than wait_lsn_timeout.+"]
     )
     env.start()
-    check_neon_works(
+    check_serendb_works(
         env, test_output_dir, compatibility_snapshot_dir / "dump.sql", test_output_dir / "repo"
     )

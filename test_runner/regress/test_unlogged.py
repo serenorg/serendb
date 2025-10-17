@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from fixtures.neon_fixtures import NeonEnv, fork_at_current_lsn
+from fixtures.serendb_fixtures import SerenDBEnv, fork_at_current_lsn
 from fixtures.pg_version import PgVersion
 
 
 #
 # Test UNLOGGED tables/relations. Postgres copies init fork contents to main
-# fork to reset them during recovery. In Neon, pageserver directly sends init
+# fork to reset them during recovery. In SerenDB, pageserver directly sends init
 # fork contents as main fork during basebackup.
 #
-def test_unlogged(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_unlogged(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()

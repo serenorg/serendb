@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import TenantId, TenantShardId, TimelineArchivalState, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
-    NeonPageserver,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
+    SerenDBPageserver,
     PageserverAvailability,
     PageserverSchedulingPolicy,
     StorageControllerMigrationConfig,
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from fixtures.compute_reconfigure import ComputeReconfigure
 
 
-def get_consistent_node_shard_counts(env: NeonEnv, total_shards) -> defaultdict[str, int]:
+def get_consistent_node_shard_counts(env: SerenDBEnv, total_shards) -> defaultdict[str, int]:
     """
     Get the number of shards attached to each node.
     This function takes into account the intersection of the intent and the observed state.
@@ -51,7 +51,7 @@ def get_consistent_node_shard_counts(env: NeonEnv, total_shards) -> defaultdict[
     return attached_per_node
 
 
-def assert_consistent_balanced_attachments(env: NeonEnv, total_shards):
+def assert_consistent_balanced_attachments(env: SerenDBEnv, total_shards):
     attached_per_node = get_consistent_node_shard_counts(env, total_shards)
 
     min_shard_count = min(attached_per_node.values())
@@ -63,7 +63,7 @@ def assert_consistent_balanced_attachments(env: NeonEnv, total_shards):
 
 @pytest.mark.timeout(3600)  # super long running test: should go down as we optimize
 def test_storage_controller_many_tenants(
-    neon_env_builder: NeonEnvBuilder, compute_reconfigure_listener: ComputeReconfigure
+    serendb_env_builder: SerenDBEnvBuilder, compute_reconfigure_listener: ComputeReconfigure
 ):
     """
     Check that we cope well with a not-totally-trivial number of tenants.
@@ -78,30 +78,30 @@ def test_storage_controller_many_tenants(
     we don't fall over for a thousand shards.
     """
 
-    neon_env_builder.num_pageservers = 6
-    neon_env_builder.storage_controller_config = {
-        # Default neon_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
+    serendb_env_builder.num_pageservers = 6
+    serendb_env_builder.storage_controller_config = {
+        # Default serendb_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
         # TODO: tune this down as restarts get faster (https://github.com/neondatabase/neon/pull/7553), to
         # guard against regressions in restart time.
         "max_offline": "30s",
         "max_warming_up": "300s",
         "use_local_compute_notifications": False,
     }
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
 
     AZS = ["alpha", "bravo", "charlie"]
 
     def az_selector(node_id):
         return f"az-{AZS[(node_id - 1) % len(AZS)]}"
 
-    neon_env_builder.pageserver_config_override = lambda ps_cfg: ps_cfg.update(
+    serendb_env_builder.pageserver_config_override = lambda ps_cfg: ps_cfg.update(
         {"availability_zone": az_selector(ps_cfg["id"])}
     )
 
     # A small sleep on each call into the notify hook, to simulate the latency of doing a database write
     compute_reconfigure_listener.register_on_notify(lambda body: time.sleep(0.01))
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # We will intentionally stress reconciler concurrrency, which triggers a warning when lots
@@ -230,8 +230,8 @@ def test_storage_controller_many_tenants(
             else:
                 shard_count = 1
 
-            # We will create tenants directly via API, not via neon_local, to avoid any false
-            # serialization of operations in neon_local (it e.g. loads/saves a config file on each call)
+            # We will create tenants directly via API, not via serendb_local, to avoid any false
+            # serialization of operations in serendb_local (it e.g. loads/saves a config file on each call)
             f = executor.submit(
                 env.storage_controller.tenant_create,
                 tenant_id,
@@ -526,7 +526,7 @@ def test_storage_controller_many_tenants(
 
     # Wait for the controller to notice the pageservers are dead
     def assert_pageservers_availability(
-        pageservers: list[NeonPageserver], expected_availability: PageserverAvailability
+        pageservers: list[SerenDBPageserver], expected_availability: PageserverAvailability
     ):
         nodes = env.storage_controller.nodes()
         checked_any = False

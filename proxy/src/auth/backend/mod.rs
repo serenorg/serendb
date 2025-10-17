@@ -27,7 +27,7 @@ use crate::control_plane::{
 };
 use crate::intern::{EndpointIdInt, RoleNameInt};
 use crate::pqproto::BeMessage;
-use crate::proxy::NeonOptions;
+use crate::proxy::SerenDBOptions;
 use crate::proxy::wake_compute::WakeComputeBackend;
 use crate::rate_limiter::EndpointRateLimiter;
 use crate::stream::Stream;
@@ -151,14 +151,14 @@ pub(crate) struct ComputeCredentials {
 #[derive(Debug, Clone)]
 pub(crate) struct ComputeUserInfoNoEndpoint {
     pub(crate) user: RoleName,
-    pub(crate) options: NeonOptions,
+    pub(crate) options: SerenDBOptions,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct ComputeUserInfo {
     pub(crate) endpoint: EndpointId,
     pub(crate) user: RoleName,
-    pub(crate) options: NeonOptions,
+    pub(crate) options: SerenDBOptions,
 }
 
 impl ComputeUserInfo {
@@ -442,7 +442,7 @@ mod tests {
     use crate::control_plane::{
         self, AccessBlockerFlags, EndpointAccessControl, RoleAccessControl,
     };
-    use crate::proxy::NeonOptions;
+    use crate::proxy::SerenDBOptions;
     use crate::rate_limiter::EndpointRateLimiter;
     use crate::scram::ServerSecret;
     use crate::scram::threadpool::ThreadPool;
@@ -535,7 +535,7 @@ mod tests {
         let user_info = ComputeUserInfoMaybeEndpoint {
             user: "conrad".into(),
             endpoint_id: Some("endpoint".into()),
-            options: NeonOptions::default(),
+            options: SerenDBOptions::default(),
         };
 
         let handle = tokio::spawn(async move {
@@ -617,7 +617,7 @@ mod tests {
         let user_info = ComputeUserInfoMaybeEndpoint {
             user: "conrad".into(),
             endpoint_id: Some("endpoint".into()),
-            options: NeonOptions::default(),
+            options: SerenDBOptions::default(),
         };
 
         let handle = tokio::spawn(async move {
@@ -671,7 +671,7 @@ mod tests {
         let user_info = ComputeUserInfoMaybeEndpoint {
             user: "conrad".into(),
             endpoint_id: None,
-            options: NeonOptions::default(),
+            options: SerenDBOptions::default(),
         };
 
         let handle = tokio::spawn(async move {

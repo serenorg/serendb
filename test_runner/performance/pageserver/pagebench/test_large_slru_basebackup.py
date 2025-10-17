@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import Endpoint, NeonEnv, NeonEnvBuilder, PgBin, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import Endpoint, SerenDBEnv, SerenDBEnvBuilder, PgBin, wait_for_last_flush_lsn
 from fixtures.utils import get_scale_for_db, humantime_to_ms
 
 from performance.pageserver.util import (
@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize("n_tenants", [10])
 @pytest.mark.timeout(1000)
 def test_basebackup_with_high_slru_count(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     n_tenants: int,
     pgbench_scale: int,
@@ -48,7 +48,7 @@ def test_basebackup_with_high_slru_count(
     # configure cache sizes like in prod
     page_cache_size = 16384
     max_file_descriptors = 500000
-    neon_env_builder.pageserver_config_override = (
+    serendb_env_builder.pageserver_config_override = (
         f"page_cache_size={page_cache_size}; max_file_descriptors={max_file_descriptors}"
     )
     params.update(
@@ -67,7 +67,7 @@ def test_basebackup_with_high_slru_count(
     n_txns = 500000
 
     env = setup_pageserver_with_tenants(
-        neon_env_builder,
+        serendb_env_builder,
         f"large_slru_count-{n_tenants}-{n_txns}",
         n_tenants,
         lambda env: setup_tenant_template(env, n_txns),
@@ -75,7 +75,7 @@ def test_basebackup_with_high_slru_count(
     run_benchmark(env, pg_bin, record, duration)
 
 
-def setup_tenant_template(env: NeonEnv, n_txns: int):
+def setup_tenant_template(env: SerenDBEnv, n_txns: int):
     config = {
         "gc_period": "0s",  # disable periodic gc
         "checkpoint_timeout": "10 years",
@@ -137,10 +137,10 @@ async def run_update_loop_worker(ep: Endpoint, n_txns: int, idx: int):
     await conn.execute(f"call updating{table}()")
 
 
-def run_benchmark(env: NeonEnv, pg_bin: PgBin, record, duration_secs: int):
+def run_benchmark(env: SerenDBEnv, pg_bin: PgBin, record, duration_secs: int):
     ps_http = env.pageserver.http_client()
     cmd = [
-        str(env.neon_binpath / "pagebench"),
+        str(env.serendb_binpath / "pagebench"),
         "basebackup",
         "--mgmt-api-endpoint",
         ps_http.base_url,

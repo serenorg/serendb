@@ -1,6 +1,6 @@
-# pgxs/neon_walredo/Makefile
+# pgxs/serendb_walredo/Makefile
 
-MODULE_big = neon_walredo
+MODULE_big = serendb_walredo
 OBJS = \
 	$(WIN32RES) \
 	inmem_smgr.o \
@@ -11,7 +11,7 @@ OBJS = \
 # are wrapped in #ifdef HAVE_LIBSECCOMP instead.
 OBJS += seccomp.o
 
-PGFILEDESC = "neon_walredo - helper process that runs in Neon pageserver"
+PGFILEDESC = "serendb_walredo - helper process that runs in SerenDB pageserver"
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

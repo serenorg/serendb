@@ -127,7 +127,7 @@ We only need to pay for the 86400Y local evaluation requests (that would be sett
 * We added a new crate `posthog_lite_client` that supports local feature evaluations.
 * We set up two projects "Storage (staging)" and "Storage (production)" in the PostHog console.
 * Each pageserver reports 10 fake tenants to PostHog so that we can get all combinations of regions (and other properties) in the PostHog UI.
-* Supported properties: AZ, neon_region, pageserver, tenant_id.
+* Supported properties: AZ, serendb_region, pageserver, tenant_id.
 * You may use "Pageserver Feature Flags" dashboard to see the evaluation status.
 * The feature flag spec is polled on storcon every 30s (in each of the region) and storcon will propagate the spec to the pageservers.
 * The pageserver housekeeping loop updates the tenant-specific properties (e.g., remote size) for evaluation.

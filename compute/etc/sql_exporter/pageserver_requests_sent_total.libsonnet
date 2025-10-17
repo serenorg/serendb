@@ -5,5 +5,5 @@
   values: [
     'pageserver_requests_sent_total',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }

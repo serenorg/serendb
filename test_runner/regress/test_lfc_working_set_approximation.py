@@ -10,12 +10,12 @@ from fixtures.metrics import parse_metrics
 from fixtures.utils import USE_LFC, query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_lfc_working_set_approximation(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_lfc_working_set_approximation(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     cache_dir = Path(env.repo_dir) / "file_cache"
     cache_dir.mkdir(exist_ok=True)
@@ -26,13 +26,13 @@ def test_lfc_working_set_approximation(neon_simple_env: NeonEnv):
         config_lines=[
             "autovacuum=off",
             "bgwriter_lru_maxpages=0",
-            "neon.max_file_cache_size='128MB'",
-            "neon.file_cache_size_limit='64MB'",
+            "serendb.max_file_cache_size='128MB'",
+            "serendb.file_cache_size_limit='64MB'",
         ],
     )
 
     cur = endpoint.connect().cursor()
-    cur.execute("create extension neon")
+    cur.execute("create extension serendb")
 
     log.info(f"preparing some data in {endpoint.connstr()}")
 
@@ -43,8 +43,8 @@ CREATE TABLE pgbench_accounts (
     abalance integer,
     filler character(84),
     -- more web-app like columns
-    text_column_plain TEXT  DEFAULT repeat('NeonIsCool', 5),
-    jsonb_column_extended JSONB  DEFAULT ('{ "tell everyone": [' || repeat('{"Neon": "IsCool"},',9) || ' {"Neon": "IsCool"}]}')::jsonb
+    text_column_plain TEXT  DEFAULT repeat('SerenDBIsCool', 5),
+    jsonb_column_extended JSONB  DEFAULT ('{ "tell everyone": [' || repeat('{"SerenDB": "IsCool"},',9) || ' {"SerenDB": "IsCool"}]}')::jsonb
 )
 WITH (fillfactor='100');
 """
@@ -64,7 +64,7 @@ WITH (fillfactor='100');
     log.info(f"pgbench_accounts has {pages} pages, resetting working set to zero")
     cur.execute("select approximate_working_set_size(true)")
     cur.execute(
-        'SELECT count(*) FROM pgbench_accounts WHERE abalance > 0 or jsonb_column_extended @> \'{"tell everyone": [{"Neon": "IsCool"}]}\'::jsonb'
+        'SELECT count(*) FROM pgbench_accounts WHERE abalance > 0 or jsonb_column_extended @> \'{"tell everyone": [{"SerenDB": "IsCool"}]}\'::jsonb'
     )
     # verify working set size after sequential scan matches table size and reset working set for next test
     blocks = query_scalar(cur, "select approximate_working_set_size(true)")
@@ -96,8 +96,8 @@ WITH (fillfactor='100');
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_sliding_working_set_approximation(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_sliding_working_set_approximation(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start(
         branch_name="main",
@@ -105,13 +105,13 @@ def test_sliding_working_set_approximation(neon_simple_env: NeonEnv):
             "autovacuum = off",
             "bgwriter_lru_maxpages=0",
             "shared_buffers=1MB",
-            "neon.max_file_cache_size=256MB",
-            "neon.file_cache_size_limit=245MB",
+            "serendb.max_file_cache_size=256MB",
+            "serendb.file_cache_size_limit=245MB",
         ],
     )
     conn = endpoint.connect()
     cur = conn.cursor()
-    cur.execute("create extension neon")
+    cur.execute("create extension serendb")
     cur.execute(
         "create table t(pk integer primary key, count integer default 0, payload text default repeat('?', 1000)) with (fillfactor=10)"
     )

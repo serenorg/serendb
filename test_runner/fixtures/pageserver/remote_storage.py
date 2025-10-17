@@ -18,10 +18,10 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Any
 
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def duplicate_one_tenant(env: NeonEnv, template_tenant: TenantId, new_tenant: TenantId):
+def duplicate_one_tenant(env: SerenDBEnv, template_tenant: TenantId, new_tenant: TenantId):
     remote_storage = env.pageserver_remote_storage
     assert isinstance(remote_storage, LocalFsStorage)
 
@@ -56,7 +56,7 @@ def duplicate_one_tenant(env: NeonEnv, template_tenant: TenantId, new_tenant: Te
     return None
 
 
-def duplicate_tenant(env: NeonEnv, template_tenant: TenantId, ncopies: int) -> list[TenantId]:
+def duplicate_tenant(env: SerenDBEnv, template_tenant: TenantId, ncopies: int) -> list[TenantId]:
     assert isinstance(env.pageserver_remote_storage, LocalFsStorage)
 
     def work(tenant_id):
@@ -85,7 +85,7 @@ def local_layer_name_from_remote_name(remote_name: str) -> str:
 
 
 def copy_all_remote_layer_files_to_local_tenant_dir(
-    env: NeonEnv, tenant_timelines: list[tuple[TenantId, TimelineId]]
+    env: SerenDBEnv, tenant_timelines: list[tuple[TenantId, TimelineId]]
 ):
     remote_storage = env.pageserver_remote_storage
     assert isinstance(remote_storage, LocalFsStorage)

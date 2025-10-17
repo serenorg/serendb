@@ -14,11 +14,11 @@ await Task {
     let sslContext = try! NIOSSLContext(configuration: .makeClientConfiguration())
 
     let config = PostgresConnection.Configuration(
-      host: env["NEON_HOST"] ?? "",
+      host: env["SERENDB_HOST"] ?? "",
       port: 5432,
-      username: env["NEON_USER"] ?? "",
-      password: env["NEON_PASSWORD"] ?? "",
-      database: env["NEON_DATABASE"] ?? "",
+      username: env["SERENDB_USER"] ?? "",
+      password: env["SERENDB_PASSWORD"] ?? "",
+      database: env["SERENDB_DATABASE"] ?? "",
       tls: .require(sslContext)
     )
 

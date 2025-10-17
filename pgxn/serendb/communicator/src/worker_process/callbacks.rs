@@ -1,5 +1,5 @@
-//! C callbacks to PostgreSQL facilities that the neon extension needs to provide. These
-//! are implemented in `neon/pgxn/communicator_process.c`. The function signatures better
+//! C callbacks to PostgreSQL facilities that the SerenDB extension needs to provide. These
+//! are implemented in `serendb/pgxn/communicator_process.c`. The function signatures better
 //! match!
 //!
 //! These are called from the communicator threads! Careful what you do, most Postgres

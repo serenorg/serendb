@@ -4,7 +4,7 @@ from contextlib import closing
 
 from fixtures.benchmark_fixture import MetricReport
 from fixtures.common_types import Lsn
-from fixtures.compare_fixtures import NeonCompare, PgCompare
+from fixtures.compare_fixtures import SerenDBCompare, PgCompare
 from fixtures.log_helper import log
 from fixtures.pg_version import PgVersion
 
@@ -19,8 +19,8 @@ from fixtures.pg_version import PgVersion
 # 3. Disk space used
 # 4. Peak memory usage
 #
-def test_bulk_insert(neon_with_baseline: PgCompare):
-    env = neon_with_baseline
+def test_bulk_insert(serendb_with_baseline: PgCompare):
+    env = serendb_with_baseline
 
     start_lsn = Lsn(env.pg.safe_psql("SELECT pg_current_wal_lsn()")[0][0])
 
@@ -38,23 +38,23 @@ def test_bulk_insert(neon_with_baseline: PgCompare):
             env.report_size()
 
     # Report amount of wal written. Useful for comparing vanilla wal format vs
-    # neon wal format, measuring neon write amplification, etc.
+    # SerenDB wal format, measuring SerenDB write amplification, etc.
     end_lsn = Lsn(env.pg.safe_psql("SELECT pg_current_wal_lsn()")[0][0])
     wal_written_bytes = end_lsn - start_lsn
     wal_written_mb = round(wal_written_bytes / (1024 * 1024))
     env.zenbenchmark.record("wal_written", wal_written_mb, "MB", MetricReport.TEST_PARAM)
 
-    # When testing neon, also check how long it takes the pageserver to reingest the
+    # When testing SerenDB, also check how long it takes the pageserver to reingest the
     # wal from safekeepers. If this number is close to total runtime, then the pageserver
     # is the bottleneck.
-    if isinstance(env, NeonCompare):
+    if isinstance(env, SerenDBCompare):
         measure_recovery_time(env)
 
     with env.record_duration("compaction"):
         env.compact()
 
 
-def measure_recovery_time(env: NeonCompare):
+def measure_recovery_time(env: SerenDBCompare):
     client = env.env.pageserver.http_client()
     pg_version = PgVersion(str(client.timeline_detail(env.tenant, env.timeline)["pg_version"]))
 

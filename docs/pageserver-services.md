@@ -120,7 +120,7 @@ Repository
 
 The repository stores all the page versions, or WAL records needed to
 reconstruct them. Each tenant has a separate Repository, which is
-stored in the .neon/tenants/<tenant_id> directory.
+stored in the .serendb/tenants/<tenant_id> directory.
 
 Repository is an abstract trait, defined in `repository.rs`. It is
 implemented by the LayeredRepository object in
@@ -143,7 +143,7 @@ Each repository also has a WAL redo manager associated with it, see
 records, whenever we need to reconstruct a page version from WAL to
 satisfy a GetPage@LSN request, or to avoid accumulating too much WAL
 for a page. The WAL redo manager uses a Postgres process running in
-special Neon wal-redo mode to do the actual WAL redo, and
+special SerenDB wal-redo mode to do the actual WAL redo, and
 communicates with the process using a pipe.
 
 

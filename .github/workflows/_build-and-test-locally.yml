@@ -56,7 +56,7 @@ permissions:
   contents: read
 
 jobs:
-  build-neon:
+  build-serendb:
     runs-on: ${{ fromJSON(format('["self-hosted", "{0}"]', inputs.arch == 'arm64' && 'large-arm64' || 'large')) }}
     permissions:
       id-token: write # aws-actions/configure-aws-credentials
@@ -213,14 +213,14 @@ jobs:
           SANITIZERS: ${{ inputs.sanitizers }}
         run: |
           # Install target binaries
-          mkdir -p /tmp/neon/bin/
+          mkdir -p /tmp/serendb/bin/
           binaries=$(
             ${cov_prefix} cargo metadata $CARGO_FLAGS --format-version=1 --no-deps |
             jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name'
           )
           for bin in $binaries; do
             SRC=target/$BUILD_TYPE/$bin
-            DST=/tmp/neon/bin/$bin
+            DST=/tmp/serendb/bin/$bin
             cp "$SRC" "$DST"
           done
 
@@ -229,7 +229,7 @@ jobs:
             # Keep bloated coverage data files away from the rest of the artifact
             mkdir -p /tmp/coverage/
 
-            mkdir -p /tmp/neon/test_bin/
+            mkdir -p /tmp/serendb/test_bin/
 
             test_exe_paths=$(
               ${cov_prefix} cargo test $CARGO_FLAGS $CARGO_PROFILE --message-format=json --no-run |
@@ -237,7 +237,7 @@ jobs:
             )
             for bin in $test_exe_paths; do
               SRC=$bin
-              DST=/tmp/neon/test_bin/$(basename $bin)
+              DST=/tmp/serendb/test_bin/$(basename $bin)
 
               # We don't need debug symbols for code coverage, so strip them out to make
               # the artifact smaller.
@@ -246,7 +246,7 @@ jobs:
             done
 
             for bin in $binaries; do
-              echo "/tmp/neon/bin/$bin" >> /tmp/coverage/binaries.list
+              echo "/tmp/serendb/bin/$bin" >> /tmp/coverage/binaries.list
             done
           fi
 
@@ -273,16 +273,16 @@ jobs:
 
           # run pageserver tests
           # (When developing new pageserver features gated by config fields, we commonly make the rust
-          # unit tests sensitive to an environment variable NEON_PAGESERVER_UNIT_TEST_FEATURENAME.
+          # unit tests sensitive to an environment variable SERENDB_PAGESERVER_UNIT_TEST_FEATURENAME.
           # Then run the nextest invocation below for all relevant combinations. Singling out the
           # pageserver tests from non-pageserver tests cuts down the time it takes for this CI step.)
-          NEON_PAGESERVER_UNIT_TEST_VIRTUAL_FILE_IOENGINE=tokio-epoll-uring  \
+          SERENDB_PAGESERVER_UNIT_TEST_VIRTUAL_FILE_IOENGINE=tokio-epoll-uring  \
           ${cov_prefix} \
           cargo nextest run $CARGO_FLAGS $CARGO_PROFILE  -E 'package(pageserver)'
 
           # Run separate tests for real S3
           export ENABLE_REAL_S3_REMOTE_STORAGE=nonempty
-          export REMOTE_STORAGE_S3_BUCKET=neon-github-ci-tests
+          export REMOTE_STORAGE_S3_BUCKET=serendb-github-ci-tests
           export REMOTE_STORAGE_S3_REGION=eu-central-1
           ${cov_prefix} cargo nextest run $CARGO_FLAGS $CARGO_PROFILE -E 'package(remote_storage)' -E 'test(test_real_s3)'
 
@@ -304,24 +304,24 @@ jobs:
             build/*/src/test/regress/pg_regress \
             build/*/src/test/isolation/isolationtester \
             build/*/src/test/isolation/pg_isolation_regress \
-            | tar  x -C /tmp/neon
+            | tar  x -C /tmp/serendb
 
-      - name: Upload Neon artifact
+      - name: Upload SerenDB artifact
         uses: ./.github/actions/upload
         with:
-          name: neon-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build-type }}${{ inputs.sanitizers == 'enabled' && '-sanitized' || '' }}-artifact
-          path: /tmp/neon
+          name: serendb-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build-type }}${{ inputs.sanitizers == 'enabled' && '-sanitized' || '' }}-artifact
+          path: /tmp/serendb
           aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
       - name: Check diesel schema
         if: inputs.build-type == 'release' && inputs.arch == 'x64'
         env:
           DATABASE_URL: postgresql://localhost:1235/storage_controller
-          POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+          POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
         run: |
           export ASAN_OPTIONS=detect_leaks=0
-          /tmp/neon/bin/neon_local init
-          /tmp/neon/bin/neon_local storage_controller start
+          /tmp/serendb/bin/serendb_local init
+          /tmp/serendb/bin/serendb_local storage_controller start
 
           diesel print-schema > storage_controller/src/schema.rs
 
@@ -332,7 +332,7 @@ jobs:
             exit 1
           fi
 
-          /tmp/neon/bin/neon_local storage_controller stop
+          /tmp/serendb/bin/serendb_local storage_controller stop
 
       # XXX: keep this after the binaries.list is formed, so the coverage can properly work later
       - name: Merge and upload coverage data
@@ -346,7 +346,7 @@ jobs:
       id-token: write # aws-actions/configure-aws-credentials
       contents: read
       statuses: write
-    needs: [ build-neon ]
+    needs: [ build-serendb ]
     runs-on: ${{ fromJSON(format('["self-hosted", "{0}"]', inputs.arch == 'arm64' && 'large-arm64' || 'large-metal')) }}
     container:
       image: ${{ inputs.build-tools-image }}
@@ -377,7 +377,7 @@ jobs:
           test_selection: regress
           needs_postgres_source: true
           run_with_real_s3: true
-          real_s3_bucket: neon-github-ci-tests
+          real_s3_bucket: serendb-github-ci-tests
           real_s3_region: eu-central-1
           rerun_failed: ${{ inputs.rerun-failed }}
           pg_version: ${{ matrix.pg_version }}

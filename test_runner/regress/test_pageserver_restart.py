@@ -11,19 +11,19 @@ from fixtures.remote_storage import s3_storage
 from fixtures.utils import skip_in_debug_build, wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 # Test restarting page server, while safekeeper and compute node keep
 # running.
-def test_pageserver_restart(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+def test_pageserver_restart(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
     # We inject a delay of 15 seconds for tenant activation below.
     # Hence, bump the max delay here to not skip over the activation.
-    neon_env_builder.pageserver_config_override = 'background_task_maximum_delay="20s"'
+    serendb_env_builder.pageserver_config_override = 'background_task_maximum_delay="20s"'
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main")
     pageserver_http = env.pageserver.http_client()
@@ -159,14 +159,14 @@ def test_pageserver_restart(neon_env_builder: NeonEnvBuilder):
 @pytest.mark.timeout(540)
 @pytest.mark.parametrize("shard_count", [None, 4])
 @skip_in_debug_build("times out in debug builds")
-def test_pageserver_chaos(neon_env_builder: NeonEnvBuilder, shard_count: int | None):
+def test_pageserver_chaos(serendb_env_builder: SerenDBEnvBuilder, shard_count: int | None):
     # same rationale as with the immediate stop; we might leave orphan layers behind.
-    neon_env_builder.disable_scrub_on_exit()
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
     if shard_count is not None:
-        neon_env_builder.num_pageservers = shard_count
+        serendb_env_builder.num_pageservers = shard_count
 
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
 
     # Use a tiny checkpoint distance, to create a lot of layers quickly.
     # That allows us to stress the compaction and layer flushing logic more.
@@ -232,14 +232,14 @@ def test_pageserver_chaos(neon_env_builder: NeonEnvBuilder, shard_count: int | N
     env.stop(immediate=True)
 
 
-def test_pageserver_lost_and_transaction_aborted(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_lost_and_transaction_aborted(serendb_env_builder: SerenDBEnvBuilder):
     """
     If pageserver is unavailable during a transaction abort and target relation is
     not present in cache, we abort the transaction in ABORT state which triggers a sigabrt.
     This is _expected_ behavour
     """
-    env = neon_env_builder.init_start()
-    endpoint = env.endpoints.create_start("main", config_lines=["neon.relsize_hash_size=0"])
+    env = serendb_env_builder.init_start()
+    endpoint = env.endpoints.create_start("main", config_lines=["serendb.relsize_hash_size=0"])
     with closing(endpoint.connect()) as conn, conn.cursor() as cur:
         cur.execute("CREATE DATABASE test")
     with (
@@ -252,14 +252,14 @@ def test_pageserver_lost_and_transaction_aborted(neon_env_builder: NeonEnvBuilde
         cur.execute("create index ti on t using gist(b)")
 
 
-def test_pageserver_lost_and_transaction_committed(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_lost_and_transaction_committed(serendb_env_builder: SerenDBEnvBuilder):
     """
     If pageserver is unavailable during a transaction commit and target relation is
     not present in cache, we abort the transaction in COMMIT state which triggers a sigabrt.
     This is _expected_ behavour
     """
-    env = neon_env_builder.init_start()
-    endpoint = env.endpoints.create_start("main", config_lines=["neon.relsize_hash_size=0"])
+    env = serendb_env_builder.init_start()
+    endpoint = env.endpoints.create_start("main", config_lines=["serendb.relsize_hash_size=0"])
     with closing(endpoint.connect()) as conn, conn.cursor() as cur:
         cur.execute("CREATE DATABASE test")
     with (

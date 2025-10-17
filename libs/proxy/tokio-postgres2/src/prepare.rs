@@ -119,7 +119,7 @@ pub async fn parse_row_description(
         return Ok(columns);
     }
 
-    let typeinfo = "neon_proxy_typeinfo";
+    let typeinfo = "serendb_proxy_typeinfo";
 
     // make sure to close the typeinfo statement before exiting.
     let mut guard = CloseStmt {

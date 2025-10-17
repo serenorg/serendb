@@ -1,5 +1,5 @@
 """
-Run the random API tests on the cloud instance of Neon
+Run the random API tests on the cloud instance of SerenDB
 """
 
 from __future__ import annotations
@@ -17,22 +17,22 @@ from fixtures.log_helper import log
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_api import NeonAPI
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.serendb_api import SerenDBAPI
+    from fixtures.serendb_fixtures import PgBin
     from fixtures.pg_version import PgVersion
 
 
-class NeonEndpoint:
+class SerenDBEndpoint:
     """
-    Neon Endpoint
+    SerenDB Endpoint
     Gets the output of the API call of an endpoint creation
     """
 
-    def __init__(self, project: NeonProject, endpoint: dict[str, Any]):
-        self.project: NeonProject = project
+    def __init__(self, project: SerenDBProject, endpoint: dict[str, Any]):
+        self.project: SerenDBProject = project
         self.id: str = endpoint["id"]
         # The branch endpoint belongs to
-        self.branch: NeonBranch = project.branches[endpoint["branch_id"]]
+        self.branch: SerenDBBranch = project.branches[endpoint["branch_id"]]
         self.type: str = endpoint["type"]
         # add itself to the list of endpoints of the branch
         self.branch.endpoints[self.id] = self
@@ -60,20 +60,20 @@ class NeonEndpoint:
         self.project.terminate_benchmark(self.id)
 
 
-class NeonBranch:
+class SerenDBBranch:
     """
-    Neon Branch
-    Gets the output of the API call of the Neon Public API call of a branch creation as a first parameter
+    SerenDB Branch
+    Gets the output of the API call of the SerenDB Public API call of a branch creation as a first parameter
     is_reset defines if the branch is a reset one i.e. created as a result of the reset API Call
     """
 
     def __init__(self, project, branch: dict[str, Any], is_reset=False):
         self.id: str = branch["branch"]["id"]
         self.desc = branch
-        self.project: NeonProject = project
-        self.neon_api: NeonAPI = project.neon_api
+        self.project: SerenDBProject = project
+        self.serendb_api: SerenDBAPI = project.serendb_api
         self.project_id: str = branch["branch"]["project_id"]
-        self.parent: NeonBranch | None = (
+        self.parent: SerenDBBranch | None = (
             self.project.branches[branch["branch"]["parent_id"]]
             if "parent_id" in branch["branch"]
             else None
@@ -85,10 +85,10 @@ class NeonBranch:
         if self.parent is not None and self.parent.id in self.project.leaf_branches:
             self.project.leaf_branches.pop(self.parent.id)
         self.project.branches[self.id] = self
-        self.children: dict[str, NeonBranch] = {}
+        self.children: dict[str, SerenDBBranch] = {}
         if self.parent is not None:
             self.parent.children[self.id] = self
-        self.endpoints: dict[str, NeonEndpoint] = {}
+        self.endpoints: dict[str, SerenDBEndpoint] = {}
         self.connection_parameters: dict[str, str] | None = (
             branch["connection_uris"][0]["connection_parameters"]
             if "connection_uris" in branch
@@ -128,15 +128,15 @@ class NeonBranch:
         log.info("min_time: %s, max_time: %s", min_time, max_time)
         return (min_time + (max_time - min_time) * random.random()).replace(microsecond=0)
 
-    def create_child_branch(self, parent_timestamp: datetime | None = None) -> NeonBranch | None:
+    def create_child_branch(self, parent_timestamp: datetime | None = None) -> SerenDBBranch | None:
         return self.project.create_branch(self.id, parent_timestamp)
 
-    def create_ro_endpoint(self) -> NeonEndpoint | None:
+    def create_ro_endpoint(self) -> SerenDBEndpoint | None:
         if not self.project.check_limit_endpoints():
             return None
-        return NeonEndpoint(
+        return SerenDBEndpoint(
             self.project,
-            self.neon_api.create_endpoint(self.project_id, self.id, "read_only", {})["endpoint"],
+            self.serendb_api.create_endpoint(self.project_id, self.id, "read_only", {})["endpoint"],
         )
 
     def delete(self) -> None:
@@ -156,7 +156,7 @@ class NeonBranch:
             if ep.type == "read_only":
                 ep.terminate_benchmark()
         self.terminate_benchmark()
-        res = self.neon_api.reset_to_parent(self.project_id, self.id)
+        res = self.serendb_api.reset_to_parent(self.project_id, self.id)
         self.updated_at = datetime.fromisoformat(res["branch"]["updated_at"])
         self.parent_timestamp = datetime.fromisoformat(res["branch"]["parent_timestamp"])
         self.project.wait()
@@ -181,8 +181,8 @@ class NeonBranch:
         parent_id: str = res["branch"]["parent_id"]
         # Creates an object for the parent branch
         # After the reset operation a new parent branch is created
-        parent = NeonBranch(
-            self.project, self.neon_api.get_branch_details(self.project_id, parent_id), True
+        parent = SerenDBBranch(
+            self.project, self.serendb_api.get_branch_details(self.project_id, parent_id), True
         )
         self.project.branches[parent_id] = parent
         self.parent = parent
@@ -203,7 +203,7 @@ class NeonBranch:
         for ep in endpoints:
             ep.terminate_benchmark()
         self.terminate_benchmark()
-        res: dict[str, Any] = self.neon_api.restore_branch(
+        res: dict[str, Any] = self.serendb_api.restore_branch(
             self.project_id,
             self.id,
             source_branch_id,
@@ -218,16 +218,16 @@ class NeonBranch:
         return res
 
 
-class NeonProject:
+class SerenDBProject:
     """
     The project object
-    Calls the Public API to create a Neon Project
+    Calls the Public API to create a SerenDB Project
     """
 
-    def __init__(self, neon_api: NeonAPI, pg_bin: PgBin, pg_version: PgVersion):
-        self.neon_api = neon_api
+    def __init__(self, serendb_api: SerenDBAPI, pg_bin: PgBin, pg_version: PgVersion):
+        self.serendb_api = serendb_api
         self.pg_bin = pg_bin
-        proj = self.neon_api.create_project(
+        proj = self.serendb_api.create_project(
             pg_version, f"Automatic random API test GITHUB_RUN_ID={os.getenv('GITHUB_RUN_ID')}"
         )
         self.id: str = proj["project"]["id"]
@@ -238,15 +238,15 @@ class NeonProject:
         ]
         self.pg_version: PgVersion = pg_version
         # Leaf branches are the branches, which do not have children
-        self.leaf_branches: dict[str, NeonBranch] = {}
-        self.branches: dict[str, NeonBranch] = {}
+        self.leaf_branches: dict[str, SerenDBBranch] = {}
+        self.branches: dict[str, SerenDBBranch] = {}
         self.reset_branches: set[str] = set()
-        self.main_branch: NeonBranch = NeonBranch(self, proj)
+        self.main_branch: SerenDBBranch = SerenDBBranch(self, proj)
         self.main_branch.connection_parameters = self.connection_parameters
-        self.endpoints: dict[str, NeonEndpoint] = {}
+        self.endpoints: dict[str, SerenDBEndpoint] = {}
         for endpoint in proj["endpoints"]:
-            NeonEndpoint(self, endpoint)
-        self.neon_api.wait_for_operation_to_finish(self.id)
+            SerenDBEndpoint(self, endpoint)
+        self.serendb_api.wait_for_operation_to_finish(self.id)
         self.benchmarks: dict[str, subprocess.Popen[Any]] = {}
         self.restore_num: int = 0
         self.restart_pgbench_on_console_errors: bool = False
@@ -255,10 +255,10 @@ class NeonProject:
         self.min_time: datetime = datetime.now(UTC)
 
     def get_limits(self) -> dict[str, Any]:
-        return self.neon_api.get_project_limits(self.id)
+        return self.serendb_api.get_project_limits(self.id)
 
     def delete(self) -> None:
-        self.neon_api.delete_project(self.id)
+        self.serendb_api.delete_project(self.id)
 
     def check_limit_branches(self) -> bool:
         if self.limits["max_branches"] == -1 or len(self.branches) < self.limits["max_branches"]:
@@ -281,7 +281,7 @@ class NeonProject:
 
     def create_branch(
         self, parent_id: str | None = None, parent_timestamp: datetime | None = None
-    ) -> NeonBranch | None:
+    ) -> SerenDBBranch | None:
         self.wait()
         if not self.check_limit_branches():
             return None
@@ -290,10 +290,10 @@ class NeonProject:
         parent_timestamp_str: str | None = None
         if parent_timestamp:
             parent_timestamp_str = parent_timestamp.isoformat().replace("+00:00", "Z")
-        branch_def = self.neon_api.create_branch(
+        branch_def = self.serendb_api.create_branch(
             self.id, parent_id=parent_id, parent_timestamp=parent_timestamp_str
         )
-        new_branch = NeonBranch(self, branch_def)
+        new_branch = SerenDBBranch(self, branch_def)
         self.wait()
         return new_branch
 
@@ -312,7 +312,7 @@ class NeonProject:
             ep.delete()
         if branch_id not in self.reset_branches:
             self.terminate_benchmark(branch_id)
-        self.neon_api.delete_branch(self.id, branch_id)
+        self.serendb_api.delete_branch(self.id, branch_id)
         if len(parent.children) == 1 and parent.id != self.main_branch.id:
             self.leaf_branches[parent.id] = parent
         parent.children.pop(branch_id)
@@ -325,8 +325,8 @@ class NeonProject:
         if parent.id in self.reset_branches:
             parent.delete()
 
-    def get_random_leaf_branch(self) -> NeonBranch | None:
-        target: NeonBranch | None = None
+    def get_random_leaf_branch(self) -> SerenDBBranch | None:
+        target: SerenDBBranch | None = None
         if self.leaf_branches:
             target = random.choice(list(self.leaf_branches.values()))
         else:
@@ -335,7 +335,7 @@ class NeonProject:
 
     def delete_endpoint(self, endpoint_id: str) -> None:
         self.terminate_benchmark(endpoint_id)
-        self.neon_api.delete_endpoint(self.id, endpoint_id)
+        self.serendb_api.delete_endpoint(self.id, endpoint_id)
         self.endpoints[endpoint_id].branch.endpoints.pop(endpoint_id)
         self.endpoints.pop(endpoint_id)
         self.read_only_endpoints_total -= 1
@@ -403,7 +403,7 @@ class NeonProject:
         """
         Wait for all the operations to be finished
         """
-        return self.neon_api.wait_for_operation_to_finish(self.id)
+        return self.serendb_api.wait_for_operation_to_finish(self.id)
 
     def gen_restore_name(self):
         self.restore_num += 1
@@ -414,23 +414,23 @@ class NeonProject:
 def setup_class(
     pg_version: PgVersion,
     pg_bin: PgBin,
-    neon_api: NeonAPI,
+    serendb_api: SerenDBAPI,
 ):
-    neon_api.retry_if_possible = True
-    project = NeonProject(neon_api, pg_bin, pg_version)
+    serendb_api.retry_if_possible = True
+    project = SerenDBProject(serendb_api, pg_bin, pg_version)
     log.info("Created a project with id %s, name %s", project.id, project.name)
     yield pg_bin, project
-    log.info("Retried 524 errors: %s", neon_api.retries524)
-    log.info("Retried 4xx errors: %s", neon_api.retries4xx)
-    if neon_api.retries524 > 0:
-        print(f"::warning::Retried on 524 error {neon_api.retries524} times")
-    if neon_api.retries4xx > 0:
-        print(f"::warning::Retried on 4xx error {neon_api.retries4xx} times")
+    log.info("Retried 524 errors: %s", serendb_api.retries524)
+    log.info("Retried 4xx errors: %s", serendb_api.retries4xx)
+    if serendb_api.retries524 > 0:
+        print(f"::warning::Retried on 524 error {serendb_api.retries524} times")
+    if serendb_api.retries4xx > 0:
+        print(f"::warning::Retried on 4xx error {serendb_api.retries4xx} times")
     log.info("Removing the project %s", project.id)
     project.delete()
 
 
-def do_action(project: NeonProject, action: str) -> bool:
+def do_action(project: SerenDBProject, action: str) -> bool:
     """
     Runs the action
     """
@@ -463,10 +463,10 @@ def do_action(project: NeonProject, action: str) -> bool:
         if project.read_only_endpoints_total == 0:
             log.info("no read_only endpoints present, skipping")
             return False
-        ro_endpoints: list[NeonEndpoint] = [
+        ro_endpoints: list[SerenDBEndpoint] = [
             endpoint for endpoint in project.endpoints.values() if endpoint.type == "read_only"
         ]
-        target_ep: NeonEndpoint = random.choice(ro_endpoints)
+        target_ep: SerenDBEndpoint = random.choice(ro_endpoints)
         target_ep.delete()
         log.info("endpoint %s deleted", target_ep.id)
     elif action == "restore_random_time":

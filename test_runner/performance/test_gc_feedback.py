@@ -4,16 +4,16 @@ import json
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
-def gc_feedback_impl(neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchmarker, mode: str):
+def gc_feedback_impl(serendb_env_builder: SerenDBEnvBuilder, zenbenchmark: SerenDBBenchmarker, mode: str):
     assert mode == "normal" or mode == "with_snapshots"
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     tenant_id, _ = env.create_tenant(
@@ -31,7 +31,7 @@ def gc_feedback_impl(neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchma
         }
     )
     endpoint = env.endpoints.create_start("main", tenant_id=tenant_id)
-    timeline_id = endpoint.safe_psql("show neon.timeline_id")[0][0]
+    timeline_id = endpoint.safe_psql("show serendb.timeline_id")[0][0]
     n_steps = 10
     n_update_iters = 100
     step_size = 10000
@@ -161,7 +161,7 @@ def gc_feedback_impl(neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchma
 
 
 @pytest.mark.timeout(10000)
-def test_gc_feedback(neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchmarker):
+def test_gc_feedback(serendb_env_builder: SerenDBEnvBuilder, zenbenchmark: SerenDBBenchmarker):
     """
     Test that GC is able to collect all old layers even if them are forming
     "stairs" and there are not three delta layers since last image layer.
@@ -178,12 +178,12 @@ def test_gc_feedback(neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchma
     And the bottom-most GC-compaction epic resolves the problem.
     https://github.com/neondatabase/neon/issues/8002
     """
-    gc_feedback_impl(neon_env_builder, zenbenchmark, "normal")
+    gc_feedback_impl(serendb_env_builder, zenbenchmark, "normal")
 
 
 @pytest.mark.timeout(10000)
 def test_gc_feedback_with_snapshots(
-    neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchmarker
+    serendb_env_builder: SerenDBEnvBuilder, zenbenchmark: SerenDBBenchmarker
 ):
     """
     Compared with `test_gc_feedback`, we create a branch without written data (=snapshot) in the middle
@@ -191,4 +191,4 @@ def test_gc_feedback_with_snapshots(
     horizon. Ideally, there should be images (in an image layer) covering the full range at the branch point,
     and images covering the full key range (in a delta layer) at the GC horizon.
     """
-    gc_feedback_impl(neon_env_builder, zenbenchmark, "with_snapshots")
+    gc_feedback_impl(serendb_env_builder, zenbenchmark, "with_snapshots")

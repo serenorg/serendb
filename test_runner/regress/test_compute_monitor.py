@@ -6,10 +6,10 @@ from fixtures.metrics import parse_metrics
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_compute_monitor(neon_simple_env: NeonEnv):
+def test_compute_monitor(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can detect Postgres going down (unresponsive) and
     reconnect when it comes back online. Also check that the downtime metrics
@@ -17,7 +17,7 @@ def test_compute_monitor(neon_simple_env: NeonEnv):
     """
     TEST_DB = "test_compute_monitor"
 
-    env = neon_simple_env
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     # Check that default postgres database is present

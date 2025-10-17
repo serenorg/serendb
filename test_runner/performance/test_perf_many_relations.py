@@ -2,10 +2,10 @@ import os
 from pathlib import Path
 
 import pytest
-from fixtures.benchmark_fixture import NeonBenchmarker
+from fixtures.benchmark_fixture import SerenDBBenchmarker
 from fixtures.compare_fixtures import RemoteCompare
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, wait_for_last_flush_lsn
 from fixtures.utils import shared_buffers_for_max_cu
 
 
@@ -75,12 +75,12 @@ def test_perf_many_relations(remote_compare: RemoteCompare, num_relations: int):
     ids=["v1-small", "v1v2-small", "v2-small", "v2-large"],
 )
 def test_perf_simple_many_relations_reldir(
-    neon_env_builder: NeonEnvBuilder, zenbenchmark: NeonBenchmarker, reldir: str, num_relations: int
+    serendb_env_builder: SerenDBEnvBuilder, zenbenchmark: SerenDBBenchmarker, reldir: str, num_relations: int
 ):
     """
     Test creating many relations in a single database.
     """
-    env = neon_env_builder.init_start(initial_tenant_conf={"rel_size_v2_enabled": reldir != "v1"})
+    env = serendb_env_builder.init_start(initial_tenant_conf={"rel_size_v2_enabled": reldir != "v1"})
     ep = env.endpoints.create_start(
         "main",
         config_lines=[

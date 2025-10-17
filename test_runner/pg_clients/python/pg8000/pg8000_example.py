@@ -8,8 +8,8 @@ import pg8000.dbapi
 
 if __name__ == "__main__":
     kwargs = {
-        k.removeprefix("NEON_").lower(): v
-        for k in ("NEON_HOST", "NEON_DATABASE", "NEON_USER", "NEON_PASSWORD")
+        k.removeprefix("SERENDB_").lower(): v
+        for k in ("SERENDB_HOST", "SERENDB_DATABASE", "SERENDB_USER", "SERENDB_PASSWORD")
         if (v := os.environ.get(k, None)) is not None
     }
     conn = pg8000.dbapi.connect(

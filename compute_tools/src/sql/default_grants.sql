@@ -23,8 +23,8 @@ $$
             WHERE nspname OPERATOR(pg_catalog.=) 'public'
         )
         THEN
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO neon_superuser WITH GRANT OPTION;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO neon_superuser WITH GRANT OPTION;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO serendb_superuser WITH GRANT OPTION;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO serendb_superuser WITH GRANT OPTION;
         END IF;
     END
 $$;

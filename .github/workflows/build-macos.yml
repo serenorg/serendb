@@ -1,4 +1,4 @@
-name: Check neon with MacOS builds
+name: Check SerenDB with MacOS builds
 
 on:
   workflow_call:
@@ -117,7 +117,7 @@ jobs:
             target
           key: v1-${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('./Cargo.lock') }}-${{ hashFiles('./rust-toolchain.toml') }}-rust
 
-      # Build the neon-specific postgres extensions, and all the Rust bits.
+      # Build the serendb-specific postgres extensions, and all the Rust bits.
       #
       # Pass PG_INSTALL_CACHED=1 because PostgreSQL was already built and cached
       # separately.

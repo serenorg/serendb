@@ -31,7 +31,7 @@ use futures::future::{Either, select};
 use http::{Method, Response, StatusCode};
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty};
-use http_util::{NEON_REQUEST_ID, uuid_to_header_value};
+use http_util::{SERENDB_REQUEST_ID, uuid_to_header_value};
 use http_utils::error::ApiError;
 use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
@@ -331,7 +331,7 @@ async fn connection_handler(
                 // take session_id from request, if given.
                 if let Some(id) = req
                     .headers()
-                    .get(&NEON_REQUEST_ID)
+                    .get(&SERENDB_REQUEST_ID)
                     .and_then(|id| uuid::Uuid::try_parse_ascii(id.as_bytes()).ok())
                 {
                     session_id = id;
@@ -370,7 +370,7 @@ async fn connection_handler(
                 // add the session ID to the response
                 if let Ok(resp) = &mut res {
                     resp.headers_mut()
-                        .append(&NEON_REQUEST_ID, uuid_to_header_value(session_id));
+                        .append(&SERENDB_REQUEST_ID, uuid_to_header_value(session_id));
                 }
 
                 res
@@ -464,7 +464,7 @@ async fn request_handler(
 
         let testodrome_id = request
             .headers()
-            .get("X-Neon-Query-ID")
+            .get("X-SerenDB-Query-ID")
             .and_then(|value| value.to_str().ok())
             .map(|s| s.to_string());
 
@@ -482,7 +482,7 @@ async fn request_handler(
             .header("Access-Control-Allow-Origin", "*")
             .header(
                 "Access-Control-Allow-Headers",
-                "Authorization, Neon-Connection-String, Neon-Raw-Text-Output, Neon-Array-Mode, Neon-Pool-Opt-In, Neon-Batch-Read-Only, Neon-Batch-Isolation-Level",
+                "Authorization, SerenDB-Connection-String, SerenDB-Raw-Text-Output, SerenDB-Array-Mode, SerenDB-Pool-Opt-In, SerenDB-Batch-Read-Only, SerenDB-Batch-Isolation-Level",
             )
             .header("Access-Control-Max-Age", "86400" /* 24 hours */)
             .status(StatusCode::OK) // 204 is also valid, but see: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS#status_code
@@ -506,7 +506,7 @@ async fn request_handler(
 
                 let testodrome_id = request
                     .headers()
-                    .get("X-Neon-Query-ID")
+                    .get("X-SerenDB-Query-ID")
                     .and_then(|value| value.to_str().ok())
                     .map(|s| s.to_string());
 

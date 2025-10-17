@@ -1,15 +1,15 @@
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_on_demand_wal_download(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_on_demand_wal_download(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     ep = env.endpoints.create_start(
         branch_name="main",
         endpoint_id="primary",
         config_lines=[
             "max_wal_size=32MB",
             "min_wal_size=32MB",
-            "neon.logical_replication_max_snap_files=10000",
+            "serendb.logical_replication_max_snap_files=10000",
         ],
     )
 

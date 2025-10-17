@@ -5,7 +5,7 @@ from contextlib import closing
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv, NeonEnvBuilder, PgBin, fork_at_current_lsn
+from fixtures.serendb_fixtures import SerenDBEnv, SerenDBEnvBuilder, PgBin, fork_at_current_lsn
 from fixtures.utils import query_scalar
 
 
@@ -13,8 +13,8 @@ from fixtures.utils import query_scalar
 # Test that the VM bit is cleared correctly at a HEAP_DELETE and
 # HEAP_UPDATE record.
 #
-def test_vm_bit_clear(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_vm_bit_clear(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 
@@ -22,7 +22,7 @@ def test_vm_bit_clear(neon_simple_env: NeonEnv):
     cur = pg_conn.cursor()
 
     # Install extension containing function needed for test
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Create a test table for a few different scenarios and freeze it to set the VM bits.
     cur.execute("CREATE TABLE vmtest_delete (id integer PRIMARY KEY)")
@@ -117,13 +117,13 @@ def test_vm_bit_clear(neon_simple_env: NeonEnv):
     assert cur_new.fetchall() == []
 
 
-def test_vm_bit_clear_on_heap_lock_whitebox(neon_env_builder: NeonEnvBuilder):
+def test_vm_bit_clear_on_heap_lock_whitebox(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that the ALL_FROZEN VM bit is cleared correctly at a HEAP_LOCK record.
 
     This is a repro for the bug fixed in commit 66fa176cc8.
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
@@ -144,7 +144,7 @@ def test_vm_bit_clear_on_heap_lock_whitebox(neon_env_builder: NeonEnvBuilder):
     cur = pg_conn.cursor()
 
     # Install extension containing function needed for test
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
     cur.execute("CREATE EXTENSION pageinspect")
 
     # Create a test table and freeze it to set the all-frozen VM bit on all pages.
@@ -193,7 +193,7 @@ def test_vm_bit_clear_on_heap_lock_whitebox(neon_env_builder: NeonEnvBuilder):
     assert vm_page_at_pageserver == vm_page_in_cache
 
 
-def test_vm_bit_clear_on_heap_lock_blackbox(neon_env_builder: NeonEnvBuilder):
+def test_vm_bit_clear_on_heap_lock_blackbox(serendb_env_builder: SerenDBEnvBuilder):
     """
     The previous test is enough to verify the bug that was fixed in
     commit 66fa176cc8. But for good measure, we also reproduce the
@@ -211,7 +211,7 @@ def test_vm_bit_clear_on_heap_lock_blackbox(neon_env_builder: NeonEnvBuilder):
         # set PITR interval to be small, so we can do GC
         "pitr_interval": "0 s",
     }
-    env = neon_env_builder.init_start(initial_tenant_conf=tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf=tenant_conf)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -229,7 +229,7 @@ def test_vm_bit_clear_on_heap_lock_blackbox(neon_env_builder: NeonEnvBuilder):
     cur = pg_conn.cursor()
 
     # Install extension containing function needed for test
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Create a test table and freeze it to set the all-frozen VM bit on all pages.
     cur.execute("CREATE TABLE vmtest_lock (id integer PRIMARY KEY)")
@@ -250,7 +250,7 @@ def test_vm_bit_clear_on_heap_lock_blackbox(neon_env_builder: NeonEnvBuilder):
     # Kill and restart postgres, to clear the buffer cache.
     #
     # NOTE: clear_buffer_cache() will not do, because it evicts the dirty pages
-    # in a "clean" way. Our neon extension will write a full-page image of the VM
+    # in a "clean" way. Our SerenDB extension will write a full-page image of the VM
     # page, and we want to avoid that. A clean shutdown will also not do, for the
     # same reason.
     endpoint.stop(mode="immediate", sks_wait_walreceiver_gone=(env.safekeepers, timeline_id))
@@ -299,7 +299,7 @@ def test_vm_bit_clear_on_heap_lock_blackbox(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.timeout(600)  # slow in debug builds
-def test_check_visibility_map(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def test_check_visibility_map(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     """
     Runs pgbench across a few databases on a sharded tenant, then performs a visibility map
     consistency check. Regression test for https://github.com/neondatabase/neon/issues/9914.
@@ -311,7 +311,7 @@ def test_check_visibility_map(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
     STRIPE_SIZE = 32  # in 8KB pages
     PGBENCH_RUNS = 4
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=SHARD_COUNT, initial_tenant_shard_stripe_size=STRIPE_SIZE
     )
     endpoint = env.endpoints.create_start(

@@ -11,7 +11,7 @@ index a0f0fc1bf45..ee077f2eea6 100644
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT USAGE ON FOREIGN DATA WRAPPER postgres_fdw TO %I', privileged_role_name);
 +END $$;

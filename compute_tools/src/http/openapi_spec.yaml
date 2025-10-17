@@ -579,7 +579,7 @@ components:
         database:
           type: string
           description: Database name.
-          example: "neondb"
+          example: "serendb"
 
     ExtensionInstallResult:
       type: object
@@ -700,7 +700,7 @@ components:
         database:
           type: string
           description: Database name.
-          example: "neondb"
+          example: "serendb"
         schema:
           type: string
           description: Schema name.
@@ -714,7 +714,7 @@ components:
         role:
           type: string
           description: Role name.
-          example: "neon"
+          example: "serendb"
 
     TerminateResponse:
       type: object
@@ -738,7 +738,7 @@ components:
         database:
           type: string
           description: Database name.
-          example: "neondb"
+          example: "serendb"
         schema:
           type: string
           description: Schema name.
@@ -752,7 +752,7 @@ components:
         role:
           type: string
           description: Role name.
-          example: "neon"
+          example: "serendb"
 
     #
     # Errors

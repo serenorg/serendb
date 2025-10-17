@@ -9,7 +9,7 @@ pytest_plugins = (
     "fixtures.storage_controller_proxy",
     "fixtures.paths",
     "fixtures.compute_migrations",
-    "fixtures.neon_fixtures",
+    "fixtures.serendb_fixtures",
     "fixtures.benchmark_fixture",
     "fixtures.pg_stats",
     "fixtures.compare_fixtures",

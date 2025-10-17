@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from typing import Any, Self
 
     from fixtures.httpserver import ListenAddress
-    from fixtures.neon_fixtures import NeonEnv, VanillaPostgres
+    from fixtures.serendb_fixtures import SerenDBEnv, VanillaPostgres
     from pytest_httpserver import HTTPServer
     from werkzeug.wrappers.request import Request
 
@@ -82,8 +82,8 @@ class DdlForwardingContext:
         ddl_url = f"http://{host}:{port}{endpoint}"
         self.pg.configure(
             [
-                f"neon.console_url={ddl_url}",
-                "shared_preload_libraries = 'neon'",
+                f"serendb.console_url={ddl_url}",
+                "shared_preload_libraries = 'serendb'",
             ]
         )
         log.info(f"Listening on {ddl_url}")
@@ -268,25 +268,25 @@ def test_ddl_forwarding(ddl: DdlForwardingContext):
         raise AssertionError("Could not count databases")
     assert result[0] == 0, "Database 'failure' still exists after drop"
 
-    # We don't have compute_ctl, so here, so create neon_superuser here manually
-    cur.execute("CREATE ROLE neon_superuser NOLOGIN CREATEDB CREATEROLE")
+    # We don't have compute_ctl, so here, so create serendb_superuser here manually
+    cur.execute("CREATE ROLE serendb_superuser NOLOGIN CREATEDB CREATEROLE")
 
     # Contrary to popular belief, being superman does not make you superuser
     cur.execute("CREATE ROLE superman LOGIN NOSUPERUSER PASSWORD 'jungle_man'")
 
     with ddl.pg.cursor(user="superman", password="jungle_man") as superman_cur:
-        # We allow real SUPERUSERs to ALTER neon_superuser
+        # We allow real SUPERUSERs to ALTER serendb_superuser
         with pytest.raises(psycopg2.InternalError):
-            superman_cur.execute("ALTER ROLE neon_superuser LOGIN")
+            superman_cur.execute("ALTER ROLE serendb_superuser LOGIN")
 
-    cur.execute("ALTER ROLE neon_superuser LOGIN")
+    cur.execute("ALTER ROLE serendb_superuser LOGIN")
 
     with pytest.raises(psycopg2.InternalError):
-        cur.execute("CREATE DATABASE trololobus WITH OWNER neon_superuser")
+        cur.execute("CREATE DATABASE trololobus WITH OWNER serendb_superuser")
 
     cur.execute("CREATE DATABASE trololobus")
     with pytest.raises(psycopg2.InternalError):
-        cur.execute("ALTER DATABASE trololobus OWNER TO neon_superuser")
+        cur.execute("ALTER DATABASE trololobus OWNER TO serendb_superuser")
 
     conn.close()
 
@@ -311,16 +311,16 @@ def assert_db_connlimit(endpoint: Any, db_name: str, connlimit: int, msg: str):
 # 2. User can ignore, then compute_ctl will drop invalid databases
 #    automatically during full configuration
 # Here we test the latter. The first one is tested in test_ddl_forwarding
-def test_ddl_forwarding_invalid_db(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_ddl_forwarding_invalid_db(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start(
         "main",
         # Some non-existent url
-        config_lines=["neon.console_url=http://localhost:9999/unknown/api/v0/roles_and_databases"],
+        config_lines=["serendb.console_url=http://localhost:9999/unknown/api/v0/roles_and_databases"],
     )
 
     with endpoint.cursor() as cur:
-        cur.execute("SET neon.forward_ddl = false")
+        cur.execute("SET serendb.forward_ddl = false")
         cur.execute("CREATE DATABASE failure")
         cur.execute("COMMIT")
 
@@ -355,7 +355,7 @@ def test_ddl_forwarding_invalid_db(neon_simple_env: NeonEnv):
         assert result[0] == 0, "Database 'failure' still exists after restart"
 
 
-def test_ddl_forwarding_role_specs(neon_simple_env: NeonEnv):
+def test_ddl_forwarding_role_specs(serendb_simple_env: SerenDBEnv):
     """
     Postgres has a concept of role specs:
 
@@ -368,7 +368,7 @@ def test_ddl_forwarding_role_specs(neon_simple_env: NeonEnv):
     The extension is required to serialize these special role spec into
     usernames for the purpose of DDL forwarding.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 

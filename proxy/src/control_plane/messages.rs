@@ -34,7 +34,7 @@ impl ControlPlaneErrorMessage {
             .as_ref()
             .and_then(|s| s.details.user_facing_message.as_ref())
             .map_or_else(|| {
-                // Ask @neondatabase/control-plane for review before adding more.
+                // Ask @serendb/control-plane for review before adding more.
                 match self.http_status_code {
                     http::StatusCode::NOT_FOUND => {
                         // Status 404: failed to get a project-related resource.

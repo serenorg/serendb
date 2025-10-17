@@ -4,4 +4,4 @@ WORKDIR /source
 
 COPY . .
 RUN cargo build
-CMD ["/source/target/debug/rust-neon-example"]
+CMD ["/source/target/debug/rust-serendb-example"]

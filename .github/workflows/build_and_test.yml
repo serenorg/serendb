@@ -46,7 +46,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CI_ACCESS_TOKEN }}
         run: |
-          gh workflow --repo neondatabase/cloud \
+          gh workflow --repo serenorg/cloud \
             run cancel-previous-in-concurrency-group.yml \
               --field concurrency_group="${{ env.E2E_CONCURRENCY_GROUP }}"
 
@@ -145,7 +145,7 @@ jobs:
           make -C compute jsonnetfmt-test
 
   # Check that the vendor/postgres-* submodules point to the
-  # corresponding REL_*_STABLE_neon branches.
+  # corresponding REL_*_STABLE_serendb branches.
   check-submodules:
     needs: [ check-permissions ]
     runs-on: ubuntu-22.04
@@ -468,11 +468,11 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Get Neon artifact
+      - name: Get SerenDB artifact
         uses: ./.github/actions/download
         with:
-          name: neon-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build_type }}-artifact
-          path: /tmp/neon
+          name: serendb-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build_type }}-artifact
+          path: /tmp/serendb
           aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
       - name: Get coverage artifact
@@ -503,7 +503,7 @@ jobs:
       - name: Build coverage report NEW
         id: upload-coverage-report-new
         env:
-          BUCKET: neon-github-public-dev
+          BUCKET: serendb-github-public-dev
           # A differential coverage report is available only for PRs.
           # (i.e. for pushes into main/release branches we have a regular coverage report)
           COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -569,14 +569,14 @@ jobs:
         )
         && !failure() && !cancelled()
       }}
-    needs: [ check-permissions, push-neon-image-dev, push-compute-image-dev, meta ]
+    needs: [ check-permissions, push-serendb-image-dev, push-compute-image-dev, meta ]
     uses: ./.github/workflows/trigger-e2e-tests.yml
     with:
       github-event-name: ${{ github.event_name }}
       github-event-json: ${{ toJSON(github.event) }}
     secrets: inherit
 
-  neon-image-arch:
+  serendb-image-arch:
     needs: [ check-permissions, build-build-tools-image, meta ]
     if: ${{ contains(fromJSON('["push-main", "pr", "storage-rc-pr", "proxy-rc-pr"]'), needs.meta.outputs.run-kind) }}
     strategy:
@@ -599,15 +599,15 @@ jobs:
           submodules: true
           ref: ${{ needs.meta.outputs.sha }}
 
-      - uses: neondatabase/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
+      - uses: serenorg/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
       - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
         with:
           cache-binary: false
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
+          username: ${{ secrets.SERENDB_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.SERENDB_DOCKERHUB_PASSWORD }}
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -617,9 +617,9 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          registry: cache.neon.build
-          username: ${{ secrets.NEON_CI_DOCKERCACHE_USERNAME }}
-          password: ${{ secrets.NEON_CI_DOCKERCACHE_PASSWORD }}
+          registry: cache.serendb.build
+          username: ${{ secrets.SERENDB_CI_DOCKERCACHE_USERNAME }}
+          password: ${{ secrets.SERENDB_CI_DOCKERCACHE_PASSWORD }}
 
       - uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
@@ -640,13 +640,13 @@ jobs:
           push: true
           pull: true
           file: Dockerfile
-          cache-from: type=registry,ref=cache.neon.build/neon:cache-bookworm-${{ matrix.arch }}
-          cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=cache.neon.build/neon:cache-{0}-{1},mode=max', 'bookworm', matrix.arch) || '' }}
+          cache-from: type=registry,ref=cache.serendb.build/serendb:cache-bookworm-${{ matrix.arch }}
+          cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=cache.serendb.build/serendb:cache-{0}-{1},mode=max', 'bookworm', matrix.arch) || '' }}
           tags: |
-            ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }}-bookworm-${{ matrix.arch }}
+            ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }}-bookworm-${{ matrix.arch }}
 
-  neon-image:
-    needs: [ neon-image-arch, meta ]
+  serendb-image:
+    needs: [ serendb-image-arch, meta ]
     if: ${{ contains(fromJSON('["push-main", "pr", "storage-rc-pr", "proxy-rc-pr"]'), needs.meta.outputs.run-kind) }}
     runs-on: ubuntu-22.04
     permissions:
@@ -669,10 +669,10 @@ jobs:
 
       - name: Create multi-arch image
         run: |
-          docker buildx imagetools create -t ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }} \
-                                          -t ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }}-bookworm \
-                                             ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }}-bookworm-x64 \
-                                             ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }}-bookworm-arm64
+          docker buildx imagetools create -t ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }} \
+                                          -t ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }}-bookworm \
+                                             ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }}-bookworm-x64 \
+                                             ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }}-bookworm-arm64
 
   compute-node-image-arch:
     needs: [ check-permissions, meta ]
@@ -713,7 +713,7 @@ jobs:
           submodules: true
           ref: ${{ needs.meta.outputs.sha }}
 
-      - uses: neondatabase/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
+      - uses: serenorg/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
       - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
         with:
           cache-binary: false
@@ -725,8 +725,8 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
+          username: ${{ secrets.SERENDB_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.SERENDB_DOCKERHUB_PASSWORD }}
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -736,9 +736,9 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          registry: cache.neon.build
-          username: ${{ secrets.NEON_CI_DOCKERCACHE_USERNAME }}
-          password: ${{ secrets.NEON_CI_DOCKERCACHE_PASSWORD }}
+          registry: cache.serendb.build
+          username: ${{ secrets.SERENDB_CI_DOCKERCACHE_USERNAME }}
+          password: ${{ secrets.SERENDB_CI_DOCKERCACHE_PASSWORD }}
 
       - name: Build compute-node image
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
@@ -755,12 +755,12 @@ jobs:
           push: true
           pull: true
           file: compute/compute-node.Dockerfile
-          cache-from: type=registry,ref=cache.neon.build/compute-node-${{ matrix.version.pg }}:cache-${{ matrix.version.debian }}-${{ matrix.arch }}
-          cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=cache.neon.build/compute-node-{0}:cache-{1}-{2},mode=max', matrix.version.pg, matrix.version.debian, matrix.arch) || '' }}
+          cache-from: type=registry,ref=cache.serendb.build/compute-node-${{ matrix.version.pg }}:cache-${{ matrix.version.debian }}-${{ matrix.arch }}
+          cache-to: ${{ github.ref_name == 'main' && format('type=registry,ref=cache.serendb.build/compute-node-{0}:cache-{1}-{2},mode=max', matrix.version.pg, matrix.version.debian, matrix.arch) || '' }}
           tags: |
-            ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-${{ matrix.arch }}
+            ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-${{ matrix.arch }}
 
-      - name: Build neon extensions test image
+      - name: Build serendb extensions test image
         if: matrix.version.pg >= 'v16'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
@@ -777,9 +777,9 @@ jobs:
           pull: true
           file: compute/compute-node.Dockerfile
           target: extension-tests
-          cache-from: type=registry,ref=cache.neon.build/compute-node-${{ matrix.version.pg }}:cache-${{ matrix.version.debian }}-${{ matrix.arch }}
+          cache-from: type=registry,ref=cache.serendb.build/compute-node-${{ matrix.version.pg }}:cache-${{ matrix.version.debian }}-${{ matrix.arch }}
           tags: |
-            ghcr.io/neondatabase/neon-test-extensions-${{ matrix.version.pg }}:${{needs.meta.outputs.build-tag}}-${{ matrix.version.debian }}-${{ matrix.arch }}
+            ghcr.io/serenorg/serendb-test-extensions-${{ matrix.version.pg }}:${{needs.meta.outputs.build-tag}}-${{ matrix.version.debian }}-${{ matrix.arch }}
 
   compute-node-image:
     needs: [ compute-node-image-arch, meta ]
@@ -818,18 +818,18 @@ jobs:
 
       - name: Create multi-arch compute-node image
         run: |
-          docker buildx imagetools create -t ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
-                                          -t ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }} \
-                                             ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-x64 \
-                                             ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-arm64
+          docker buildx imagetools create -t ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
+                                          -t ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }} \
+                                             ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-x64 \
+                                             ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-arm64
 
-      - name: Create multi-arch neon-test-extensions image
+      - name: Create multi-arch serendb-test-extensions image
         if: matrix.version.pg >= 'v16'
         run: |
-          docker buildx imagetools create -t ghcr.io/neondatabase/neon-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
-                                          -t ghcr.io/neondatabase/neon-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }} \
-                                             ghcr.io/neondatabase/neon-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-x64 \
-                                             ghcr.io/neondatabase/neon-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-arm64
+          docker buildx imagetools create -t ghcr.io/serenorg/serendb-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
+                                          -t ghcr.io/serenorg/serendb-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }} \
+                                             ghcr.io/serenorg/serendb-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-x64 \
+                                             ghcr.io/serenorg/serendb-test-extensions-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.version.debian }}-arm64
 
   vm-compute-node-image-arch:
     needs: [ check-permissions, meta, compute-node-image ]
@@ -864,10 +864,10 @@ jobs:
 
       - name: Downloading vm-builder
         run: |
-          curl -fL https://github.com/neondatabase/autoscaling/releases/download/$VM_BUILDER_VERSION/vm-builder-${{ matrix.arch }} -o vm-builder
+          curl -fL https://github.com/serenorg/autoscaling/releases/download/$VM_BUILDER_VERSION/vm-builder-${{ matrix.arch }} -o vm-builder
           chmod +x vm-builder
 
-      - uses: neondatabase/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
+      - uses: serenorg/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
@@ -878,20 +878,20 @@ jobs:
       # it won't have the proper authentication (written at v0.6.0)
       - name: Pulling compute-node image
         run: |
-          docker pull ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}
+          docker pull ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}
 
       - name: Build vm image
         run: |
           ./vm-builder \
             -size=2G \
             -spec=compute/vm-image-spec-${{ matrix.version.debian }}.yaml \
-            -src=ghcr.io/neondatabase/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
-            -dst=ghcr.io/neondatabase/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.arch }} \
+            -src=ghcr.io/serenorg/compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
+            -dst=ghcr.io/serenorg/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.arch }} \
             -target-arch=linux/${{ matrix.arch }}
 
       - name: Pushing vm-compute-node image
         run: |
-          docker push ghcr.io/neondatabase/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.arch }}
+          docker push ghcr.io/serenorg/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-${{ matrix.arch }}
 
   vm-compute-node-image:
     needs: [ vm-compute-node-image-arch, meta ]
@@ -921,13 +921,13 @@ jobs:
 
       - name: Create multi-arch compute-node image
         run: |
-          docker buildx imagetools create -t ghcr.io/neondatabase/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
-                                             ghcr.io/neondatabase/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-amd64 \
-                                             ghcr.io/neondatabase/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-arm64
+          docker buildx imagetools create -t ghcr.io/serenorg/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }} \
+                                             ghcr.io/serenorg/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-amd64 \
+                                             ghcr.io/serenorg/vm-compute-node-${{ matrix.version.pg }}:${{ needs.meta.outputs.build-tag }}-arm64
 
 
   test-images:
-    needs: [ check-permissions, meta, neon-image, compute-node-image ]
+    needs: [ check-permissions, meta, serendb-image, compute-node-image ]
     # Depends on jobs that can get skipped
     if: >-
       ${{
@@ -954,12 +954,12 @@ jobs:
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: neondatabase/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
+      - uses: serenorg/dev-actions/set-docker-config-dir@6094485bf440001c94a94a3f9e221e81ff6b6193
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.NEON_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.NEON_DOCKERHUB_PASSWORD }}
+          username: ${{ secrets.SERENDB_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.SERENDB_DOCKERHUB_PASSWORD }}
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -967,18 +967,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # `ghcr.io/neondatabase/neon` contains multiple binaries, all of them use the same input for the version into the same version formatting library.
+      # `ghcr.io/serenorg/serendb` contains multiple binaries, all of them use the same input for the version into the same version formatting library.
       # Pick pageserver as currently the only binary with extra "version" features printed in the string to verify.
       # Regular pageserver version string looks like
-      #   Neon page server git-env:32d14403bd6ab4f4520a94cbfd81a6acef7a526c failpoints: true, features: []
+      #   SerenDB page server git-env:32d14403bd6ab4f4520a94cbfd81a6acef7a526c failpoints: true, features: []
       # Bad versions might loop like:
-      #   Neon page server git-env:local failpoints: true, features: ["testing"]
+      #   SerenDB page server git-env:local failpoints: true, features: ["testing"]
       # Ensure that we don't have bad versions.
       - name: Verify image versions
         shell: bash # ensure no set -e for better error messages
         if: ${{ contains(fromJSON('["push-main", "pr", "storage-rc-pr", "proxy-rc-pr"]'), needs.meta.outputs.run-kind) }}
         run: |
-          pageserver_version=$(docker run --rm ghcr.io/neondatabase/neon:${{ needs.meta.outputs.build-tag }} "/bin/sh" "-c" "/usr/local/bin/pageserver --version")
+          pageserver_version=$(docker run --rm ghcr.io/serenorg/serendb:${{ needs.meta.outputs.build-tag }} "/bin/sh" "-c" "/usr/local/bin/pageserver --version")
 
           echo "Pageserver version string: $pageserver_version"
 
@@ -1048,8 +1048,8 @@ jobs:
     needs: [ meta ]
     runs-on: ubuntu-22.04
     outputs:
-      neon-dev: ${{ steps.generate.outputs.neon-dev }}
-      neon-prod: ${{ steps.generate.outputs.neon-prod }}
+      serendb-dev: ${{ steps.generate.outputs.serendb-dev }}
+      serendb-prod: ${{ steps.generate.outputs.serendb-prod }}
       compute-dev: ${{ steps.generate.outputs.compute-dev }}
       compute-prod: ${{ steps.generate.outputs.compute-prod }}
     steps:
@@ -1077,22 +1077,22 @@ jobs:
           BRANCH: "${{ github.ref_name }}"
           DEV_ACR: "${{ vars.AZURE_DEV_REGISTRY_NAME }}"
           PROD_ACR: "${{ vars.AZURE_PROD_REGISTRY_NAME }}"
-          DEV_AWS: "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}"
-          PROD_AWS: "${{ vars.NEON_PROD_AWS_ACCOUNT_ID }}"
+          DEV_AWS: "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}"
+          PROD_AWS: "${{ vars.SERENDB_PROD_AWS_ACCOUNT_ID }}"
           AWS_REGION: "${{ vars.AWS_ECR_REGION }}"
 
-  push-neon-image-dev:
-    needs: [ meta, generate-image-maps, neon-image ]
+  push-serendb-image-dev:
+    needs: [ meta, generate-image-maps, serendb-image ]
     if: ${{ !failure() && !cancelled() && contains(fromJSON('["push-main", "pr", "storage-release", "storage-rc-pr", "proxy-release", "proxy-rc-pr"]'), needs.meta.outputs.run-kind) }}
     uses: ./.github/workflows/_push-to-container-registry.yml
     permissions:
       id-token: write  # Required for aws/azure login
       packages: write  # required for pushing to GHCR
     with:
-      image-map: '${{ needs.generate-image-maps.outputs.neon-dev }}'
+      image-map: '${{ needs.generate-image-maps.outputs.serendb-dev }}'
       aws-region: ${{ vars.AWS_ECR_REGION }}
-      aws-account-id: "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}"
-      aws-role-to-assume: "gha-oidc-neon-admin"
+      aws-account-id: "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}"
+      aws-role-to-assume: "gha-oidc-serendb-admin"
       azure-client-id: ${{ vars.AZURE_DEV_CLIENT_ID }}
       azure-subscription-id: ${{ vars.AZURE_DEV_SUBSCRIPTION_ID }}
       azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -1109,16 +1109,16 @@ jobs:
     with:
       image-map: '${{ needs.generate-image-maps.outputs.compute-dev }}'
       aws-region: ${{ vars.AWS_ECR_REGION }}
-      aws-account-id: "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}"
-      aws-role-to-assume: "gha-oidc-neon-admin"
+      aws-account-id: "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}"
+      aws-role-to-assume: "gha-oidc-serendb-admin"
       azure-client-id: ${{ vars.AZURE_DEV_CLIENT_ID }}
       azure-subscription-id: ${{ vars.AZURE_DEV_SUBSCRIPTION_ID }}
       azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
       acr-registry-name: ${{ vars.AZURE_DEV_REGISTRY_NAME }}
     secrets: inherit
 
-  push-neon-image-prod:
-    needs: [ meta, generate-image-maps, neon-image, test-images ]
+  push-serendb-image-prod:
+    needs: [ meta, generate-image-maps, serendb-image, test-images ]
     # Depends on jobs that can get skipped
     if: ${{ !failure() && !cancelled() && contains(fromJSON('["storage-release", "proxy-release"]'), needs.meta.outputs.run-kind) }}
     uses: ./.github/workflows/_push-to-container-registry.yml
@@ -1126,10 +1126,10 @@ jobs:
       id-token: write  # Required for aws/azure login
       packages: write  # required for pushing to GHCR
     with:
-      image-map: '${{ needs.generate-image-maps.outputs.neon-prod }}'
+      image-map: '${{ needs.generate-image-maps.outputs.serendb-prod }}'
       aws-region: ${{ vars.AWS_ECR_REGION }}
-      aws-account-id: "${{ vars.NEON_PROD_AWS_ACCOUNT_ID }}"
-      aws-role-to-assume: "gha-oidc-neon-admin"
+      aws-account-id: "${{ vars.SERENDB_PROD_AWS_ACCOUNT_ID }}"
+      aws-role-to-assume: "gha-oidc-serendb-admin"
       azure-client-id: ${{ vars.AZURE_PROD_CLIENT_ID }}
       azure-subscription-id: ${{ vars.AZURE_PROD_SUBSCRIPTION_ID }}
       azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -1147,15 +1147,15 @@ jobs:
     with:
       image-map: '${{ needs.generate-image-maps.outputs.compute-prod }}'
       aws-region: ${{ vars.AWS_ECR_REGION }}
-      aws-account-id: "${{ vars.NEON_PROD_AWS_ACCOUNT_ID }}"
-      aws-role-to-assume: "gha-oidc-neon-admin"
+      aws-account-id: "${{ vars.SERENDB_PROD_AWS_ACCOUNT_ID }}"
+      aws-role-to-assume: "gha-oidc-serendb-admin"
       azure-client-id: ${{ vars.AZURE_PROD_CLIENT_ID }}
       azure-subscription-id: ${{ vars.AZURE_PROD_SUBSCRIPTION_ID }}
       azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
       acr-registry-name: ${{ vars.AZURE_PROD_REGISTRY_NAME }}
     secrets: inherit
 
-  push-neon-test-extensions-image-dockerhub:
+  push-serendb-test-extensions-image-dockerhub:
     if: ${{ contains(fromJSON('["push-main", "pr", "compute-rc-pr"]'), needs.meta.outputs.run-kind) }}
     needs: [ meta, compute-node-image ]
     uses: ./.github/workflows/_push-to-container-registry.yml
@@ -1165,16 +1165,16 @@ jobs:
     with:
       image-map: |
         {
-          "ghcr.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.build-tag }}": [
-            "docker.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.build-tag }}"
+          "ghcr.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.build-tag }}": [
+            "docker.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.build-tag }}"
           ],
-          "ghcr.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.build-tag }}": [
-            "docker.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.build-tag }}"
+          "ghcr.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.build-tag }}": [
+            "docker.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.build-tag }}"
           ]
         }
     secrets: inherit
 
-  add-latest-tag-to-neon-test-extensions-image:
+  add-latest-tag-to-serendb-test-extensions-image:
     if: ${{ needs.meta.outputs.run-kind == 'push-main' }}
     needs: [ meta, compute-node-image ]
     uses: ./.github/workflows/_push-to-container-registry.yml
@@ -1184,18 +1184,18 @@ jobs:
     with:
       image-map: |
         {
-          "ghcr.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.build-tag }}": [
-            "docker.io/neondatabase/neon-test-extensions-v16:latest",
-            "ghcr.io/neondatabase/neon-test-extensions-v16:latest"
+          "ghcr.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.build-tag }}": [
+            "docker.io/serenorg/serendb-test-extensions-v16:latest",
+            "ghcr.io/serenorg/serendb-test-extensions-v16:latest"
           ],
-          "ghcr.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.build-tag }}": [
-            "docker.io/neondatabase/neon-test-extensions-v17:latest",
-            "ghcr.io/neondatabase/neon-test-extensions-v17:latest"
+          "ghcr.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.build-tag }}": [
+            "docker.io/serenorg/serendb-test-extensions-v17:latest",
+            "ghcr.io/serenorg/serendb-test-extensions-v17:latest"
           ]
         }
     secrets: inherit
 
-  add-release-tag-to-neon-test-extensions-image:
+  add-release-tag-to-serendb-test-extensions-image:
     if: ${{ needs.meta.outputs.run-kind == 'compute-release' }}
     needs: [ meta ]
     uses: ./.github/workflows/_push-to-container-registry.yml
@@ -1205,13 +1205,13 @@ jobs:
     with:
       image-map: |
         {
-          "ghcr.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.release-pr-run-id }}": [
-            "docker.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.build-tag }}",
-            "ghcr.io/neondatabase/neon-test-extensions-v16:${{ needs.meta.outputs.build-tag }}"
+          "ghcr.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.release-pr-run-id }}": [
+            "docker.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.build-tag }}",
+            "ghcr.io/serenorg/serendb-test-extensions-v16:${{ needs.meta.outputs.build-tag }}"
           ],
-          "ghcr.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.release-pr-run-id }}": [
-            "docker.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.build-tag }}",
-            "ghcr.io/neondatabase/neon-test-extensions-v17:${{ needs.meta.outputs.build-tag }}"
+          "ghcr.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.release-pr-run-id }}": [
+            "docker.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.build-tag }}",
+            "ghcr.io/serenorg/serendb-test-extensions-v17:${{ needs.meta.outputs.build-tag }}"
           ]
         }
     secrets: inherit
@@ -1302,15 +1302,15 @@ jobs:
           exit 1
 
   deploy:
-    needs: [ check-permissions, push-neon-image-dev, push-compute-image-dev, push-neon-image-prod, push-compute-image-prod, meta, trigger-custom-extensions-build-and-wait ]
-    # `!failure() && !cancelled()` is required because the workflow depends on the job that can be skipped: `push-neon-image-prod` and `push-compute-image-prod`
+    needs: [ check-permissions, push-serendb-image-dev, push-compute-image-dev, push-serendb-image-prod, push-compute-image-prod, meta, trigger-custom-extensions-build-and-wait ]
+    # `!failure() && !cancelled()` is required because the workflow depends on the job that can be skipped: `push-serendb-image-prod` and `push-compute-image-prod`
     if: ${{ contains(fromJSON('["push-main", "storage-release", "proxy-release", "compute-release"]'), needs.meta.outputs.run-kind) && !failure() && !cancelled() }}
     permissions:
       id-token: write # aws-actions/configure-aws-credentials
       statuses: write
       contents: write
     runs-on: [ self-hosted, small ]
-    container: ${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/ansible:latest
+    container: ${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/ansible:latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -1414,10 +1414,10 @@ jobs:
         run: |
           case ${RUN_KIND} in
           push-main)
-            gh workflow --repo neondatabase/infra run deploy-dev.yml --ref main -f branch=main -f dockerTag=${{needs.meta.outputs.build-tag}} -f deployPreprodRegion=false
+            gh workflow --repo serenorg/infra run deploy-dev.yml --ref main -f branch=main -f dockerTag=${{needs.meta.outputs.build-tag}} -f deployPreprodRegion=false
             ;;
           storage-release)
-            gh workflow --repo neondatabase/infra run deploy-dev.yml --ref main \
+            gh workflow --repo serenorg/infra run deploy-dev.yml --ref main \
               -f deployPgSniRouter=false \
               -f deployProxy=false \
               -f deployStorage=true \
@@ -1427,7 +1427,7 @@ jobs:
               -f dockerTag=${{needs.meta.outputs.build-tag}} \
               -f deployPreprodRegion=true
 
-            gh workflow --repo neondatabase/infra run deploy-prod.yml --ref main \
+            gh workflow --repo serenorg/infra run deploy-prod.yml --ref main \
               -f deployStorage=true \
               -f deployStorageBroker=false \
               -f deployStorageController=true \
@@ -1435,7 +1435,7 @@ jobs:
               -f dockerTag=${{needs.meta.outputs.build-tag}}
             ;;
           proxy-release)
-            gh workflow --repo neondatabase/infra run deploy-dev.yml --ref main \
+            gh workflow --repo serenorg/infra run deploy-dev.yml --ref main \
               -f deployPgSniRouter=true \
               -f deployProxy=true \
               -f deployStorage=false \
@@ -1445,7 +1445,7 @@ jobs:
               -f dockerTag=${{needs.meta.outputs.build-tag}} \
               -f deployPreprodRegion=true
 
-            gh workflow --repo neondatabase/infra run deploy-proxy-prod.yml --ref main \
+            gh workflow --repo serenorg/infra run deploy-proxy-prod.yml --ref main \
               -f deployPgSniRouter=true \
               -f deployProxyLink=true \
               -f deployPrivatelinkProxy=true \
@@ -1455,7 +1455,7 @@ jobs:
               -f dockerTag=${{needs.meta.outputs.build-tag}}
             ;;
           compute-release)
-            gh workflow --repo neondatabase/infra run deploy-compute-dev.yml --ref main -f dockerTag=${{needs.meta.outputs.build-tag}}
+            gh workflow --repo serenorg/infra run deploy-compute-dev.yml --ref main -f dockerTag=${{needs.meta.outputs.build-tag}}
             ;;
           *)
             echo "RUN_KIND (value '${RUN_KIND}') is not set to either 'push-main', 'storage-release', 'proxy-release' or 'compute-release'"
@@ -1509,14 +1509,14 @@ jobs:
             text: |
               🔴 ${{ env.TEAM_ONCALL }}: deploy job on release branch had unexpected status "${{ needs.deploy.result }}" <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|GitHub Run>.
 
-  # The job runs on `release` branch and copies compatibility data and Neon artifact from the last *release PR* to the latest directory
+  # The job runs on `release` branch and copies compatibility data and SerenDB artifact from the last *release PR* to the latest directory
   promote-compatibility-data:
     needs: [ meta, deploy ]
     permissions:
       id-token: write # aws-actions/configure-aws-credentials
       statuses: write
       contents: read
-    # `!failure() && !cancelled()` is required because the workflow transitively depends on the job that can be skipped: `push-neon-image-prod` and `push-compute-image-prod`
+    # `!failure() && !cancelled()` is required because the workflow transitively depends on the job that can be skipped: `push-serendb-image-prod` and `push-compute-image-prod`
     if: github.ref_name == 'release' && !failure() && !cancelled()
 
     runs-on: ubuntu-22.04
@@ -1532,9 +1532,9 @@ jobs:
           role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
           role-duration-seconds: 3600
 
-      - name: Promote compatibility snapshot and Neon artifact
+      - name: Promote compatibility snapshot and SerenDB artifact
         env:
-          BUCKET: neon-github-public-dev
+          BUCKET: serendb-github-public-dev
           AWS_REGION: eu-central-1
           COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ needs.meta.outputs.release-pr-run-id }}
@@ -1547,10 +1547,10 @@ jobs:
 
           for arch in X64 ARM64; do
             for build_type in debug release; do
-              neon_artifact_filename="neon-Linux-${arch}-${build_type}-artifact.tar.zst"
-              s3_key=$(echo "${files_on_s3}" | grep ${neon_artifact_filename} | sort --version-sort | tail -1 || true)
+              serendb_artifact_filename="serendb-Linux-${arch}-${build_type}-artifact.tar.zst"
+              s3_key=$(echo "${files_on_s3}" | grep ${serendb_artifact_filename} | sort --version-sort | tail -1 || true)
               if [ -z "${s3_key}" ]; then
-                echo >&2 "Neither s3://${BUCKET}/${old_prefix}/${neon_artifact_filename} nor its version from previous attempts exist"
+                echo >&2 "Neither s3://${BUCKET}/${old_prefix}/${serendb_artifact_filename} nor its version from previous attempts exist"
                 exit 1
               fi
 
@@ -1592,9 +1592,9 @@ jobs:
   # It also makes it easier to rename or parametrise jobs (using matrix)
   # which requires changes in branch protection rules
   #
-  # Note, that we can't add external check (like `neon-cloud-e2e`) we still need to use GitHub UI for that.
+  # Note, that we can't add external check (like `serendb-cloud-e2e`) we still need to use GitHub UI for that.
   #
-  # https://github.com/neondatabase/neon/settings/branch_protection_rules
+  # https://github.com/serenorg/serendb/settings/branch_protection_rules
   conclusion:
     if: always()
     # Format `needs` differently to make the list more readable.
@@ -1607,7 +1607,7 @@ jobs:
       - check-dependencies-rust
       - files-changed
       - push-compute-image-dev
-      - push-neon-image-dev
+      - push-serendb-image-dev
       - test-images
       - trigger-custom-extensions-build-and-wait
     runs-on: ubuntu-22.04
@@ -1630,6 +1630,6 @@ jobs:
           || (needs.check-codestyle-rust.result == 'skipped' && contains(fromJSON('["pr", "storage-rc-pr", "proxy-rc-pr", "compute-rc-pr"]'), needs.meta.outputs.run-kind))
           || needs.files-changed.result == 'skipped'
           || (needs.push-compute-image-dev.result == 'skipped' && contains(fromJSON('["push-main", "pr", "compute-release", "compute-rc-pr"]'), needs.meta.outputs.run-kind))
-          || (needs.push-neon-image-dev.result == 'skipped' && contains(fromJSON('["push-main", "pr", "storage-release", "storage-rc-pr", "proxy-release", "proxy-rc-pr"]'), needs.meta.outputs.run-kind))
+          || (needs.push-serendb-image-dev.result == 'skipped' && contains(fromJSON('["push-main", "pr", "storage-release", "storage-rc-pr", "proxy-release", "proxy-rc-pr"]'), needs.meta.outputs.run-kind))
           || (needs.test-images.result == 'skipped' && contains(fromJSON('["push-main", "pr", "storage-rc-pr", "proxy-rc-pr", "compute-rc-pr"]'), needs.meta.outputs.run-kind))
           || (needs.trigger-custom-extensions-build-and-wait.result == 'skipped' && contains(fromJSON('["push-main", "pr", "compute-release", "compute-rc-pr"]'), needs.meta.outputs.run-kind))

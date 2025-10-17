@@ -8,12 +8,12 @@ from fixtures.log_helper import log
 from fixtures.utils import run_only_on_default_postgres, wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.parametrize("level", ["trace", "debug", "info", "warn", "error"])
 @run_only_on_default_postgres("it does not use any postgres functionality")
-def test_logging_event_count(neon_env_builder: NeonEnvBuilder, level: str):
+def test_logging_event_count(serendb_env_builder: SerenDBEnvBuilder, level: str):
     # self-test: make sure the event is logged (i.e., our testing endpoint works)
     log_expected = {
         "trace": False,
@@ -23,7 +23,7 @@ def test_logging_event_count(neon_env_builder: NeonEnvBuilder, level: str):
         "error": True,
     }[level]
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
     msg_id = uuid.uuid4().hex
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder, wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, wait_for_last_flush_lsn
 from fixtures.pageserver.http import PageserverApiException
 from fixtures.utils import query_scalar, wait_until
 from requests.exceptions import ReadTimeout
@@ -26,13 +26,13 @@ def assert_lsn_lease_granted(result, with_lease: bool):
 
 
 @pytest.mark.parametrize("with_lease", [True, False])
-def test_lsn_mapping(neon_env_builder: NeonEnvBuilder, with_lease: bool):
+def test_lsn_mapping(serendb_env_builder: SerenDBEnvBuilder, with_lease: bool):
     """
     Test pageserver get_lsn_by_timestamp API.
 
     :param with_lease: Whether to get a lease associated with returned LSN.
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id, _ = env.create_tenant(
         conf={
@@ -47,7 +47,7 @@ def test_lsn_mapping(neon_env_builder: NeonEnvBuilder, with_lease: bool):
 
     timeline_id = env.create_branch("test_lsn_mapping", tenant_id=tenant_id)
     endpoint_main = env.endpoints.create_start("test_lsn_mapping", tenant_id=tenant_id)
-    timeline_id = endpoint_main.safe_psql("show neon.timeline_id")[0][0]
+    timeline_id = endpoint_main.safe_psql("show serendb.timeline_id")[0][0]
 
     cur = endpoint_main.connect().cursor()
 
@@ -140,13 +140,13 @@ def test_lsn_mapping(neon_env_builder: NeonEnvBuilder, with_lease: bool):
         assert Lsn(result["lsn"]) >= last_flush_lsn
 
 
-def test_get_lsn_by_timestamp_cancelled(neon_env_builder: NeonEnvBuilder):
+def test_get_lsn_by_timestamp_cancelled(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test if cancelled pageserver get_lsn_by_timestamp request is correctly handled.
     Added as an effort to improve error handling and avoid full anyhow backtrace.
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(
         [
             ".*request was dropped before completing.*",
@@ -185,10 +185,10 @@ def test_get_lsn_by_timestamp_cancelled(neon_env_builder: NeonEnvBuilder):
 
 
 # Test pageserver get_timestamp_of_lsn API
-def test_ts_of_lsn_api(neon_env_builder: NeonEnvBuilder):
+def test_ts_of_lsn_api(serendb_env_builder: SerenDBEnvBuilder):
     key_not_found_error = r".*could not find data for key.*"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     new_timeline_id = env.create_branch("test_ts_of_lsn_api")
     endpoint_main = env.endpoints.create_start("test_ts_of_lsn_api")
@@ -278,7 +278,7 @@ def test_ts_of_lsn_api(neon_env_builder: NeonEnvBuilder):
                 assert timestamp >= before_timestamp, "before_timestamp before timestamp"
 
 
-def test_timestamp_of_lsn_empty_branch(neon_env_builder: NeonEnvBuilder):
+def test_timestamp_of_lsn_empty_branch(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that getting the timestamp of the head LSN of a newly created branch works.
     This verifies that we don't get a 404 error when trying to get the timestamp
@@ -287,7 +287,7 @@ def test_timestamp_of_lsn_empty_branch(neon_env_builder: NeonEnvBuilder):
 
     Reproducer for https://github.com/neondatabase/neon/issues/11439
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Create a new branch
     new_timeline_id = env.create_branch("test_timestamp_of_lsn_empty_branch")

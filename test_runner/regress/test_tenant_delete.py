@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     wait_for_last_flush_lsn,
 )
@@ -55,15 +55,15 @@ def error_tolerant_delete(ps_http, tenant_id):
 
 
 def test_tenant_delete_smoke(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
-    neon_env_builder.pageserver_config_override = "test_remote_failures=1"
+    serendb_env_builder.pageserver_config_override = "test_remote_failures=1"
 
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(
         [
             # The deletion queue will complain when it encounters simulated S3 errors
@@ -102,7 +102,7 @@ def test_tenant_delete_smoke(
             wait_for_last_flush_lsn(env, endpoint, tenant=tenant_id, timeline=timeline_id)
 
             assert_prefix_not_empty(
-                neon_env_builder.pageserver_remote_storage,
+                serendb_env_builder.pageserver_remote_storage,
                 prefix="/".join(
                     (
                         "tenants",
@@ -124,7 +124,7 @@ def test_tenant_delete_smoke(
     assert not tenant_path.exists()
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -140,11 +140,11 @@ def test_tenant_delete_smoke(
     env.pageserver.stop()
 
 
-def test_long_timeline_create_cancelled_by_tenant_delete(neon_env_builder: NeonEnvBuilder):
+def test_long_timeline_create_cancelled_by_tenant_delete(serendb_env_builder: SerenDBEnvBuilder):
     """Reproduction of 2023-11-23 stuck tenants investigation"""
 
     # do not use default tenant/timeline creation because it would output the failpoint log message too early
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     pageserver_http = env.pageserver.http_client()
 
@@ -212,7 +212,7 @@ def test_long_timeline_create_cancelled_by_tenant_delete(neon_env_builder: NeonE
     env.pageserver.stop()
 
 
-def test_tenant_delete_races_timeline_creation(neon_env_builder: NeonEnvBuilder):
+def test_tenant_delete_races_timeline_creation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Validate that timeline creation executed in parallel with deletion works correctly.
 
@@ -221,8 +221,8 @@ def test_tenant_delete_races_timeline_creation(neon_env_builder: NeonEnvBuilder)
     # The remote storage kind doesn't really matter but we use it for iterations calculation below
     # (and there is no way to reconstruct the used remote storage kind)
     remote_storage_kind = RemoteStorageKind.MOCK_S3
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
-    env = neon_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    env = serendb_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
     ps_http = env.pageserver.http_client()
     tenant_id = env.initial_tenant
 
@@ -309,7 +309,7 @@ def test_tenant_delete_races_timeline_creation(neon_env_builder: NeonEnvBuilder)
 
     # Physical deletion should have happened
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -328,20 +328,20 @@ def test_tenant_delete_races_timeline_creation(neon_env_builder: NeonEnvBuilder)
     assert ps_http.get_metric_value("pageserver_tenant_manager_slots", {"mode": "attached"}) == 0
 
     # We deleted our only tenant, and the scrubber fails if it detects nothing
-    neon_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.disable_scrub_on_exit()
 
     env.pageserver.stop()
 
 
-def test_tenant_delete_scrubber(pg_bin: PgBin, make_httpserver, neon_env_builder: NeonEnvBuilder):
+def test_tenant_delete_scrubber(pg_bin: PgBin, make_httpserver, serendb_env_builder: SerenDBEnvBuilder):
     """
     Validate that creating and then deleting the tenant both survives the scrubber,
     and that one can run the scrubber without problems.
     """
 
     remote_storage_kind = RemoteStorageKind.MOCK_S3
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
-    env = neon_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    env = serendb_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
 
     ps_http = env.pageserver.http_client()
     # create a tenant separate from the main tenant so that we have one remaining
@@ -413,14 +413,14 @@ def test_tenant_delete_scrubber(pg_bin: PgBin, make_httpserver, neon_env_builder
     assert healthy
 
 
-def test_tenant_delete_stale_shards(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def test_tenant_delete_stale_shards(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     """
     Deleting a tenant should also delete any stale (pre-split) shards from remote storage.
     """
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Create an unsharded tenant.
     tenant_id, timeline_id = env.create_tenant()
@@ -433,7 +433,7 @@ def test_tenant_delete_stale_shards(neon_env_builder: NeonEnvBuilder, pg_bin: Pg
     workload.stop()
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(("tenants", str(tenant_id))),
     )
 
@@ -448,7 +448,7 @@ def test_tenant_delete_stale_shards(neon_env_builder: NeonEnvBuilder, pg_bin: Pg
     env.storage_controller.pageserver_api().tenant_delete(tenant_id=tenant_id)
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(("tenants", str(tenant_id))),
         delimiter="",  # match partial prefixes, i.e. all shards
     )
@@ -459,7 +459,7 @@ def test_tenant_delete_stale_shards(neon_env_builder: NeonEnvBuilder, pg_bin: Pg
     # The initial tenant created by the test harness should still be there.
     # Only the tenant we deleted should be removed.
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(("tenants", str(env.initial_tenant))),
     )
     dirs = list(env.pageserver.tenant_dir(None).glob(f"{env.initial_tenant}*"))

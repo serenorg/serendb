@@ -5,7 +5,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import Endpoint, NeonEnv
+    from fixtures.serendb_fixtures import Endpoint, SerenDBEnv
 
 from fixtures.utils import shared_buffers_for_max_cu
 
@@ -45,8 +45,8 @@ async def parallel_load_same_table(endpoint: Endpoint, n_parallel: int):
 
 
 # Load data into one table with COPY TO from 5 parallel connections
-def test_parallel_copy(neon_simple_env: NeonEnv, n_parallel=5):
-    env = neon_simple_env
+def test_parallel_copy(serendb_simple_env: SerenDBEnv, n_parallel=5):
+    env = serendb_simple_env
     # use shared_buffers size like in production for 8 CU compute
     endpoint = env.endpoints.create_start(
         "main", config_lines=[f"shared_buffers={shared_buffers_for_max_cu(8.0)}"]

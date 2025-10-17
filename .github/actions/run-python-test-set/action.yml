@@ -1,9 +1,9 @@
 name: 'Run python test'
-description: 'Runs a Neon python test set, performing all the required preparations before'
+description: 'Runs a SerenDB python test set, performing all the required preparations before'
 
 inputs:
   build_type:
-    description: 'Type of Rust (neon) and C (postgres) builds. Must be "release" or "debug", or "remote" for the remote cluster'
+    description: 'Type of Rust (serendb) and C (postgres) builds. Must be "release" or "debug", or "remote" for the remote cluster'
     required: true
   test_selection:
     description: 'A python test suite to run'
@@ -60,20 +60,20 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Get Neon artifact
+    - name: Get SerenDB artifact
       if: inputs.build_type != 'remote'
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build_type }}${{ inputs.sanitizers == 'enabled' && '-sanitized' || '' }}-artifact
-        path: /tmp/neon
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build_type }}${{ inputs.sanitizers == 'enabled' && '-sanitized' || '' }}-artifact
+        path: /tmp/serendb
         aws-oidc-role-arn: ${{ inputs.aws-oidc-role-arn }}
 
-    - name: Download Neon binaries for the previous release
+    - name: Download SerenDB binaries for the previous release
       if: inputs.build_type != 'remote'
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build_type }}-artifact
-        path: /tmp/neon-previous
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-${{ inputs.build_type }}-artifact
+        path: /tmp/serendb-previous
         prefix: latest
         aws-oidc-role-arn: ${{ inputs.aws-oidc-role-arn }}
 
@@ -107,9 +107,9 @@ runs:
 
     - name: Run pytest
       env:
-        NEON_BIN: /tmp/neon/bin
-        COMPATIBILITY_NEON_BIN: /tmp/neon-previous/bin
-        COMPATIBILITY_POSTGRES_DISTRIB_DIR: /tmp/neon-previous/pg_install
+        SERENDB_BIN: /tmp/serendb/bin
+        COMPATIBILITY_SERENDB_BIN: /tmp/serendb-previous/bin
+        COMPATIBILITY_POSTGRES_DISTRIB_DIR: /tmp/serendb-previous/pg_install
         TEST_OUTPUT: /tmp/test_output
         BUILD_TYPE: ${{ inputs.build_type }}
         COMPATIBILITY_SNAPSHOT_DIR: /tmp/compatibility_snapshot_pg${{ inputs.pg_version }}
@@ -121,7 +121,7 @@ runs:
         # PLATFORM will be embedded in the perf test report
         # and it is needed to distinguish different environments
         export PLATFORM=${PLATFORM:-github-actions-selfhosted}
-        export POSTGRES_DISTRIB_DIR=${POSTGRES_DISTRIB_DIR:-/tmp/neon/pg_install}
+        export POSTGRES_DISTRIB_DIR=${POSTGRES_DISTRIB_DIR:-/tmp/serendb/pg_install}
         export DEFAULT_PG_VERSION=${PG_VERSION#v}
         export LD_LIBRARY_PATH=${POSTGRES_DISTRIB_DIR}/v${DEFAULT_PG_VERSION}/lib
         export BENCHMARK_CONNSTR=${BENCHMARK_CONNSTR:-}
@@ -187,12 +187,12 @@ runs:
           cov_prefix=()
         fi
 
-        # Wake up the cluster if we use remote neon instance
+        # Wake up the cluster if we use remote serendb instance
         if [ "${{ inputs.build_type }}" = "remote" ] && [ -n "${BENCHMARK_CONNSTR}" ]; then
           QUERIES=("SELECT version()")
-          if [[ "${PLATFORM}" = "neon"* ]]; then
-            QUERIES+=("SHOW neon.tenant_id")
-            QUERIES+=("SHOW neon.timeline_id")
+          if [[ "${PLATFORM}" = "serendb"* ]]; then
+            QUERIES+=("SHOW serendb.tenant_id")
+            QUERIES+=("SHOW serendb.timeline_id")
           fi
 
           for q in "${QUERIES[@]}"; do

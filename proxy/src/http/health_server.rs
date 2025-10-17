@@ -11,7 +11,7 @@ use hyper0::header::CONTENT_TYPE;
 use hyper0::{Body, Request, Response, StatusCode};
 use measured::MetricGroup;
 use measured::text::BufferedTextEncoder;
-use metrics::NeonMetrics;
+use metrics::SerenDBMetrics;
 use tracing::{info, info_span};
 
 use crate::ext::{LockExt, TaskExt};
@@ -68,7 +68,7 @@ pub struct AppMetrics {
     #[metric(namespace = "jemalloc")]
     pub jemalloc: Option<jemalloc::MetricRecorder>,
     #[metric(flatten)]
-    pub neon_metrics: NeonMetrics,
+    pub serendb_metrics: SerenDBMetrics,
     #[metric(flatten)]
     pub proxy: &'static crate::metrics::Metrics,
 }

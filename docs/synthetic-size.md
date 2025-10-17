@@ -1,6 +1,6 @@
 # Synthetic size
 
-Neon storage has copy-on-write branching, which makes it difficult to
+SerenDB storage has copy-on-write branching, which makes it difficult to
 answer the question "how large is my database"? To give one reasonable
 answer, we calculate _synthetic size_ for a project.
 
@@ -11,7 +11,7 @@ also the same as what you'd see on a standalone PostgreSQL, for the
 same set of updates.
 
 The synthetic size does *not* depend on the actual physical size
-consumed in the storage, or implementation details of the Neon storage
+consumed in the storage, or implementation details of the SerenDB storage
 like garbage collection, compaction and compression.  There is a
 strong *correlation* between the physical size and the synthetic size,
 but the synthetic size is designed to be independent of the
@@ -40,7 +40,7 @@ The synthetic size is designed to:
 - logical size is the size of a branch *at a given point in
   time*. It's the total size of all tables in all databases, as you
   see with "\l+" in psql for example, plus the Postgres SLRUs and some
-  small amount of metadata. Note that currently, Neon does not include
+  small amount of metadata. Note that currently, SerenDB does not include
   the SLRUs and metadata in the logical size. Refer to the comment in
   [`get_current_logical_size_non_incremental()`](/pageserver/src/pgdatadir_mapping.rs#L813-L814).
 
@@ -156,7 +156,7 @@ inaccessible, the synthetic size shrinks:
 
 # Branching
 
-Things get more complicated with branching. Branches in Neon are
+Things get more complicated with branching. Branches in SerenDB are
 copy-on-write, which is also reflected in the synthetic size.
 
 When you create a branch, it doesn't immediately change the synthetic

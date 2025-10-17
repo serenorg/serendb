@@ -687,7 +687,7 @@ pub struct WalSndKeepAlive {
 /// safekeeper to pageserver protocol.
 ///
 /// Note that the pageserver uses the RawInterpretedWalRecordsBody
-/// counterpart of this from the neondatabase/rust-postgres repo.
+/// counterpart of this from the serendb/rust-postgres repo.
 /// If you're changing this struct, you likely need to change its
 /// twin as well.
 #[derive(Debug)]

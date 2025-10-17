@@ -11,24 +11,24 @@ making PR to console repo to make projects search by tenant_id faster.
 ## How to run on a single node
 
 ```
-zsh nsh safekeeper-0.us-east-2.aws.neon.build
+zsh nsh safekeeper-0.us-east-2.aws.serendb.build
 
 ls /storage/safekeeper/data/ | grep -v safekeeper > tenants.txt
 
-mkdir -p /storage/neon-trash/2023-01-01--cleanup
+mkdir -p /storage/serendb-trash/2023-01-01--cleanup
 
  export CONSOLE_API_TOKEN=
-python3 script.py --trash-dir /storage/neon-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME --dry-run
+python3 script.py --trash-dir /storage/serendb-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME --dry-run
 
-cat tenants.txt | python3 script.py --trash-dir /storage/neon-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME --dry-run
+cat tenants.txt | python3 script.py --trash-dir /storage/serendb-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME --dry-run
 
-cat tenants.txt | python3 script.py --trash-dir /storage/neon-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME |& tee logs.txt
+cat tenants.txt | python3 script.py --trash-dir /storage/serendb-trash/2023-01-01--cleanup --safekeeper-id $(cat /storage/safekeeper/data/safekeeper.id) --safekeeper-host $HOSTNAME |& tee logs.txt
 ```
 
 ## How to use ansible (staging)
 
 ```
-cd ~/neon/.github/ansible
+cd ~/serendb/.github/ansible
 
 export AWS_DEFAULT_PROFILE=dev
 
@@ -39,10 +39,10 @@ ansible-playbook -i staging.us-east-2.hosts.yaml -e @ssm_config ../../scripts/sk
 
 ## How to use ansible (prod)
 
-- Change `endpoint` in `script.py` to "https://console.neon.tech/api"
+- Change `endpoint` in `script.py` to "https://console.serendb.com/api"
 
 ```
-cd ~/neon/.github/ansible
+cd ~/serendb/.github/ansible
 
 export AWS_DEFAULT_PROFILE=prod
 

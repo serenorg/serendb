@@ -197,7 +197,7 @@ https://www.postgresql.org/docs/current/error-style-guide.html
 Follow that guide when writing error messages in the PostgreSQL
 extensions.
 
-### Neon Rust code
+### SerenDB Rust code
 
 #### Anyhow Context
 

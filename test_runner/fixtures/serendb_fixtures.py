@@ -54,7 +54,7 @@ from fixtures.compute_migrations import NUM_COMPUTE_MIGRATIONS
 from fixtures.endpoint.http import ComputeClaimsScope, EndpointHttpClient
 from fixtures.log_helper import log
 from fixtures.metrics import Metrics, MetricsGetter, parse_metrics
-from fixtures.neon_cli import NeonLocalCli, Pagectl
+from fixtures.serendb_cli import SerenDBLocalCli, Pagectl
 from fixtures.pageserver.allowed_errors import (
     DEFAULT_PAGESERVER_ALLOWED_ERRORS,
     DEFAULT_STORAGE_CONTROLLER_ALLOWED_ERRORS,
@@ -100,7 +100,7 @@ from fixtures.utils import (
     wait_until,
 )
 
-from .neon_api import NeonAPI, NeonApiEndpoint
+from .serendb_api import SerenDBAPI, SerenDBApiEndpoint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -130,7 +130,7 @@ A fixture is created with the decorator @pytest.fixture decorator.
 See docs: https://docs.pytest.org/en/6.2.x/fixture.html
 
 There are several environment variables that can control the running of tests:
-NEON_BIN, POSTGRES_DISTRIB_DIR, etc. See README.md for more information.
+SERENDB_BIN, POSTGRES_DISTRIB_DIR, etc. See README.md for more information.
 
 There's no need to import this file to use it. It should be declared as a plugin
 inside conftest.py, and that makes it available to all tests.
@@ -150,22 +150,22 @@ DEFAULT_AZ_ID: str = "us-east-2a"
 
 
 @pytest.fixture(scope="session")
-def neon_api_key() -> str:
-    api_key = os.getenv("NEON_API_KEY")
+def serendb_api_key() -> str:
+    api_key = os.getenv("SERENDB_API_KEY")
     if not api_key:
-        raise AssertionError("Set the NEON_API_KEY environment variable")
+        raise AssertionError("Set the SERENDB_API_KEY environment variable")
 
     return api_key
 
 
 @pytest.fixture(scope="session")
-def neon_api_base_url() -> str:
-    return os.getenv("NEON_API_BASE_URL", "https://console-stage.neon.build/api/v2")
+def serendb_api_base_url() -> str:
+    return os.getenv("SERENDB_API_BASE_URL", "https://console-stage.serendb.build/api/v2")
 
 
 @pytest.fixture(scope="session")
-def neon_api(neon_api_key: str, neon_api_base_url: str) -> NeonAPI:
-    return NeonAPI(neon_api_key, neon_api_base_url)
+def serendb_api(serendb_api_key: str, serendb_api_base_url: str) -> SerenDBAPI:
+    return SerenDBAPI(serendb_api_key, serendb_api_base_url)
 
 
 @pytest.fixture(scope="session")
@@ -352,8 +352,8 @@ class PgProtocol:
         return self.safe_psql(query, log_query=log_query)[0][0]
 
     def show_timeline_id(self) -> TimelineId:
-        """SHOW neon.timeline_id"""
-        return TimelineId(cast("str", self.safe_psql("show neon.timeline_id")[0][0]))
+        """SHOW serendb.timeline_id"""
+        return TimelineId(cast("str", self.safe_psql("show serendb.timeline_id")[0][0]))
 
 
 @dataclass
@@ -402,12 +402,12 @@ class PageserverImportConfig:
         return ("timeline_import_config", value)
 
 
-class NeonEnvBuilder:
+class SerenDBEnvBuilder:
     """
-    Builder object to create a Neon runtime environment
+    Builder object to create a SerenDB runtime environment
 
-    You should use the `neon_env_builder` or `neon_simple_env` pytest
-    fixture to create the NeonEnv object. That way, the repository is
+    You should use the `serendb_env_builder` or `serendb_simple_env` pytest
+    fixture to create the SerenDBEnv object. That way, the repository is
     created in the right directory, based on the test name, and it's properly
     cleaned up after the test has finished.
     """
@@ -418,8 +418,8 @@ class NeonEnvBuilder:
         port_distributor: PortDistributor,
         run_id: uuid.UUID,
         mock_s3_server: MockS3Server,
-        neon_binpath: Path,
-        compatibility_neon_binpath: Path,
+        serendb_binpath: Path,
+        compatibility_serendb_binpath: Path,
         pg_distrib_dir: Path,
         compatibility_pg_distrib_dir: Path,
         pg_version: PgVersion,
@@ -473,10 +473,10 @@ class NeonEnvBuilder:
         self.safekeepers_enable_fsync = safekeepers_enable_fsync
         self.auth_enabled = auth_enabled
         self.default_branch_name = default_branch_name
-        self.env: NeonEnv | None = None
+        self.env: SerenDBEnv | None = None
         self.keep_remote_storage_contents: bool = True
-        self.neon_binpath = neon_binpath
-        self.neon_local_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
+        self.serendb_local_binpath = serendb_binpath
         self.pg_distrib_dir = pg_distrib_dir
         self.pg_version = pg_version
         self.preserve_database_files = preserve_database_files
@@ -500,7 +500,7 @@ class NeonEnvBuilder:
         # and force storage controller to use https for safekeeper api.
         self.use_https_safekeeper_api: bool = False
         # Flag to use https listener in storage controller, generate local ssl certs,
-        # and force pageservers and neon_local to use https for storage controller api.
+        # and force pageservers and serendb_local to use https for storage controller api.
         self.use_https_storage_controller_api: bool = False
         # Flag to use https listener in storage broker, generate local ssl certs,
         # and force pageservers and safekeepers to use https for storage broker api.
@@ -534,15 +534,15 @@ class NeonEnvBuilder:
             "Unexpectedly instantiated from outside a test function"
         )
         self.test_name = test_name
-        self.compatibility_neon_binpath = compatibility_neon_binpath
+        self.compatibility_serendb_binpath = compatibility_serendb_binpath
         self.compatibility_pg_distrib_dir = compatibility_pg_distrib_dir
         self.test_may_use_compatibility_snapshot_binaries = False
         self.version_combination = combination
-        self.mixdir = self.test_output_dir / "mixdir_neon"
+        self.mixdir = self.test_output_dir / "mixdir_serendb"
 
         if self.version_combination is not None:
-            assert self.compatibility_neon_binpath is not None, (
-                "the environment variable COMPATIBILITY_NEON_BIN is required when using mixed versions"
+            assert self.compatibility_serendb_binpath is not None, (
+                "the environment variable COMPATIBILITY_SERENDB_BIN is required when using mixed versions"
             )
             assert self.compatibility_pg_distrib_dir is not None, (
                 "the environment variable COMPATIBILITY_POSTGRES_DISTRIB_DIR is required when using mixed versions"
@@ -551,12 +551,12 @@ class NeonEnvBuilder:
             self._mix_versions()
             self.test_may_use_compatibility_snapshot_binaries = True
 
-    def init_configs(self, default_remote_storage_if_missing: bool = True) -> NeonEnv:
+    def init_configs(self, default_remote_storage_if_missing: bool = True) -> SerenDBEnv:
         # Cannot create more than one environment from one builder
         assert self.env is None, "environment already initialized"
         if default_remote_storage_if_missing and self.pageserver_remote_storage is None:
             self.enable_pageserver_remote_storage(default_remote_storage())
-        self.env = NeonEnv(self)
+        self.env = SerenDBEnv(self)
         return self.env
 
     def init_start(
@@ -565,9 +565,9 @@ class NeonEnvBuilder:
         default_remote_storage_if_missing: bool = True,
         initial_tenant_shard_count: int | None = None,
         initial_tenant_shard_stripe_size: int | None = None,
-    ) -> NeonEnv:
+    ) -> SerenDBEnv:
         """
-        Default way to create and start NeonEnv. Also creates the initial_tenant with root initial_timeline.
+        Default way to create and start SerenDBEnv. Also creates the initial_tenant with root initial_timeline.
 
         To avoid creating initial_tenant, call init_configs to setup the environment.
 
@@ -595,8 +595,8 @@ class NeonEnvBuilder:
         return env
 
     def build_and_use_snapshot(
-        self, global_ident: str, create_env_for_snapshot: Callable[[NeonEnvBuilder], NeonEnv]
-    ) -> NeonEnv:
+        self, global_ident: str, create_env_for_snapshot: Callable[[SerenDBEnvBuilder], SerenDBEnv]
+    ) -> SerenDBEnv:
         if os.getenv("CI", "false") == "true":
             log.info("do not use snapshots in ephemeral CI environment")
             env = create_env_for_snapshot(self)
@@ -613,7 +613,7 @@ class NeonEnvBuilder:
     def _build_and_use_snapshot_impl(
         self,
         snapshot_dir: SnapshotDirLocked,
-        create_env_for_snapshot: Callable[[NeonEnvBuilder], NeonEnv],
+        create_env_for_snapshot: Callable[[SerenDBEnvBuilder], SerenDBEnv],
     ):
         if snapshot_dir.path.exists():
             shutil.rmtree(snapshot_dir.path)
@@ -655,9 +655,9 @@ class NeonEnvBuilder:
     def from_repo_dir(
         self,
         repo_dir: Path,
-    ) -> NeonEnv:
+    ) -> SerenDBEnv:
         """
-        A simple method to import data into the current NeonEnvBuilder from a snapshot of a repo dir.
+        A simple method to import data into the current SerenDBEnvBuilder from a snapshot of a repo dir.
         """
 
         # Get the initial tenant and timeline from the snapshot config
@@ -724,8 +724,8 @@ class NeonEnvBuilder:
         shutil.copytree(storcon_db_from_dir, storcon_db_to_dir, ignore=ignore_postgres_log)
         assert not (storcon_db_to_dir / "postgres.log").exists()
 
-        # NB: neon_local rewrites postgresql.conf on each start based on neon_local config. No need to patch it.
-        # However, in this new NeonEnv, the pageservers and safekeepers listen on different ports, and the storage
+        # NB: serendb_local rewrites postgresql.conf on each start based on serendb_local config. No need to patch it.
+        # However, in this new SerenDBEnv, the pageservers and safekeepers listen on different ports, and the storage
         # controller will currently reject re-attach requests from them because the NodeMetadata isn't identical.
         # So, from_repo_dir patches up the storcon database.
         patch_script_path = self.repo_dir / "storage_controller_db.startup.sql"
@@ -747,9 +747,9 @@ class NeonEnvBuilder:
         config["default_tenant_id"] = snapshot_config["default_tenant_id"]
         config["branch_name_mappings"] = snapshot_config["branch_name_mappings"]
 
-        # Update the config with new neon + postgres path in case of compat test
+        # Update the config with new SerenDB + postgres path in case of compat test
         config["pg_distrib_dir"] = str(self.pg_distrib_dir)
-        config["neon_distrib_dir"] = str(self.neon_binpath)
+        config["serendb_distrib_dir"] = str(self.serendb_binpath)
 
         with (self.repo_dir / "config").open("w") as f:
             toml.dump(config, f)
@@ -759,20 +759,20 @@ class NeonEnvBuilder:
     def _mix_versions(self):
         assert self.version_combination is not None, "version combination must be set"
 
-        # Always use a newer version of `neon_local`
-        (self.mixdir / "neon_local").hardlink_to(self.neon_binpath / "neon_local")
-        self.neon_local_binpath = self.mixdir
+        # Always use a newer version of `serendb_local`
+        (self.mixdir / "serendb_local").hardlink_to(self.serendb_binpath / "serendb_local")
+        self.serendb_local_binpath = self.mixdir
 
         for component, paths in COMPONENT_BINARIES.items():
             directory = (
-                self.neon_binpath
+                self.serendb_binpath
                 if self.version_combination[component] == "new"
-                else self.compatibility_neon_binpath
+                else self.compatibility_serendb_binpath
             )
             for filename in paths:
                 destination = self.mixdir / filename
                 destination.hardlink_to(directory / filename)
-        self.neon_binpath = self.mixdir
+        self.serendb_binpath = self.mixdir
 
         if self.version_combination["compute"] == "old":
             self.pg_distrib_dir = self.compatibility_pg_distrib_dir
@@ -1048,12 +1048,12 @@ class NeonEnvBuilder:
                 cleanup_error = e
 
 
-class NeonEnv:
+class SerenDBEnv:
     """
-    An object representing the Neon runtime environment. It consists of
+    An object representing the SerenDB runtime environment. It consists of
     the page server, 0-N safekeepers, and the compute nodes.
 
-    NeonEnv contains functions for stopping/starting nodes in the
+    SerenDBEnv contains functions for stopping/starting nodes in the
     environment, checking their status, creating tenants, connecting to the
     nodes, creating and destroying compute nodes, etc. The page server and
     the safekeepers are considered fixed in the environment, you cannot
@@ -1061,7 +1061,7 @@ class NeonEnv:
     likely change in the future, as we start supporting multiple page
     servers and adding/removing safekeepers on the fly).
 
-    Some notable functions and fields in NeonEnv:
+    Some notable functions and fields in SerenDBEnv:
 
     endpoints - A factory object for creating postgres compute nodes.
 
@@ -1071,7 +1071,7 @@ class NeonEnv:
 
     initial_tenant - tenant ID of the initial tenant created in the repository
 
-    neon_cli - can be used to run the 'neon_local' CLI tool
+    serendb_cli - can be used to run the 'serendb_local' CLI tool
 
     create_tenant() - initializes a new tenant and an initial empty timeline on it,
         returns the tenant and timeline id
@@ -1084,27 +1084,27 @@ class NeonEnv:
     """
 
     BASE_PAGESERVER_ID = 1
-    storage_controller: NeonStorageController | NeonProxiedStorageController
+    storage_controller: SerenDBStorageController | SerenDBProxiedStorageController
 
-    def __init__(self, config: NeonEnvBuilder):
+    def __init__(self, config: SerenDBEnvBuilder):
         self.repo_dir = config.repo_dir
         self.rust_log_override = config.rust_log_override
         self.port_distributor = config.port_distributor
         self.s3_mock_server = config.mock_s3_server
         self.endpoints = EndpointFactory(self)
         self.safekeepers: list[Safekeeper] = []
-        self.pageservers: list[NeonPageserver] = []
+        self.pageservers: list[SerenDBPageserver] = []
         self.num_azs = config.num_azs
-        self.broker = NeonBroker(self, config.use_https_storage_broker_api)
+        self.broker = SerenDBBroker(self, config.use_https_storage_broker_api)
         self.pageserver_remote_storage = config.pageserver_remote_storage
         self.safekeepers_remote_storage = config.safekeepers_remote_storage
         self.pg_version = config.pg_version
         # Binary path for pageserver, safekeeper, etc
-        self.neon_binpath = config.neon_binpath
-        # Binary path for neon_local test-specific binaries
-        self.neon_local_binpath = config.neon_local_binpath
-        if self.neon_local_binpath is None:
-            self.neon_local_binpath = self.neon_binpath
+        self.serendb_binpath = config.serendb_binpath
+        # Binary path for serendb_local test-specific binaries
+        self.serendb_local_binpath = config.serendb_local_binpath
+        if self.serendb_local_binpath is None:
+            self.serendb_local_binpath = self.serendb_binpath
         self.pg_distrib_dir = config.pg_distrib_dir
         self.endpoint_counter = 0
         self.storage_controller_config = config.storage_controller_config
@@ -1121,12 +1121,12 @@ class NeonEnv:
             self.repo_dir.joinpath("rootCA.crt") if self.generate_local_ssl_certs else None
         )
 
-        neon_local_env_vars = {}
+        serendb_local_env_vars = {}
         if self.rust_log_override is not None:
-            neon_local_env_vars["RUST_LOG"] = self.rust_log_override
-        self.neon_cli = NeonLocalCli(
-            extra_env=neon_local_env_vars,
-            binpath=self.neon_local_binpath,
+            serendb_local_env_vars["RUST_LOG"] = self.rust_log_override
+        self.serendb_cli = SerenDBLocalCli(
+            extra_env=serendb_local_env_vars,
+            binpath=self.serendb_local_binpath,
             repo_dir=self.repo_dir,
             pg_distrib_dir=self.pg_distrib_dir,
         )
@@ -1134,7 +1134,7 @@ class NeonEnv:
         pagectl_env_vars = {}
         if self.rust_log_override is not None:
             pagectl_env_vars["RUST_LOG"] = self.rust_log_override
-        self.pagectl = Pagectl(extra_env=pagectl_env_vars, binpath=self.neon_binpath)
+        self.pagectl = Pagectl(extra_env=pagectl_env_vars, binpath=self.serendb_binpath)
 
         self.endpoint_storage = EndpointStorage(self)
 
@@ -1145,7 +1145,7 @@ class NeonEnv:
             )
 
             self.storage_controller_port = config.storage_controller_port_override
-            self.storage_controller = NeonProxiedStorageController(
+            self.storage_controller = SerenDBProxiedStorageController(
                 self,
                 config.storage_controller_port_override,
                 config.auth_enabled,
@@ -1162,7 +1162,7 @@ class NeonEnv:
                     break
 
             self.storage_controller_port = storage_controller_port
-            self.storage_controller = NeonStorageController(
+            self.storage_controller = SerenDBStorageController(
                 self,
                 storage_controller_port,
                 config.auth_enabled,
@@ -1188,7 +1188,7 @@ class NeonEnv:
         else:
             self.pageserver_import_config = config.pageserver_import_config
 
-        # Create the neon_local's `NeonLocalInitConf`
+        # Create the serendb_local's `SerenDBLocalInitConf`
         cfg: dict[str, Any] = {
             "default_tenant_id": str(self.initial_tenant),
             "broker": {},
@@ -1245,9 +1245,9 @@ class NeonEnv:
             )
 
         # Create config for pageserver
-        http_auth_type = "NeonJWT" if config.auth_enabled else "Trust"
-        pg_auth_type = "NeonJWT" if config.auth_enabled else "Trust"
-        grpc_auth_type = "NeonJWT" if config.auth_enabled else "Trust"
+        http_auth_type = "SerenDBJWT" if config.auth_enabled else "Trust"
+        pg_auth_type = "SerenDBJWT" if config.auth_enabled else "Trust"
+        grpc_auth_type = "SerenDBJWT" if config.auth_enabled else "Trust"
         for ps_id in range(
             self.BASE_PAGESERVER_ID, self.BASE_PAGESERVER_ID + config.num_pageservers
         ):
@@ -1258,7 +1258,7 @@ class NeonEnv:
                 https=self.port_distributor.get_port() if config.use_https_pageserver_api else None,
             )
 
-            # Availabilty zones may also be configured manually with `NeonEnvBuilder.pageserver_config_override`
+            # Availabilty zones may also be configured manually with `SerenDBEnvBuilder.pageserver_config_override`
             if self.num_azs > 1:
                 # Round-robin assignment of AZ names like us-east-2a, us-east-2b, etc.
                 az_prefix = DEFAULT_AZ_ID[:-1]
@@ -1351,8 +1351,8 @@ class NeonEnv:
                 if key not in ps_cfg:
                     ps_cfg[key] = value
 
-            # Create a corresponding NeonPageserver object
-            ps = NeonPageserver(
+            # Create a corresponding SerenDBPageserver object
+            ps = SerenDBPageserver(
                 self, ps_id, port=pageserver_port, az_id=ps_cfg["availability_zone"]
             )
 
@@ -1401,7 +1401,7 @@ class NeonEnv:
         self.storage_scrubber = StorageScrubber(self, log_dir=config.test_output_dir)
 
         log.info(f"Config: {cfg}")
-        self.neon_cli.init(
+        self.serendb_cli.init(
             cfg,
             force=config.config_init_force,
         )
@@ -1511,18 +1511,18 @@ class NeonEnv:
             )
 
     @property
-    def pageserver(self) -> NeonPageserver:
+    def pageserver(self) -> SerenDBPageserver:
         """
         For tests that are naive to multiple pageservers: give them the 1st in the list, and
         assert that there is only one. Tests with multiple pageservers should always use
         get_pageserver with an explicit ID.
         """
         assert len(self.pageservers) == 1, (
-            "env.pageserver must only be used with single pageserver NeonEnv"
+            "env.pageserver must only be used with single pageserver SerenDBEnv"
         )
         return self.pageservers[0]
 
-    def get_pageserver(self, id: int | None) -> NeonPageserver:
+    def get_pageserver(self, id: int | None) -> SerenDBPageserver:
         """
         Look up a pageserver by its node ID.
 
@@ -1552,7 +1552,7 @@ class NeonEnv:
 
     def get_tenant_pageserver(self, tenant_id: TenantId | TenantShardId):
         """
-        Get the NeonPageserver where this tenant shard is currently attached, according
+        Get the SerenDBPageserver where this tenant shard is currently attached, according
         to the storage controller.
         """
         meta = self.storage_controller.inspect(tenant_id)
@@ -1566,7 +1566,7 @@ class NeonEnv:
         return ",".join(f"localhost:{wa.port.pg}" for wa in self.safekeepers)
 
     def get_binary_version(self, binary_name: str) -> str:
-        bin_pageserver = str(self.neon_binpath / binary_name)
+        bin_pageserver = str(self.serendb_binpath / binary_name)
         res = subprocess.run(
             [bin_pageserver, "--version"],
             check=True,
@@ -1626,7 +1626,7 @@ class NeonEnv:
         tenant_id = tenant_id or TenantId.generate()
         timeline_id = timeline_id or TimelineId.generate()
 
-        self.neon_cli.tenant_create(
+        self.serendb_cli.tenant_create(
             tenant_id=tenant_id,
             timeline_id=timeline_id,
             pg_version=self.pg_version,
@@ -1644,7 +1644,7 @@ class NeonEnv:
         Update tenant config.
         """
         tenant_id = tenant_id or self.initial_tenant
-        self.neon_cli.tenant_config(tenant_id, conf)
+        self.serendb_cli.tenant_config(tenant_id, conf)
 
     def create_branch(
         self,
@@ -1657,7 +1657,7 @@ class NeonEnv:
         new_timeline_id = new_timeline_id or TimelineId.generate()
         tenant_id = tenant_id or self.initial_tenant
 
-        self.neon_cli.timeline_branch(
+        self.serendb_cli.timeline_branch(
             tenant_id, new_timeline_id, new_branch_name, ancestor_branch_name, ancestor_start_lsn
         )
 
@@ -1672,13 +1672,13 @@ class NeonEnv:
         timeline_id = timeline_id or TimelineId.generate()
         tenant_id = tenant_id or self.initial_tenant
 
-        self.neon_cli.timeline_create(new_branch_name, tenant_id, timeline_id, self.pg_version)
+        self.serendb_cli.timeline_create(new_branch_name, tenant_id, timeline_id, self.pg_version)
 
         return timeline_id
 
 
 @pytest.fixture(scope="function")
-def neon_simple_env(
+def serendb_simple_env(
     request: FixtureRequest,
     pytestconfig: Config,
     port_distributor: PortDistributor,
@@ -1686,8 +1686,8 @@ def neon_simple_env(
     run_id: uuid.UUID,
     top_output_dir: Path,
     test_output_dir: Path,
-    neon_binpath: Path,
-    compatibility_neon_binpath: Path,
+    serendb_binpath: Path,
+    compatibility_serendb_binpath: Path,
     pg_distrib_dir: Path,
     compatibility_pg_distrib_dir: Path,
     pg_version: PgVersion,
@@ -1695,9 +1695,9 @@ def neon_simple_env(
     pageserver_default_tenant_config_compaction_algorithm: dict[str, Any] | None,
     pageserver_virtual_file_io_mode: str | None,
     pageserver_get_vectored_concurrent_io: str | None,
-) -> Iterator[NeonEnv]:
+) -> Iterator[SerenDBEnv]:
     """
-    Simple Neon environment, with 1 safekeeper and 1 pageserver. No authentication, no fsync.
+    Simple SerenDB environment, with 1 safekeeper and 1 pageserver. No authentication, no fsync.
 
     This fixture will use RemoteStorageKind.LOCAL_FS with pageserver.
     """
@@ -1710,13 +1710,13 @@ def neon_simple_env(
         else None
     )
 
-    with NeonEnvBuilder(
+    with SerenDBEnvBuilder(
         top_output_dir=top_output_dir,
         repo_dir=repo_dir,
         port_distributor=port_distributor,
         mock_s3_server=mock_s3_server,
-        neon_binpath=neon_binpath,
-        compatibility_neon_binpath=compatibility_neon_binpath,
+        serendb_binpath=serendb_binpath,
+        compatibility_serendb_binpath=compatibility_serendb_binpath,
         pg_distrib_dir=pg_distrib_dir,
         compatibility_pg_distrib_dir=compatibility_pg_distrib_dir,
         pg_version=pg_version,
@@ -1736,13 +1736,13 @@ def neon_simple_env(
 
 
 @pytest.fixture(scope="function")
-def neon_env_builder(
+def serendb_env_builder(
     pytestconfig: Config,
     test_output_dir: Path,
     port_distributor: PortDistributor,
     mock_s3_server: MockS3Server,
-    neon_binpath: Path,
-    compatibility_neon_binpath: Path,
+    serendb_binpath: Path,
+    compatibility_serendb_binpath: Path,
     pg_distrib_dir: Path,
     compatibility_pg_distrib_dir: Path,
     pg_version: PgVersion,
@@ -1755,14 +1755,14 @@ def neon_env_builder(
     record_property: Callable[[str, object], None],
     pageserver_virtual_file_io_mode: str | None,
     pageserver_get_vectored_concurrent_io: str | None,
-) -> Iterator[NeonEnvBuilder]:
+) -> Iterator[SerenDBEnvBuilder]:
     """
-    Fixture to create a Neon environment for test.
+    Fixture to create a SerenDB environment for test.
 
-    To use, define 'neon_env_builder' fixture in your test to get access to the
+    To use, define 'serendb_env_builder' fixture in your test to get access to the
     builder object. Set properties on it to describe the environment.
     Finally, initialize and start up the environment by calling
-    neon_env_builder.init_start().
+    serendb_env_builder.init_start().
 
     After the initialization, you can launch compute nodes by calling
     the functions in the 'env.endpoints' factory object, stop/start the
@@ -1778,13 +1778,13 @@ def neon_env_builder(
     )
 
     # Return the builder to the caller
-    with NeonEnvBuilder(
+    with SerenDBEnvBuilder(
         top_output_dir=top_output_dir,
         repo_dir=Path(repo_dir),
         port_distributor=port_distributor,
         mock_s3_server=mock_s3_server,
-        neon_binpath=neon_binpath,
-        compatibility_neon_binpath=compatibility_neon_binpath,
+        serendb_binpath=serendb_binpath,
+        compatibility_serendb_binpath=compatibility_serendb_binpath,
         pg_distrib_dir=pg_distrib_dir,
         compatibility_pg_distrib_dir=compatibility_pg_distrib_dir,
         combination=combination,
@@ -1806,13 +1806,13 @@ def neon_env_builder(
 
 
 @pytest.fixture(scope="function")
-def neon_env_builder_local(
-    neon_env_builder: NeonEnvBuilder,
+def serendb_env_builder_local(
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_distrib_dir: Path,
-) -> NeonEnvBuilder:
+) -> SerenDBEnvBuilder:
     """
-    Fixture to create a Neon environment for test with its own pg_install copy.
+    Fixture to create a SerenDB environment for test with its own pg_install copy.
 
     This allows the test to edit the list of available extensions in the
     local instance of Postgres used for the test, and install extensions via
@@ -1826,10 +1826,10 @@ def neon_env_builder_local(
     # binaries like the storage controller need specific Postgres versions.
     shutil.copytree(pg_distrib_dir, test_local_pginstall)
 
-    neon_env_builder.pg_distrib_dir = test_local_pginstall
-    log.info(f"local neon_env_builder.pg_distrib_dir: {neon_env_builder.pg_distrib_dir}")
+    serendb_env_builder.pg_distrib_dir = test_local_pginstall
+    log.info(f"local serendb_env_builder.pg_distrib_dir: {serendb_env_builder.pg_distrib_dir}")
 
-    return neon_env_builder
+    return serendb_env_builder
 
 
 @dataclass
@@ -1931,8 +1931,8 @@ class StorageControllerMigrationConfig:
     secondary_download_request_timeout: str | None = None
 
 
-class NeonStorageController(MetricsGetter, LogUtils):
-    def __init__(self, env: NeonEnv, port: int, auth_enabled: bool, use_https: bool):
+class SerenDBStorageController(MetricsGetter, LogUtils):
+    def __init__(self, env: SerenDBEnv, port: int, auth_enabled: bool, use_https: bool):
         self.env = env
         self.port: int = port
         scheme = "https" if use_https else "http"
@@ -1951,7 +1951,7 @@ class NeonStorageController(MetricsGetter, LogUtils):
         handle_ps_local_disk_loss: bool | None = None,
     ) -> Self:
         assert not self.running
-        self.env.neon_cli.storage_controller_start(
+        self.env.serendb_cli.storage_controller_start(
             timeout_in_seconds, instance_id, base_port, handle_ps_local_disk_loss
         )
         self.running = True
@@ -1959,7 +1959,7 @@ class NeonStorageController(MetricsGetter, LogUtils):
 
     def stop(self, immediate: bool = False) -> Self:
         if self.running:
-            self.env.neon_cli.storage_controller_stop(immediate)
+            self.env.serendb_cli.storage_controller_stop(immediate)
             self.running = False
         return self
 
@@ -2017,7 +2017,7 @@ class NeonStorageController(MetricsGetter, LogUtils):
         if self.ssl_ca_file is not None:
             kwargs["verify"] = self.ssl_ca_file
         resp = requests.request(method, *args, **kwargs)
-        NeonStorageController.raise_api_exception(resp)
+        SerenDBStorageController.raise_api_exception(resp)
 
         return resp
 
@@ -2106,7 +2106,7 @@ class NeonStorageController(MetricsGetter, LogUtils):
         else:
             return None
 
-    def node_register(self, node: NeonPageserver):
+    def node_register(self, node: SerenDBPageserver):
         body = {
             "node_id": int(node.id),
             "listen_http_addr": "localhost",
@@ -2836,7 +2836,7 @@ class NeonStorageController(MetricsGetter, LogUtils):
 
 
 class EndpointStorage(LogUtils):
-    def __init__(self, env: NeonEnv):
+    def __init__(self, env: SerenDBEnv):
         service_dir = env.repo_dir / "endpoint_storage"
         super().__init__(logfile=service_dir / "endpoint_storage.log")
         self.conf_path = service_dir / "endpoint_storage.json"
@@ -2846,17 +2846,17 @@ class EndpointStorage(LogUtils):
         return json.loads(self.conf_path.read_text())["listen"]
 
     def start(self, timeout_in_seconds: int | None = None):
-        self.env.neon_cli.endpoint_storage_start(timeout_in_seconds)
+        self.env.serendb_cli.endpoint_storage_start(timeout_in_seconds)
 
     def stop(self, immediate: bool = False):
-        self.env.neon_cli.endpoint_storage_stop(immediate)
+        self.env.serendb_cli.endpoint_storage_stop(immediate)
 
     def assert_no_errors(self):
         assert_no_errors(self.logfile, "endpoint_storage", [])
 
 
-class NeonProxiedStorageController(NeonStorageController):
-    def __init__(self, env: NeonEnv, proxy_port: int, auth_enabled: bool, use_https: bool):
+class SerenDBProxiedStorageController(SerenDBStorageController):
+    def __init__(self, env: SerenDBEnv, proxy_port: int, auth_enabled: bool, use_https: bool):
         super().__init__(env, proxy_port, auth_enabled, use_https)
         self.instances: dict[int, dict[str, Any]] = {}
 
@@ -2869,7 +2869,7 @@ class NeonProxiedStorageController(NeonStorageController):
     ) -> Self:
         assert instance_id is not None and base_port is not None
 
-        self.env.neon_cli.storage_controller_start(
+        self.env.serendb_cli.storage_controller_start(
             timeout_in_seconds, instance_id, base_port, handle_ps_local_disk_loss
         )
         self.instances[instance_id] = {"running": True}
@@ -2879,10 +2879,10 @@ class NeonProxiedStorageController(NeonStorageController):
 
     def stop_instance(
         self, immediate: bool = False, instance_id: int | None = None
-    ) -> NeonStorageController:
+    ) -> SerenDBStorageController:
         assert instance_id in self.instances
         if self.instances[instance_id]["running"]:
-            self.env.neon_cli.storage_controller_stop(immediate, instance_id)
+            self.env.serendb_cli.storage_controller_stop(immediate, instance_id)
             self.instances[instance_id]["running"] = False
 
         self.running = any(meta["running"] for meta in self.instances.values())
@@ -2891,7 +2891,7 @@ class NeonProxiedStorageController(NeonStorageController):
     def stop(self, immediate: bool = False) -> Self:
         for iid, details in self.instances.items():
             if details["running"]:
-                self.env.neon_cli.storage_controller_stop(immediate, iid)
+                self.env.serendb_cli.storage_controller_stop(immediate, iid)
                 self.instances[iid]["running"] = False
 
         self.running = False
@@ -2926,14 +2926,14 @@ class LogCursor:
     _line_no: int
 
 
-class NeonPageserver(PgProtocol, LogUtils):
+class SerenDBPageserver(PgProtocol, LogUtils):
     """
     An object representing a running pageserver.
     """
 
     TEMP_FILE_SUFFIX = "___temp"
 
-    def __init__(self, env: NeonEnv, id: int, port: PageserverPort, az_id: str):
+    def __init__(self, env: SerenDBEnv, id: int, port: PageserverPort, az_id: str):
         super().__init__(host="localhost", port=port.pg, user="cloud_admin")
         self.env = env
         self.id = id
@@ -3047,7 +3047,7 @@ class NeonPageserver(PgProtocol, LogUtils):
         if isinstance(storage, S3Storage):
             s3_env_vars = storage.access_env_vars()
             extra_env_vars = (extra_env_vars or {}) | s3_env_vars
-        self.env.neon_cli.pageserver_start(
+        self.env.serendb_cli.pageserver_start(
             self.id, extra_env_vars=extra_env_vars, timeout_in_seconds=timeout_in_seconds
         )
         self.running = True
@@ -3069,7 +3069,7 @@ class NeonPageserver(PgProtocol, LogUtils):
         Returns self.
         """
         if self.running:
-            self.env.neon_cli.pageserver_stop(self.id, immediate)
+            self.env.serendb_cli.pageserver_stop(self.id, immediate)
             self.running = False
         return self
 
@@ -3459,7 +3459,7 @@ class PgBin:
 
     def take_fullbackup(
         self,
-        pageserver: NeonPageserver,
+        pageserver: SerenDBPageserver,
         tenant: TenantId,
         timeline: TimelineId,
         lsn: Lsn,
@@ -3590,7 +3590,7 @@ def vanilla_pg(
     pg_bin = PgBin(test_output_dir, pg_distrib_dir, pg_version)
     port = port_distributor.get_port()
     with VanillaPostgres(pgdatadir, pg_bin, port) as vanilla_pg:
-        vanilla_pg.configure(["shared_preload_libraries='neon_rmgr'"])
+        vanilla_pg.configure(["shared_preload_libraries='serendb_rmgr'"])
         yield vanilla_pg
 
 
@@ -3629,15 +3629,15 @@ class RemotePostgres(PgProtocol):
 
 
 @pytest.fixture(scope="function")
-def benchmark_project_pub(neon_api: NeonAPI, pg_version: PgVersion) -> NeonApiEndpoint:
+def benchmark_project_pub(serendb_api: SerenDBAPI, pg_version: PgVersion) -> SerenDBApiEndpoint:
     project_id = os.getenv("BENCHMARK_PROJECT_ID_PUB")
-    return NeonApiEndpoint(neon_api, pg_version, project_id)
+    return SerenDBApiEndpoint(serendb_api, pg_version, project_id)
 
 
 @pytest.fixture(scope="function")
-def benchmark_project_sub(neon_api: NeonAPI, pg_version: PgVersion) -> NeonApiEndpoint:
+def benchmark_project_sub(serendb_api: SerenDBAPI, pg_version: PgVersion) -> SerenDBApiEndpoint:
     project_id = os.getenv("BENCHMARK_PROJECT_ID_SUB")
-    return NeonApiEndpoint(neon_api, pg_version, project_id)
+    return SerenDBApiEndpoint(serendb_api, pg_version, project_id)
 
 
 @pytest.fixture(scope="function")
@@ -3651,17 +3651,17 @@ def remote_pg(
         raise ValueError("no connstr provided, use BENCHMARK_CONNSTR environment variable")
 
     host = parse_dsn(connstr).get("host", "")
-    is_neon = host.endswith(".neon.build")
+    is_serendb = host.endswith(".serendb.build")
 
     start_ms = int(datetime.utcnow().timestamp() * 1000)
     with RemotePostgres(pg_bin, connstr) as remote_pg:
-        if is_neon:
-            timeline_id = TimelineId(remote_pg.safe_psql("SHOW neon.timeline_id")[0][0])
+        if is_serendb:
+            timeline_id = TimelineId(remote_pg.safe_psql("SHOW serendb.timeline_id")[0][0])
 
         yield remote_pg
 
     end_ms = int(datetime.utcnow().timestamp() * 1000)
-    if is_neon:
+    if is_serendb:
         # Add 10s margin to the start and end times
         allure_add_grafana_link(
             host,
@@ -3737,7 +3737,7 @@ def generate_proxy_tls_certs(common_name: str, key_path: Path, crt_path: Path):
         assert r.returncode == 0
 
 
-class NeonProxy(PgProtocol):
+class SerenDBProxy(PgProtocol):
     link_auth_uri: str = "http://dummy-uri"
 
     class AuthBackend(abc.ABC):
@@ -3756,7 +3756,7 @@ class NeonProxy(PgProtocol):
             return [
                 # Link auth backend params
                 *["--auth-backend", "link"],
-                *["--uri", NeonProxy.link_auth_uri],
+                *["--uri", SerenDBProxy.link_auth_uri],
             ]
 
     class ProxyV1(AuthBackend):
@@ -3800,7 +3800,7 @@ class NeonProxy(PgProtocol):
 
     def __init__(
         self,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         test_output_dir: Path,
         proxy_port: int,
         http_port: int,
@@ -3808,19 +3808,19 @@ class NeonProxy(PgProtocol):
         external_http_port: int,
         router_port: int,
         router_tls_port: int,
-        auth_backend: NeonProxy.AuthBackend,
+        auth_backend: SerenDBProxy.AuthBackend,
         metric_collection_endpoint: str | None = None,
         metric_collection_interval: str | None = None,
     ):
         host = "127.0.0.1"
-        domain = "proxy.local.neon.build"  # resolves to 127.0.0.1
+        domain = "proxy.local.serendb.build"  # resolves to 127.0.0.1
         super().__init__(dsn=auth_backend.default_conn_url, host=domain, port=proxy_port)
 
         self.domain = domain
         self.host = host
         self.http_port = http_port
         self.external_http_port = external_http_port
-        self.neon_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
         self.test_output_dir = test_output_dir
         self.proxy_port = proxy_port
         self.mgmt_port = mgmt_port
@@ -3838,18 +3838,18 @@ class NeonProxy(PgProtocol):
         # generate key of it doesn't exist
         crt_path = self.test_output_dir / "proxy.crt"
         key_path = self.test_output_dir / "proxy.key"
-        generate_proxy_tls_certs("*.local.neon.build", key_path, crt_path)
+        generate_proxy_tls_certs("*.local.serendb.build", key_path, crt_path)
 
         # generate key for pg-sni-router.
-        # endpoint.namespace.local.neon.build resolves to 127.0.0.1
+        # endpoint.namespace.local.serendb.build resolves to 127.0.0.1
         generate_proxy_tls_certs(
-            "endpoint.namespace.local.neon.build",
+            "endpoint.namespace.local.serendb.build",
             self.test_output_dir / "router.key",
             self.test_output_dir / "router.crt",
         )
 
         args = [
-            str(self.neon_binpath / "proxy"),
+            str(self.serendb_binpath / "proxy"),
             *["--http", f"{self.host}:{self.http_port}"],
             *["--proxy", f"{self.host}:{self.proxy_port}"],
             *["--mgmt", f"{self.host}:{self.mgmt_port}"],
@@ -3861,7 +3861,7 @@ class NeonProxy(PgProtocol):
             *["--sni-router-listen-tls", f"{self.host}:{self.router_tls_port}"],
             *["--sni-router-tls-cert", str(self.test_output_dir / "router.crt")],
             *["--sni-router-tls-key", str(self.test_output_dir / "router.key")],
-            *["--sni-router-destination", "local.neon.build"],
+            *["--sni-router-destination", "local.serendb.build"],
             *self.auth_backend.extra_args(),
         ]
 
@@ -3912,8 +3912,8 @@ class NeonProxy(PgProtocol):
             data=json.dumps({"query": query, "params": args}),
             headers={
                 "Content-Type": "application/sql",
-                "Neon-Connection-String": connstr,
-                "Neon-Pool-Opt-In": "true",
+                "SerenDB-Connection-String": connstr,
+                "SerenDB-Pool-Opt-In": "true",
             },
             verify=str(self.test_output_dir / "proxy.crt"),
             timeout=timeout,
@@ -3947,8 +3947,8 @@ class NeonProxy(PgProtocol):
             data=json.dumps({"queries": json_queries}),
             headers={
                 "Content-Type": "application/sql",
-                "Neon-Connection-String": connstr,
-                "Neon-Pool-Opt-In": "true",
+                "SerenDB-Connection-String": connstr,
+                "SerenDB-Pool-Opt-In": "true",
             },
             verify=str(self.test_output_dir / "proxy.crt"),
             timeout=timeout,
@@ -3975,8 +3975,8 @@ class NeonProxy(PgProtocol):
                 json={"query": query, "params": args},
                 headers={
                     "Content-Type": "application/sql",
-                    "Neon-Connection-String": connstr,
-                    "Neon-Pool-Opt-In": "true",
+                    "SerenDB-Connection-String": connstr,
+                    "SerenDB-Pool-Opt-In": "true",
                 },
             )
             assert response.http_version == "HTTP/2"
@@ -4067,7 +4067,7 @@ class NeonProxy(PgProtocol):
         assert out == "ok"
 
 
-class NeonAuthBroker:
+class SerenDBAuthBroker:
     class ProxyV1:
         def __init__(self, endpoint: str):
             self.endpoint = endpoint
@@ -4081,18 +4081,18 @@ class NeonAuthBroker:
 
     def __init__(
         self,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         test_output_dir: Path,
         http_port: int,
         mgmt_port: int,
         external_http_port: int,
-        auth_backend: NeonAuthBroker.ProxyV1,
+        auth_backend: SerenDBAuthBroker.ProxyV1,
     ):
-        self.domain = "local.neon.build"  # resolves to 127.0.0.1
+        self.domain = "local.serendb.build"  # resolves to 127.0.0.1
         self.host = "127.0.0.1"
         self.http_port = http_port
         self.external_http_port = external_http_port
-        self.neon_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
         self.test_output_dir = test_output_dir
         self.mgmt_port = mgmt_port
         self.auth_backend = auth_backend
@@ -4108,7 +4108,7 @@ class NeonAuthBroker:
         generate_proxy_tls_certs(f"apiauth.{self.domain}", key_path, crt_path)
 
         args = [
-            str(self.neon_binpath / "proxy"),
+            str(self.serendb_binpath / "proxy"),
             *["--http", f"{self.host}:{self.http_port}"],
             *["--mgmt", f"{self.host}:{self.mgmt_port}"],
             *["--wss", f"{self.host}:{self.external_http_port}"],
@@ -4155,7 +4155,7 @@ class NeonAuthBroker:
                 f"https://apiauth.{self.domain}:{self.external_http_port}/sql",
                 json={"query": query, "params": args},
                 headers={
-                    "Neon-Connection-String": connstr,
+                    "SerenDB-Connection-String": connstr,
                     "Authorization": f"Bearer {token}",
                 },
             )
@@ -4186,7 +4186,7 @@ class NeonAuthBroker:
                 self._popen.kill()
 
 
-class NeonLocalProxy(LogUtils):
+class SerenDBLocalProxy(LogUtils):
     """
     An object managing a local_proxy instance for rest broker testing.
     The local_proxy serves as a direct connection to VanillaPostgres.
@@ -4194,14 +4194,14 @@ class NeonLocalProxy(LogUtils):
 
     def __init__(
         self,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         test_output_dir: Path,
         http_port: int,
         metrics_port: int,
         vanilla_pg: VanillaPostgres,
         config_path: Path | None = None,
     ):
-        self.neon_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
         self.test_output_dir = test_output_dir
         self.http_port = http_port
         self.metrics_port = metrics_port
@@ -4222,7 +4222,7 @@ class NeonLocalProxy(LogUtils):
             self.vanilla_pg.start()
 
         args = [
-            str(self.neon_binpath / "local_proxy"),
+            str(self.serendb_binpath / "local_proxy"),
             "--http",
             f"{self.host}:{self.http_port}",
             "--metrics",
@@ -4255,7 +4255,7 @@ class NeonLocalProxy(LogUtils):
         """Get the version string of the local_proxy binary"""
         try:
             result = subprocess.run(
-                [str(self.neon_binpath / "local_proxy"), "--version"],
+                [str(self.serendb_binpath / "local_proxy"), "--version"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -4302,7 +4302,7 @@ class NeonLocalProxy(LogUtils):
         self.stop()
 
 
-class NeonRestBrokerProxy(LogUtils):
+class SerenDBRestBrokerProxy(LogUtils):
     """
     An object managing a proxy instance configured as both auth broker and rest broker.
     This is the main proxy binary with --is-auth-broker and --is-rest-broker flags.
@@ -4310,14 +4310,14 @@ class NeonRestBrokerProxy(LogUtils):
 
     def __init__(
         self,
-        neon_binpath: Path,
+        serendb_binpath: Path,
         test_output_dir: Path,
         wss_port: int,
         http_port: int,
         mgmt_port: int,
         config_path: Path | None = None,
     ):
-        self.neon_binpath = neon_binpath
+        self.serendb_binpath = serendb_binpath
         self.test_output_dir = test_output_dir
         self.wss_port = wss_port
         self.http_port = http_port
@@ -4355,7 +4355,7 @@ class NeonRestBrokerProxy(LogUtils):
                     "-keyout",
                     str(key_path),
                     "-subj",
-                    "/CN=*.local.neon.build",
+                    "/CN=*.local.serendb.build",
                 ],
                 check=True,
             )
@@ -4365,7 +4365,7 @@ class NeonRestBrokerProxy(LogUtils):
         )
 
         cmd = [
-            str(self.neon_binpath / "proxy"),
+            str(self.serendb_binpath / "proxy"),
             "-c",
             str(cert_path),
             "-k",
@@ -4424,7 +4424,7 @@ class NeonRestBrokerProxy(LogUtils):
         return self
 
     def get_binary_version(self) -> str:
-        cmd = [str(self.neon_binpath / "proxy"), "--version"]
+        cmd = [str(self.serendb_binpath / "proxy"), "--version"]
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return res.stdout.strip()
 
@@ -4476,9 +4476,9 @@ class NeonRestBrokerProxy(LogUtils):
 
 @pytest.fixture(scope="function")
 def link_proxy(
-    port_distributor: PortDistributor, neon_binpath: Path, test_output_dir: Path
-) -> Iterator[NeonProxy]:
-    """Neon proxy that routes through link auth."""
+    port_distributor: PortDistributor, serendb_binpath: Path, test_output_dir: Path
+) -> Iterator[SerenDBProxy]:
+    """SerenDB proxy that routes through link auth."""
 
     http_port = port_distributor.get_port()
     proxy_port = port_distributor.get_port()
@@ -4487,8 +4487,8 @@ def link_proxy(
     router_port = port_distributor.get_port()
     router_tls_port = port_distributor.get_port()
 
-    with NeonProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         proxy_port=proxy_port,
         http_port=http_port,
@@ -4496,7 +4496,7 @@ def link_proxy(
         router_port=router_port,
         router_tls_port=router_tls_port,
         external_http_port=external_http_port,
-        auth_backend=NeonProxy.Link(),
+        auth_backend=SerenDBProxy.Link(),
     ) as proxy:
         proxy.start()
         yield proxy
@@ -4506,10 +4506,10 @@ def link_proxy(
 def static_proxy(
     vanilla_pg: VanillaPostgres,
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
-) -> Iterator[NeonProxy]:
-    """Neon proxy that routes directly to vanilla postgres."""
+) -> Iterator[SerenDBProxy]:
+    """SerenDB proxy that routes directly to vanilla postgres."""
 
     port = vanilla_pg.default_options["port"]
     host = vanilla_pg.default_options["host"]
@@ -4519,9 +4519,9 @@ def static_proxy(
     # For simplicity, we use the same user for both `--auth-endpoint` and `safe_psql`
     vanilla_pg.start()
     vanilla_pg.safe_psql("create user proxy with login superuser password 'password'")
-    vanilla_pg.safe_psql("CREATE SCHEMA IF NOT EXISTS neon_control_plane")
+    vanilla_pg.safe_psql("CREATE SCHEMA IF NOT EXISTS serendb_control_plane")
     vanilla_pg.safe_psql(
-        "CREATE TABLE neon_control_plane.endpoints (endpoint_id VARCHAR(255) PRIMARY KEY, allowed_ips VARCHAR(255))"
+        "CREATE TABLE serendb_control_plane.endpoints (endpoint_id VARCHAR(255) PRIMARY KEY, allowed_ips VARCHAR(255))"
     )
 
     vanilla_pg.stop()
@@ -4541,8 +4541,8 @@ def static_proxy(
     router_port = port_distributor.get_port()
     router_tls_port = port_distributor.get_port()
 
-    with NeonProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         proxy_port=proxy_port,
         http_port=http_port,
@@ -4550,7 +4550,7 @@ def static_proxy(
         router_port=router_port,
         router_tls_port=router_tls_port,
         external_http_port=external_http_port,
-        auth_backend=NeonProxy.Postgres(auth_endpoint),
+        auth_backend=SerenDBProxy.Postgres(auth_endpoint),
     ) as proxy:
         proxy.start()
         yield proxy
@@ -4560,9 +4560,9 @@ def static_proxy(
 def local_proxy(
     vanilla_pg: VanillaPostgres,
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
-) -> Iterator[NeonLocalProxy]:
+) -> Iterator[SerenDBLocalProxy]:
     """Local proxy that connects directly to vanilla postgres for rest broker testing."""
 
     # Start vanilla_pg without database bootstrapping
@@ -4571,8 +4571,8 @@ def local_proxy(
     http_port = port_distributor.get_port()
     metrics_port = port_distributor.get_port()
 
-    with NeonLocalProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBLocalProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         http_port=http_port,
         metrics_port=metrics_port,
@@ -4585,9 +4585,9 @@ def local_proxy(
 @pytest.fixture(scope="function")
 def local_proxy_fixed_port(
     vanilla_pg: VanillaPostgres,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
-) -> Iterator[NeonLocalProxy]:
+) -> Iterator[SerenDBLocalProxy]:
     """Local proxy that connects directly to vanilla postgres on the hardcoded port 7432."""
 
     # Start vanilla_pg without database bootstrapping
@@ -4597,8 +4597,8 @@ def local_proxy_fixed_port(
     http_port = 7432
     metrics_port = 7433  # Use a different port for metrics
 
-    with NeonLocalProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBLocalProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         http_port=http_port,
         metrics_port=metrics_port,
@@ -4611,17 +4611,17 @@ def local_proxy_fixed_port(
 @pytest.fixture(scope="function")
 def rest_broker_proxy(
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
-) -> Iterator[NeonRestBrokerProxy]:
+) -> Iterator[SerenDBRestBrokerProxy]:
     """Rest broker proxy that handles both auth broker and rest broker functionality."""
 
     wss_port = port_distributor.get_port()
     http_port = port_distributor.get_port()
     mgmt_port = port_distributor.get_port()
 
-    with NeonRestBrokerProxy(
-        neon_binpath=neon_binpath,
+    with SerenDBRestBrokerProxy(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         wss_port=wss_port,
         http_port=http_port,
@@ -4632,7 +4632,7 @@ def rest_broker_proxy(
 
 
 @pytest.fixture(scope="function")
-def neon_authorize_jwk() -> jwk.JWK:
+def serendb_authorize_jwk() -> jwk.JWK:
     kid = str(uuid.uuid4())
     key = jwk.JWK.generate(kty="RSA", size=2048, alg="RS256", use="sig", kid=kid)
     assert isinstance(key, jwk.JWK)
@@ -4642,13 +4642,13 @@ def neon_authorize_jwk() -> jwk.JWK:
 @pytest.fixture(scope="function")
 def static_auth_broker(
     port_distributor: PortDistributor,
-    neon_binpath: Path,
+    serendb_binpath: Path,
     test_output_dir: Path,
     httpserver: HTTPServer,
-    neon_authorize_jwk: jwk.JWK,
+    serendb_authorize_jwk: jwk.JWK,
     http2_echoserver: H2Server,
-) -> Iterable[NeonAuthBroker]:
-    """Neon Auth Broker that routes to a mocked local_proxy and a mocked cplane HTTP API."""
+) -> Iterable[SerenDBAuthBroker]:
+    """SerenDB Auth Broker that routes to a mocked local_proxy and a mocked cplane HTTP API."""
 
     local_proxy_addr = f"{http2_echoserver.host}:{http2_echoserver.port}"
 
@@ -4681,20 +4681,20 @@ def static_auth_broker(
     )
 
     # return static fixture jwks.
-    jwk = neon_authorize_jwk.export_public(as_dict=True)
+    jwk = serendb_authorize_jwk.export_public(as_dict=True)
     httpserver.expect_request("/authorize/jwks.json").respond_with_json({"keys": [jwk]})
 
     mgmt_port = port_distributor.get_port()
     http_port = port_distributor.get_port()
     external_http_port = port_distributor.get_port()
 
-    with NeonAuthBroker(
-        neon_binpath=neon_binpath,
+    with SerenDBAuthBroker(
+        serendb_binpath=serendb_binpath,
         test_output_dir=test_output_dir,
         http_port=http_port,
         mgmt_port=mgmt_port,
         external_http_port=external_http_port,
-        auth_backend=NeonAuthBroker.ProxyV1(httpserver.url_for("/cplane")),
+        auth_backend=SerenDBAuthBroker.ProxyV1(httpserver.url_for("/cplane")),
     ) as proxy:
         proxy.start()
         yield proxy
@@ -4705,7 +4705,7 @@ class Endpoint(PgProtocol, LogUtils):
 
     def __init__(
         self,
-        env: NeonEnv,
+        env: SerenDBEnv,
         tenant_id: TenantId,
         pg_port: int,
         external_http_port: int,
@@ -4769,7 +4769,7 @@ class Endpoint(PgProtocol, LogUtils):
         self.endpoint_id = endpoint_id
         self.branch_name = branch_name
 
-        self.env.neon_cli.endpoint_create(
+        self.env.serendb_cli.endpoint_create(
             branch_name,
             endpoint_id=self.endpoint_id,
             tenant_id=self.tenant_id,
@@ -4801,8 +4801,8 @@ class Endpoint(PgProtocol, LogUtils):
                 lfc_path.parent.mkdir(parents=True, exist_ok=True)
             for line in config_lines:
                 if (
-                    line.find("neon.max_file_cache_size") > -1
-                    or line.find("neon.file_cache_size_limit") > -1
+                    line.find("serendb.max_file_cache_size") > -1
+                    or line.find("serendb.file_cache_size_limit") > -1
                 ):
                     m = re.search(r"=\s*(\S+)", line)
                     assert m is not None, f"malformed config line {line}"
@@ -4813,18 +4813,18 @@ class Endpoint(PgProtocol, LogUtils):
                         )
             lfc_path_escaped = str(lfc_path).replace("'", "''")
             config_lines = [
-                f"neon.file_cache_path = '{lfc_path_escaped}'",
-                # neon.max_file_cache_size and neon.file_cache size limits are
+                f"serendb.file_cache_path = '{lfc_path_escaped}'",
+                # serendb.max_file_cache_size and serendb.file_cache size limits are
                 # set to 1MB because small LFC is better for testing (helps to find more problems)
-                "neon.max_file_cache_size = 1MB",
-                "neon.file_cache_size_limit = 1MB",
+                "serendb.max_file_cache_size = 1MB",
+                "serendb.file_cache_size_limit = 1MB",
             ] + config_lines
         else:
             for line in config_lines:
-                assert line.find("neon.max_file_cache_size") == -1, (
+                assert line.find("serendb.max_file_cache_size") == -1, (
                     "Setting LFC parameters is not allowed when LFC is disabled"
                 )
-                assert line.find("neon.file_cache_size_limit") == -1, (
+                assert line.find("serendb.file_cache_size_limit") == -1, (
                     "Setting LFC parameters is not allowed when LFC is disabled"
                 )
 
@@ -4860,7 +4860,7 @@ class Endpoint(PgProtocol, LogUtils):
         if safekeepers is not None:
             self.active_safekeepers = safekeepers
 
-        self.env.neon_cli.endpoint_start(
+        self.env.serendb_cli.endpoint_start(
             self.endpoint_id,
             safekeepers_generation=safekeeper_generation,
             safekeepers=self.active_safekeepers,
@@ -4876,8 +4876,8 @@ class Endpoint(PgProtocol, LogUtils):
         )
         self._running.release(1)
         self.log_config_value("shared_buffers")
-        self.log_config_value("neon.max_file_cache_size")
-        self.log_config_value("neon.file_cache_size_limit")
+        self.log_config_value("serendb.max_file_cache_size")
+        self.log_config_value("serendb.file_cache_size_limit")
 
         return self
 
@@ -4887,7 +4887,7 @@ class Endpoint(PgProtocol, LogUtils):
         server.
         """
         assert self.endpoint_id is not None
-        return self.env.neon_cli.endpoint_generate_jwt(self.endpoint_id, scope)
+        return self.env.serendb_cli.endpoint_generate_jwt(self.endpoint_id, scope)
 
     def endpoint_path(self) -> Path:
         """Path to endpoint directory"""
@@ -4958,7 +4958,7 @@ class Endpoint(PgProtocol, LogUtils):
         start_time = time.time()
         while True:
             try:
-                self.env.neon_cli.endpoint_reconfigure(
+                self.env.serendb_cli.endpoint_reconfigure(
                     self.endpoint_id,
                     self.tenant_id,
                     pageserver_id,
@@ -4974,7 +4974,7 @@ class Endpoint(PgProtocol, LogUtils):
 
     def refresh_configuration(self):
         assert self.endpoint_id is not None
-        self.env.neon_cli.endpoint_refresh_configuration(self.endpoint_id)
+        self.env.serendb_cli.endpoint_refresh_configuration(self.endpoint_id)
 
     def respec(self, **kwargs: Any) -> None:
         """Update the endpoint.json file used by control_plane."""
@@ -4997,7 +4997,7 @@ class Endpoint(PgProtocol, LogUtils):
         Update the endpoint.json file taking into account nested keys.
         Distinct method from respec() to do not break existing functionality.
         NOTE: This method also updates the config.json file, not endpoint.json.
-        We need it because neon_local also writes to config.json, so intended
+        We need it because serendb_local also writes to config.json, so intended
         use-case is i) start endpoint with some config, ii) respec_deep(),
         iii) call reconfigure() to apply the changes.
         """
@@ -5024,7 +5024,7 @@ class Endpoint(PgProtocol, LogUtils):
 
     def update_pageservers_in_config(self, pageserver_id: int | None = None):
         assert self.endpoint_id is not None
-        self.env.neon_cli.endpoint_update_pageservers(self.endpoint_id, pageserver_id)
+        self.env.serendb_cli.endpoint_update_pageservers(self.endpoint_id, pageserver_id)
 
     def wait_for_migrations(self, wait_for: int = NUM_COMPUTE_MIGRATIONS) -> None:
         """
@@ -5034,7 +5034,7 @@ class Endpoint(PgProtocol, LogUtils):
         with self.cursor() as cur:
 
             def check_migrations_done():
-                cur.execute("SELECT id FROM neon_migration.migration_id")
+                cur.execute("SELECT id FROM serendb_migration.migration_id")
                 migration_id: int = cur.fetchall()[0][0]
                 assert migration_id >= wait_for
 
@@ -5078,7 +5078,7 @@ class Endpoint(PgProtocol, LogUtils):
         running = self._running.acquire(blocking=False)
         if running:
             assert self.endpoint_id is not None
-            lsn, _ = self.env.neon_cli.endpoint_stop(
+            lsn, _ = self.env.serendb_cli.endpoint_stop(
                 self.endpoint_id, check_return_code=self.check_stop_result, mode=mode
             )
             self.terminate_flush_lsn = lsn
@@ -5099,7 +5099,7 @@ class Endpoint(PgProtocol, LogUtils):
         running = self._running.acquire(blocking=False)
         if running:
             assert self.endpoint_id is not None
-            lsn, _ = self.env.neon_cli.endpoint_stop(
+            lsn, _ = self.env.serendb_cli.endpoint_stop(
                 self.endpoint_id, True, check_return_code=self.check_stop_result, mode=mode
             )
             self.terminate_flush_lsn = lsn
@@ -5168,35 +5168,35 @@ class Endpoint(PgProtocol, LogUtils):
     def clear_buffers(self, cursor: Any | None = None):
         """
         Best-effort way to clear postgres buffers. Pinned buffers will not be 'cleared.'
-        It clears LFC as well by setting neon.file_cache_size_limit to 0 and then returning it to the previous value,
+        It clears LFC as well by setting serendb.file_cache_size_limit to 0 and then returning it to the previous value,
         if LFC is enabled
         """
         if cursor is not None:
             cursor.execute("select clear_buffer_cache()")
             if not USE_LFC:
                 return
-            cursor.execute("SHOW neon.file_cache_size_limit")
+            cursor.execute("SHOW serendb.file_cache_size_limit")
             res = cursor.fetchone()
-            assert res, "Cannot get neon.file_cache_size_limit"
+            assert res, "Cannot get serendb.file_cache_size_limit"
             file_cache_size_limit = res[0]
             if file_cache_size_limit == 0:
                 return
-            cursor.execute("ALTER SYSTEM SET neon.file_cache_size_limit=0")
+            cursor.execute("ALTER SYSTEM SET serendb.file_cache_size_limit=0")
             cursor.execute("SELECT pg_reload_conf()")
-            cursor.execute(f"ALTER SYSTEM SET neon.file_cache_size_limit='{file_cache_size_limit}'")
+            cursor.execute(f"ALTER SYSTEM SET serendb.file_cache_size_limit='{file_cache_size_limit}'")
             cursor.execute("SELECT pg_reload_conf()")
         else:
             self.safe_psql("select clear_buffer_cache()")
             if not USE_LFC:
                 return
             file_cache_size_limit = self.safe_psql_scalar(
-                "SHOW neon.file_cache_size_limit", log_query=False
+                "SHOW serendb.file_cache_size_limit", log_query=False
             )
             if file_cache_size_limit == 0:
                 return
-            self.safe_psql("ALTER SYSTEM SET neon.file_cache_size_limit=0")
+            self.safe_psql("ALTER SYSTEM SET serendb.file_cache_size_limit=0")
             self.safe_psql("SELECT pg_reload_conf()")
-            self.safe_psql(f"ALTER SYSTEM SET neon.file_cache_size_limit='{file_cache_size_limit}'")
+            self.safe_psql(f"ALTER SYSTEM SET serendb.file_cache_size_limit='{file_cache_size_limit}'")
             self.safe_psql("SELECT pg_reload_conf()")
 
     def log_config_value(self, param):
@@ -5210,7 +5210,7 @@ class Endpoint(PgProtocol, LogUtils):
 class EndpointFactory:
     """An object representing multiple compute endpoints."""
 
-    def __init__(self, env: NeonEnv):
+    def __init__(self, env: SerenDBEnv):
         self.env = env
         self.num_instances: int = 0
         self.endpoints: list[Endpoint] = []
@@ -5377,14 +5377,14 @@ class SafekeeperPort:
 class Safekeeper(LogUtils):
     """An object representing a running safekeeper daemon."""
 
-    env: NeonEnv
+    env: SerenDBEnv
     port: SafekeeperPort
     id: int
     running: bool = False
 
     def __init__(
         self,
-        env: NeonEnv,
+        env: SerenDBEnv,
         port: SafekeeperPort,
         id: int,
         running: bool = False,
@@ -5427,7 +5427,7 @@ class Safekeeper(LogUtils):
         if isinstance(self.env.safekeepers_remote_storage, S3Storage):
             s3_env_vars = self.env.safekeepers_remote_storage.access_env_vars()
 
-        self.env.neon_cli.safekeeper_start(
+        self.env.serendb_cli.safekeeper_start(
             self.id,
             extra_opts=extra_opts,
             timeout_in_seconds=timeout_in_seconds,
@@ -5452,7 +5452,7 @@ class Safekeeper(LogUtils):
         return self
 
     def stop(self, immediate: bool = False) -> Self:
-        self.env.neon_cli.safekeeper_stop(self.id, immediate)
+        self.env.serendb_cli.safekeeper_stop(self.id, immediate)
         self.running = False
         return self
 
@@ -5608,7 +5608,7 @@ class Safekeeper(LogUtils):
         return [SafekeeperId(sk.id, "localhost", sk.port.pg_tenant_only) for sk in sks]
 
     @staticmethod
-    def mconf_sks(env: NeonEnv, mconf: MembershipConfiguration) -> list[Safekeeper]:
+    def mconf_sks(env: SerenDBEnv, mconf: MembershipConfiguration) -> list[Safekeeper]:
         """
         List of Safekeepers which are members in `mconf`.
         """
@@ -5620,7 +5620,7 @@ class Safekeeper(LogUtils):
     def create_timeline(
         tenant_id: TenantId,
         timeline_id: TimelineId,
-        ps: NeonPageserver,
+        ps: SerenDBPageserver,
         mconf: MembershipConfiguration,
         members_sks: list[Safekeeper],
     ):
@@ -5648,10 +5648,10 @@ class Safekeeper(LogUtils):
             sk.http_client().timeline_create(create_r)
 
 
-class NeonBroker(LogUtils):
+class SerenDBBroker(LogUtils):
     """An object managing storage_broker instance"""
 
-    def __init__(self, env: NeonEnv, use_https: bool):
+    def __init__(self, env: SerenDBEnv, use_https: bool):
         super().__init__(logfile=env.repo_dir / "storage_broker" / "storage_broker.log")
         self.env = env
         self.scheme = "https" if use_https else "http"
@@ -5663,13 +5663,13 @@ class NeonBroker(LogUtils):
         timeout_in_seconds: int | None = None,
     ) -> Self:
         assert not self.running
-        self.env.neon_cli.storage_broker_start(timeout_in_seconds)
+        self.env.serendb_cli.storage_broker_start(timeout_in_seconds)
         self.running = True
         return self
 
     def stop(self) -> Self:
         if self.running:
-            self.env.neon_cli.storage_broker_stop()
+            self.env.serendb_cli.storage_broker_stop()
             self.running = False
         return self
 
@@ -5689,7 +5689,7 @@ class NodeKind(StrEnum):
 
 
 class StorageScrubber:
-    def __init__(self, env: NeonEnv, log_dir: Path):
+    def __init__(self, env: SerenDBEnv, log_dir: Path):
         self.env = env
         self.log_dir = log_dir
         self.allowed_errors: list[str] = []
@@ -5716,7 +5716,7 @@ class StorageScrubber:
             env.update(extra_env)
 
         base_args = [
-            str(self.env.neon_binpath / "storage_scrubber"),
+            str(self.env.serendb_binpath / "storage_scrubber"),
             f"--controller-api={self.env.storage_controller.api_root()}",
         ]
         args = base_args + args
@@ -5901,7 +5901,7 @@ SKIP_FILES = frozenset(
     (
         "pg_internal.init",
         "pg.log",
-        "neon.signal",
+        "serendb.signal",
         "zenith.signal",
         "pg_hba.conf",
         "postgresql.conf",
@@ -5909,7 +5909,7 @@ SKIP_FILES = frozenset(
         "postmaster.pid",
         "pg_control",
         "pg_dynshmem",
-        "neon-communicator.socket",
+        "serendb-communicator.socket",
     )
 )
 
@@ -5959,14 +5959,14 @@ def list_files_to_compare(pgdata_dir: Path) -> list[str]:
 # pg is the existing and running compute node, that we want to compare with a basebackup
 def check_restored_datadir_content(
     test_output_dir: Path,
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     ignored_files: list[str] | None = None,
 ):
     pg_bin = PgBin(test_output_dir, env.pg_distrib_dir, env.pg_version)
 
     # Get the timeline ID. We need it for the 'basebackup' command
-    timeline_id = TimelineId(endpoint.safe_psql("SHOW neon.timeline_id")[0][0])
+    timeline_id = TimelineId(endpoint.safe_psql("SHOW serendb.timeline_id")[0][0])
 
     # stop postgres to ensure that files won't change
     endpoint.stop()
@@ -6107,8 +6107,8 @@ def logical_replication_sync(
 
 
 def tenant_get_shards(
-    env: NeonEnv, tenant_id: TenantId, pageserver_id: int | None = None
-) -> list[tuple[TenantShardId, NeonPageserver]]:
+    env: SerenDBEnv, tenant_id: TenantId, pageserver_id: int | None = None
+) -> list[tuple[TenantShardId, SerenDBPageserver]]:
     """
     Helper for when you want to talk to one or more pageservers, and the
     caller _might_ have specified a pageserver, or they might leave it to
@@ -6166,7 +6166,7 @@ def log_replica_lag(primary: Endpoint, secondary: Endpoint):
 
 
 def wait_for_last_flush_lsn(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     tenant: TenantId,
     timeline: TimelineId,
@@ -6205,7 +6205,7 @@ def wait_for_last_flush_lsn(
 
 
 def wait_for_commit_lsn(
-    env: NeonEnv,
+    env: SerenDBEnv,
     tenant: TenantId,
     timeline: TimelineId,
     lsn: Lsn,
@@ -6232,7 +6232,7 @@ def wait_for_commit_lsn(
 
 
 def flush_ep_to_pageserver(
-    env: NeonEnv,
+    env: SerenDBEnv,
     ep: Endpoint,
     tenant: TenantId,
     timeline: TimelineId,
@@ -6275,7 +6275,7 @@ def flush_ep_to_pageserver(
 
 
 def wait_for_wal_insert_lsn(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     tenant: TenantId,
     timeline: TimelineId,
@@ -6296,7 +6296,7 @@ def wait_for_wal_insert_lsn(
 
 
 def fork_at_current_lsn(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     new_branch_name: str,
     ancestor_branch_name: str,
@@ -6318,7 +6318,7 @@ def fork_at_current_lsn(
 
 def import_timeline_from_vanilla_postgres(
     test_output_dir: Path,
-    env: NeonEnv,
+    env: SerenDBEnv,
     pg_bin: PgBin,
     tenant_id: TenantId,
     timeline_id: TimelineId,
@@ -6355,7 +6355,7 @@ def import_timeline_from_vanilla_postgres(
         end_lsn = Lsn(manifest["WAL-Ranges"][0]["End-LSN"])
 
     # Import the backup tarballs into the pageserver
-    env.neon_cli.timeline_import(
+    env.serendb_cli.timeline_import(
         tenant_id=tenant_id,
         timeline_id=timeline_id,
         new_branch_name=branch_name,
@@ -6369,7 +6369,7 @@ def import_timeline_from_vanilla_postgres(
 
 
 def last_flush_lsn_upload(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint: Endpoint,
     tenant_id: TenantId,
     timeline_id: TimelineId,
@@ -6397,7 +6397,7 @@ def last_flush_lsn_upload(
 
 def parse_project_git_version_output(s: str) -> str:
     """
-    Parses the git commit hash out of the --version output supported at least by neon_local.
+    Parses the git commit hash out of the --version output supported at least by serendb_local.
 
     The information is generated by utils::project_git_version!
     """
@@ -6409,13 +6409,13 @@ def parse_project_git_version_output(s: str) -> str:
 
 
 def generate_uploads_and_deletions(
-    env: NeonEnv,
+    env: SerenDBEnv,
     *,
     init: bool = True,
     tenant_id: TenantId | None = None,
     timeline_id: TimelineId | None = None,
     data: str | None = None,
-    pageserver: NeonPageserver,
+    pageserver: SerenDBPageserver,
     wait_until_uploaded: bool = True,
 ):
     """

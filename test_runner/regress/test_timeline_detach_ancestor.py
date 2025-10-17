@@ -13,9 +13,9 @@ import pytest
 import requests
 from fixtures.common_types import Lsn, TimelineArchivalState, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     LogCursor,
-    NeonEnvBuilder,
+    SerenDBEnvBuilder,
     PgBin,
     flush_ep_to_pageserver,
     last_flush_lsn_upload,
@@ -78,7 +78,7 @@ SHUTDOWN_ALLOWED_ERRORS = [
 @pytest.mark.parametrize("write_to_branch_first", [True, False])
 def test_ancestor_detach_branched_from(
     test_output_dir,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
     branchpoint: Branchpoint,
     restart_after: bool,
@@ -87,7 +87,7 @@ def test_ancestor_detach_branched_from(
     """
     Creates a branch relative to L0 lsn boundary according to Branchpoint. Later the timeline is detached.
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
 
@@ -209,14 +209,14 @@ def test_ancestor_detach_branched_from(
     client.timeline_delete(env.initial_tenant, env.initial_timeline)
     wait_timeline_detail_404(client, env.initial_tenant, env.initial_timeline)
 
-    # because we do the fullbackup from ancestor at the branch_lsn, the neon.signal and/or zenith.signal is always
+    # because we do the fullbackup from ancestor at the branch_lsn, the serendb.signal and/or zenith.signal is always
     # different as there is always "PREV_LSN: invalid" for "before"
-    skip_files = {"zenith.signal", "neon.signal"}
+    skip_files = {"zenith.signal", "serendb.signal"}
 
     assert_pageserver_backups_equal(fullbackup_before, fullbackup_after, skip_files)
 
 
-def test_ancestor_detach_reparents_earlier(neon_env_builder: NeonEnvBuilder):
+def test_ancestor_detach_reparents_earlier(serendb_env_builder: SerenDBEnvBuilder):
     """
     The case from RFC:
 
@@ -245,7 +245,7 @@ def test_ancestor_detach_reparents_earlier(neon_env_builder: NeonEnvBuilder):
     We confirm the end result by being able to delete "old main" after deleting "after".
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
 
@@ -348,7 +348,7 @@ def test_ancestor_detach_reparents_earlier(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.parametrize("snapshots_archived", ["archived", "normal"])
-def test_ancestor_detach_behavior_v2(neon_env_builder: NeonEnvBuilder, snapshots_archived: str):
+def test_ancestor_detach_behavior_v2(serendb_env_builder: SerenDBEnvBuilder, snapshots_archived: str):
     """
     Test the v2 behavior of ancestor detach.
 
@@ -374,7 +374,7 @@ def test_ancestor_detach_behavior_v2(neon_env_builder: NeonEnvBuilder, snapshots
     new main -------|---------|----> branch-to-detach
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
 
@@ -423,7 +423,7 @@ def test_ancestor_detach_behavior_v2(neon_env_builder: NeonEnvBuilder, snapshots
         sk.http_client().timeline_status(
             tenant_id=env.initial_tenant, timeline_id=snapshot_branchpoint_old
         )
-    env.neon_cli.mappings_map_branch(
+    env.serendb_cli.mappings_map_branch(
         "snapshot_branchpoint_old", env.initial_tenant, snapshot_branchpoint_old
     )
 
@@ -534,12 +534,12 @@ def test_ancestor_detach_behavior_v2(neon_env_builder: NeonEnvBuilder, snapshots
     wait_timeline_detail_404(client, env.initial_tenant, after)
 
 
-def test_detached_receives_flushes_while_being_detached(neon_env_builder: NeonEnvBuilder):
+def test_detached_receives_flushes_while_being_detached(serendb_env_builder: SerenDBEnvBuilder):
     """
     Makes sure that the timeline is able to receive writes through-out the detach process.
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     client = env.pageserver.http_client()
 
@@ -552,7 +552,7 @@ def test_detached_receives_flushes_while_being_detached(neon_env_builder: NeonEn
         return n
 
     with env.endpoints.create_start("main", tenant_id=env.initial_tenant) as ep:
-        ep.safe_psql("CREATE EXTENSION neon_test_utils;")
+        ep.safe_psql("CREATE EXTENSION serendb_test_utils;")
         ep.safe_psql("CREATE TABLE foo (i BIGINT, aux TEXT NOT NULL);")
 
         rows = insert_rows(256, ep)
@@ -621,7 +621,7 @@ def test_detached_receives_flushes_while_being_detached(neon_env_builder: NeonEn
 
 
 def test_compaction_induced_by_detaches_in_history(
-    neon_env_builder: NeonEnvBuilder, test_output_dir, pg_bin: PgBin
+    serendb_env_builder: SerenDBEnvBuilder, test_output_dir, pg_bin: PgBin
 ):
     """
     Assuming the tree of timelines:
@@ -638,7 +638,7 @@ def test_compaction_induced_by_detaches_in_history(
     timeline broken.
     """
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # we want to create layers manually so we don't branch on arbitrary
             # Lsn, but we also do not want to compact L0 -> L1.
@@ -767,19 +767,19 @@ def test_compaction_induced_by_detaches_in_history(
         env.pageserver, env.initial_tenant, branch_timeline_id, branch_lsn, fullbackup_after
     )
 
-    # we don't need to skip any files, because neon.signal will be identical
+    # we don't need to skip any files, because serendb.signal will be identical
     assert_pageserver_backups_equal(fullbackup_before, fullbackup_after, set())
 
 
 @pytest.mark.parametrize("shards_initial_after", [(1, 1), (2, 2), (1, 4)])
 def test_timeline_ancestor_detach_idempotent_success(
-    neon_env_builder: NeonEnvBuilder, shards_initial_after: tuple[int, int]
+    serendb_env_builder: SerenDBEnvBuilder, shards_initial_after: tuple[int, int]
 ):
     shards_initial = shards_initial_after[0]
     shards_after = shards_initial_after[1]
 
-    neon_env_builder.num_pageservers = shards_after
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = shards_after
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shards_initial if shards_initial > 1 else None,
         initial_tenant_conf={
             # small checkpointing and compaction targets to ensure we generate many upload operations
@@ -798,7 +798,7 @@ def test_timeline_ancestor_detach_idempotent_success(
         ps.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
 
     if shards_after > 1:
-        # FIXME: should this be in the neon_env_builder.init_start?
+        # FIXME: should this be in the serendb_env_builder.init_start?
         env.storage_controller.reconcile_until_idle(timeout_secs=120)
         client = env.storage_controller.pageserver_api()
     else:
@@ -851,13 +851,13 @@ def test_timeline_ancestor_detach_idempotent_success(
 
 
 @pytest.mark.parametrize("sharded", [True, False])
-def test_timeline_ancestor_detach_errors(neon_env_builder: NeonEnvBuilder, sharded: bool):
+def test_timeline_ancestor_detach_errors(serendb_env_builder: SerenDBEnvBuilder, sharded: bool):
     # the test is split from test_timeline_ancestor_detach_idempotent_success as only these error cases should create "request was dropped before completing",
     # given the current first error handling
     shards = 2 if sharded else 1
 
-    neon_env_builder.num_pageservers = shards
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = shards
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shards if sharded else None,
         initial_tenant_conf={
             # turn off gc, we want to do manual offloading here.
@@ -922,7 +922,7 @@ def test_timeline_ancestor_detach_errors(neon_env_builder: NeonEnvBuilder, shard
     assert info.value.status_code == 400
 
 
-def test_sharded_timeline_detach_ancestor(neon_env_builder: NeonEnvBuilder):
+def test_sharded_timeline_detach_ancestor(serendb_env_builder: SerenDBEnvBuilder):
     """
     Sharded timeline detach ancestor; 4 nodes: 1 stuck, 1 restarted, 2 normal.
 
@@ -933,14 +933,14 @@ def test_sharded_timeline_detach_ancestor(neon_env_builder: NeonEnvBuilder):
     """
     branch_name = "soon_detached"
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.num_pageservers = shard_count
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
     for ps in env.pageservers:
         ps.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
 
-    # FIXME: should this be in the neon_env_builder.init_start?
+    # FIXME: should this be in the serendb_env_builder.init_start?
     env.storage_controller.reconcile_until_idle()
     # as we will stop a node, make sure there is no clever rebalancing
     env.storage_controller.tenant_policy_update(env.initial_tenant, body={"scheduling": "Stop"})
@@ -1077,7 +1077,7 @@ def test_sharded_timeline_detach_ancestor(neon_env_builder: NeonEnvBuilder):
     ],
 )
 def test_timeline_detach_ancestor_interrupted_by_deletion(
-    neon_env_builder: NeonEnvBuilder, mode: str, sharded: bool
+    serendb_env_builder: SerenDBEnvBuilder, mode: str, sharded: bool
 ):
     """
     Timeline ancestor detach interrupted by deleting either:
@@ -1092,9 +1092,9 @@ def test_timeline_detach_ancestor_interrupted_by_deletion(
 
     shard_count = 2 if sharded else 1
 
-    neon_env_builder.num_pageservers = shard_count
+    serendb_env_builder.num_pageservers = shard_count
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shard_count if sharded else None,
         initial_tenant_conf={
             "gc_period": "1s",
@@ -1211,7 +1211,7 @@ def test_timeline_detach_ancestor_interrupted_by_deletion(
 
 
 @pytest.mark.parametrize("mode", ["delete_reparentable_timeline", "create_reparentable_timeline"])
-def test_sharded_tad_interleaved_after_partial_success(neon_env_builder: NeonEnvBuilder, mode: str):
+def test_sharded_tad_interleaved_after_partial_success(serendb_env_builder: SerenDBEnvBuilder, mode: str):
     """
     Technically possible storage controller concurrent interleaving timeline
     deletion with timeline detach.
@@ -1223,8 +1223,8 @@ def test_sharded_tad_interleaved_after_partial_success(neon_env_builder: NeonEnv
     """
 
     shard_count = 2
-    neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
 
     for ps in env.pageservers:
         ps.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
@@ -1419,12 +1419,12 @@ def test_sharded_tad_interleaved_after_partial_success(neon_env_builder: NeonEnv
 
 @pytest.mark.parametrize("detach_behavior", ["default", "v1", "v2"])
 def test_retryable_500_hit_through_storcon_during_timeline_detach_ancestor(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     detach_behavior: str,
 ):
     shard_count = 2
-    neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
 
     for ps in env.pageservers:
         ps.allowed_errors.extend(SHUTDOWN_ALLOWED_ERRORS)
@@ -1500,7 +1500,7 @@ def test_retryable_500_hit_through_storcon_during_timeline_detach_ancestor(
     detach_timeline()
 
 
-def test_retried_detach_ancestor_after_failed_reparenting(neon_env_builder: NeonEnvBuilder):
+def test_retried_detach_ancestor_after_failed_reparenting(serendb_env_builder: SerenDBEnvBuilder):
     """
     Using a failpoint, force the completion step of timeline ancestor detach to
     fail after reparenting a single timeline.
@@ -1517,8 +1517,8 @@ def test_retried_detach_ancestor_after_failed_reparenting(neon_env_builder: Neon
     """
 
     # to get the remote storage metrics
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
-    env = neon_env_builder.init_start(
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "1s",
             "lsn_lease_length": "0s",
@@ -1686,12 +1686,12 @@ def test_retried_detach_ancestor_after_failed_reparenting(neon_env_builder: Neon
 
 
 def test_timeline_is_deleted_before_timeline_detach_ancestor_completes(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Make sure that a timeline deleted after restart will unpause gc blocking.
     """
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "1s",
             "lsn_lease_length": "0s",
@@ -1758,7 +1758,7 @@ def test_timeline_is_deleted_before_timeline_detach_ancestor_completes(
 
 
 @skip_in_debug_build("only run with release build")
-def test_pageserver_compaction_detach_ancestor_smoke(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_compaction_detach_ancestor_smoke(serendb_env_builder: SerenDBEnvBuilder):
     SMOKE_CONF = {
         # Run both gc and gc-compaction.
         "gc_period": "5s",
@@ -1774,7 +1774,7 @@ def test_pageserver_compaction_detach_ancestor_smoke(neon_env_builder: NeonEnvBu
         "image_creation_threshold": 2,
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=SMOKE_CONF)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -1809,7 +1809,7 @@ def test_pageserver_compaction_detach_ancestor_smoke(neon_env_builder: NeonEnvBu
 
 
 def test_timeline_detach_with_aux_files_with_detach_v1(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Validate that "branches do not inherit their parent" is invariant over detach_ancestor.
@@ -1818,7 +1818,7 @@ def test_timeline_detach_with_aux_files_with_detach_v1(
     We had a bug where detach_ancestor running on a child branch would copy aux files key range from child to parent,
     thereby making parent aux files reappear.
     """
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "1s",
             "lsn_lease_length": "0s",
@@ -1890,9 +1890,9 @@ def test_timeline_detach_with_aux_files_with_detach_v1(
 
 
 def test_detach_ancestors_with_no_writes(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main", tenant_id=env.initial_tenant)
     wait_for_last_flush_lsn(env, endpoint, env.initial_tenant, env.initial_timeline)

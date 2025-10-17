@@ -73,7 +73,7 @@ use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 use utils::id::TenantId;
 use utils::lsn::Lsn;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
 fn bench(c: &mut Criterion) {
     macro_rules! bench_group {
@@ -208,7 +208,7 @@ struct Request {
     key: Key,
     lsn: Lsn,
     base_img: Option<(Lsn, Bytes)>,
-    records: Vec<(Lsn, NeonWalRecord)>,
+    records: Vec<(Lsn, SerenDBWalRecord)>,
     pg_version: PgMajorVersion,
 }
 
@@ -236,9 +236,9 @@ impl Request {
             .context("request_redo")
     }
 
-    fn pg_record(will_init: bool, bytes: &'static [u8]) -> NeonWalRecord {
+    fn pg_record(will_init: bool, bytes: &'static [u8]) -> SerenDBWalRecord {
         let rec = Bytes::from_static(bytes);
-        NeonWalRecord::Postgres { will_init, rec }
+        SerenDBWalRecord::Postgres { will_init, rec }
     }
 
     /// Short payload, 1132 bytes.

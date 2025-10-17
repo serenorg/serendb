@@ -18,7 +18,7 @@
  */
 #include "postgres.h"
 
-#include "../neon/neon_pgversioncompat.h"
+#include "../serendb/serendb_pgversioncompat.h"
 
 #include "access/xlog.h"
 #include "storage/block.h"
@@ -61,7 +61,7 @@ locate_page(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno)
 }
 
 
-/* neon wal-redo storage manager functionality */
+/* SerenDB wal-redo storage manager functionality */
 static void inmem_init(void);
 static void inmem_open(SMgrRelation reln);
 static void inmem_close(SMgrRelation reln, ForkNumber forknum);
@@ -131,7 +131,7 @@ inmem_exists(SMgrRelation reln, ForkNumber forknum)
 }
 
 /*
- *	inmem_create() -- Create a new relation on neon storage
+ *	inmem_create() -- Create a new relation on SerenDB storage
  *
  * If isRedo is true, it's okay for the relation to exist already.
  */

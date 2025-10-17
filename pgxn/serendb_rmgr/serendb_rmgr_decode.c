@@ -3,31 +3,31 @@
 #if PG_MAJORVERSION_NUM >= 16
 
 #include "access/heapam_xlog.h"
-#include "access/neon_xlog.h"
+#include "access/serendb_xlog.h"
 #include "replication/decode.h"
 #include "replication/logical.h"
 #include "replication/snapbuild.h"
 
-#include "neon_rmgr.h"
+#include "serendb_rmgr.h"
 
 #endif /* PG >= 16 */
 
 #if PG_MAJORVERSION_NUM == 16
 
 /* individual record(group)'s handlers */
-static void DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
 
 /* common function to decode tuples */
 static void DecodeXLogTuple(char *data, Size len, ReorderBufferTupleBuf *tuple);
 
 
 void
-neon_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+serendb_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
-	uint8		info = XLogRecGetInfo(buf->record) & XLOG_NEON_OPMASK;
+	uint8		info = XLogRecGetInfo(buf->record) & XLOG_SERENDB_OPMASK;
 	TransactionId xid = XLogRecGetXid(buf->record);
 	SnapBuild  *builder = ctx->snapshot_builder;
 
@@ -43,24 +43,24 @@ neon_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 	switch (info)
 	{
-		case XLOG_NEON_HEAP_INSERT:
+		case XLOG_SERENDB_HEAP_INSERT:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonInsert(ctx, buf);
+				DecodeSerenDBInsert(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_DELETE:
+		case XLOG_SERENDB_HEAP_DELETE:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonDelete(ctx, buf);
+				DecodeSerenDBDelete(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_UPDATE:
-		case XLOG_NEON_HEAP_HOT_UPDATE:
+		case XLOG_SERENDB_HEAP_UPDATE:
+		case XLOG_SERENDB_HEAP_HOT_UPDATE:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonUpdate(ctx, buf);
+				DecodeSerenDBUpdate(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_LOCK:
+		case XLOG_SERENDB_HEAP_LOCK:
 			break;
-		case XLOG_NEON_HEAP_MULTI_INSERT:
+		case XLOG_SERENDB_HEAP_MULTI_INSERT:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonMultiInsert(ctx, buf);
+				DecodeSerenDBMultiInsert(ctx, buf);
 			break;
 		default:
 			elog(ERROR, "unexpected RM_HEAP_ID record type: %u", info);
@@ -83,17 +83,17 @@ FilterByOrigin(LogicalDecodingContext *ctx, RepOriginId origin_id)
  * Deletes can contain the new tuple.
  */
 static void
-DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	Size		datalen;
 	char	   *tupledata;
 	Size		tuplelen;
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_insert *xlrec;
+	xl_serendb_heap_insert *xlrec;
 	ReorderBufferChange *change;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_insert *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_insert *) XLogRecGetData(r);
 
 	/*
 	 * Ignore insert records without new tuples (this does happen when
@@ -121,7 +121,7 @@ DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 	memcpy(&change->data.tp.rlocator, &target_locator, sizeof(RelFileLocator));
 
 	tupledata = XLogRecGetBlockData(r, 0, &datalen);
-	tuplelen = datalen - SizeOfNeonHeapHeader;
+	tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
 	change->data.tp.newtuple =
 		ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
@@ -141,14 +141,14 @@ DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Deletes can possibly contain the old primary key.
  */
 static void
-DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_delete *xlrec;
+	xl_serendb_heap_delete *xlrec;
 	ReorderBufferChange *change;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_delete *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_delete *) XLogRecGetData(r);
 
 	/* only interested in our database */
 	XLogRecGetBlockTag(r, 0, &target_locator, NULL, NULL);
@@ -173,15 +173,15 @@ DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 	/* old primary key stored */
 	if (xlrec->flags & XLH_DELETE_CONTAINS_OLD)
 	{
-		Size		datalen = XLogRecGetDataLen(r) - SizeOfNeonHeapHeader;
-		Size		tuplelen = datalen - SizeOfNeonHeapHeader;
+		Size		datalen = XLogRecGetDataLen(r) - SizeOfSerenDBHeapHeader;
+		Size		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
-		Assert(XLogRecGetDataLen(r) > (SizeOfNeonHeapDelete + SizeOfNeonHeapHeader));
+		Assert(XLogRecGetDataLen(r) > (SizeOfSerenDBHeapDelete + SizeOfSerenDBHeapHeader));
 
 		change->data.tp.oldtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
 
-		DecodeXLogTuple((char *) xlrec + SizeOfNeonHeapDelete,
+		DecodeXLogTuple((char *) xlrec + SizeOfSerenDBHeapDelete,
 						datalen, change->data.tp.oldtuple);
 	}
 
@@ -198,15 +198,15 @@ DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Updates can possibly contain a new tuple and the old primary key.
  */
 static void
-DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_update *xlrec;
+	xl_serendb_heap_update *xlrec;
 	ReorderBufferChange *change;
 	char	   *data;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_update *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_update *) XLogRecGetData(r);
 
 	/* only interested in our database */
 	XLogRecGetBlockTag(r, 0, &target_locator, NULL, NULL);
@@ -229,7 +229,7 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 		data = XLogRecGetBlockData(r, 0, &datalen);
 
-		tuplelen = datalen - SizeOfNeonHeapHeader;
+		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
 		change->data.tp.newtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
@@ -243,9 +243,9 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 		Size		tuplelen;
 
 		/* caution, remaining data in record is not aligned */
-		data = XLogRecGetData(r) + SizeOfNeonHeapUpdate;
-		datalen = XLogRecGetDataLen(r) - SizeOfNeonHeapUpdate;
-		tuplelen = datalen - SizeOfNeonHeapHeader;
+		data = XLogRecGetData(r) + SizeOfSerenDBHeapUpdate;
+		datalen = XLogRecGetDataLen(r) - SizeOfSerenDBHeapUpdate;
+		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
 		change->data.tp.oldtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
@@ -265,17 +265,17 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Currently MULTI_INSERT will always contain the full tuples.
  */
 static void
-DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_multi_insert *xlrec;
+	xl_serendb_heap_multi_insert *xlrec;
 	int			i;
 	char	   *data;
 	char	   *tupledata;
 	Size		tuplelen;
 	RelFileLocator rlocator;
 
-	xlrec = (xl_neon_heap_multi_insert *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_multi_insert *) XLogRecGetData(r);
 
 	/*
 	 * Ignore insert records without new tuples.  This happens when a
@@ -304,7 +304,7 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 	for (i = 0; i < xlrec->ntuples; i++)
 	{
 		ReorderBufferChange *change;
-		xl_neon_multi_insert_tuple *xlhdr;
+		xl_serendb_multi_insert_tuple *xlhdr;
 		int			datalen;
 		ReorderBufferTupleBuf *tuple;
 		HeapTupleHeader header;
@@ -315,8 +315,8 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 		memcpy(&change->data.tp.rlocator, &rlocator, sizeof(RelFileLocator));
 
-		xlhdr = (xl_neon_multi_insert_tuple *) SHORTALIGN(data);
-		data = ((char *) xlhdr) + SizeOfNeonMultiInsertTuple;
+		xlhdr = (xl_serendb_multi_insert_tuple *) SHORTALIGN(data);
+		data = ((char *) xlhdr) + SizeOfSerenDBMultiInsertTuple;
 		datalen = xlhdr->datalen;
 
 		change->data.tp.newtuple =
@@ -358,7 +358,7 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 		ReorderBufferQueueChange(ctx->reorder, XLogRecGetXid(r),
 								 buf->origptr, change, false);
 
-		/* move to the next xl_neon_multi_insert_tuple entry */
+		/* move to the next xl_serendb_multi_insert_tuple entry */
 		data += datalen;
 	}
 	Assert(data == tupledata + tuplelen);
@@ -374,8 +374,8 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 static void
 DecodeXLogTuple(char *data, Size len, ReorderBufferTupleBuf *tuple)
 {
-	xl_neon_heap_header xlhdr;
-	int			datalen = len - SizeOfNeonHeapHeader;
+	xl_serendb_heap_header xlhdr;
+	int			datalen = len - SizeOfSerenDBHeapHeader;
 	HeapTupleHeader header;
 
 	Assert(datalen >= 0);
@@ -392,12 +392,12 @@ DecodeXLogTuple(char *data, Size len, ReorderBufferTupleBuf *tuple)
 	/* data is not stored aligned, copy to aligned storage */
 	memcpy((char *) &xlhdr,
 		   data,
-		   SizeOfNeonHeapHeader);
+		   SizeOfSerenDBHeapHeader);
 
 	memset(header, 0, SizeofHeapTupleHeader);
 
 	memcpy(((char *) tuple->tuple.t_data) + SizeofHeapTupleHeader,
-		   data + SizeOfNeonHeapHeader,
+		   data + SizeOfSerenDBHeapHeader,
 		   datalen);
 
 	header->t_infomask = xlhdr.t_infomask;
@@ -409,19 +409,19 @@ DecodeXLogTuple(char *data, Size len, ReorderBufferTupleBuf *tuple)
 #if PG_MAJORVERSION_NUM == 17
 
 /* individual record(group)'s handlers */
-static void DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
-static void DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
+static void DecodeSerenDBMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
 
 /* common function to decode tuples */
 static void DecodeXLogTuple(char *data, Size len, HeapTuple tuple);
 
 
 void
-neon_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+serendb_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
-	uint8		info = XLogRecGetInfo(buf->record) & XLOG_NEON_OPMASK;
+	uint8		info = XLogRecGetInfo(buf->record) & XLOG_SERENDB_OPMASK;
 	TransactionId xid = XLogRecGetXid(buf->record);
 	SnapBuild  *builder = ctx->snapshot_builder;
 
@@ -437,24 +437,24 @@ neon_rm_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 	switch (info)
 	{
-		case XLOG_NEON_HEAP_INSERT:
+		case XLOG_SERENDB_HEAP_INSERT:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonInsert(ctx, buf);
+				DecodeSerenDBInsert(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_DELETE:
+		case XLOG_SERENDB_HEAP_DELETE:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonDelete(ctx, buf);
+				DecodeSerenDBDelete(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_UPDATE:
-		case XLOG_NEON_HEAP_HOT_UPDATE:
+		case XLOG_SERENDB_HEAP_UPDATE:
+		case XLOG_SERENDB_HEAP_HOT_UPDATE:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonUpdate(ctx, buf);
+				DecodeSerenDBUpdate(ctx, buf);
 			break;
-		case XLOG_NEON_HEAP_LOCK:
+		case XLOG_SERENDB_HEAP_LOCK:
 			break;
-		case XLOG_NEON_HEAP_MULTI_INSERT:
+		case XLOG_SERENDB_HEAP_MULTI_INSERT:
 			if (SnapBuildProcessChange(builder, xid, buf->origptr))
-				DecodeNeonMultiInsert(ctx, buf);
+				DecodeSerenDBMultiInsert(ctx, buf);
 			break;
 		default:
 			elog(ERROR, "unexpected RM_HEAP_ID record type: %u", info);
@@ -477,17 +477,17 @@ FilterByOrigin(LogicalDecodingContext *ctx, RepOriginId origin_id)
  * Deletes can contain the new tuple.
  */
 static void
-DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	Size		datalen;
 	char	   *tupledata;
 	Size		tuplelen;
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_insert *xlrec;
+	xl_serendb_heap_insert *xlrec;
 	ReorderBufferChange *change;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_insert *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_insert *) XLogRecGetData(r);
 
 	/*
 	 * Ignore insert records without new tuples (this does happen when
@@ -535,14 +535,14 @@ DecodeNeonInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Deletes can possibly contain the old primary key.
  */
 static void
-DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_delete *xlrec;
+	xl_serendb_heap_delete *xlrec;
 	ReorderBufferChange *change;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_delete *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_delete *) XLogRecGetData(r);
 
 	/* only interested in our database */
 	XLogRecGetBlockTag(r, 0, &target_locator, NULL, NULL);
@@ -567,15 +567,15 @@ DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 	/* old primary key stored */
 	if (xlrec->flags & XLH_DELETE_CONTAINS_OLD)
 	{
-		Size		datalen = XLogRecGetDataLen(r) - SizeOfNeonHeapHeader;
-		Size		tuplelen = datalen - SizeOfNeonHeapHeader;
+		Size		datalen = XLogRecGetDataLen(r) - SizeOfSerenDBHeapHeader;
+		Size		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
-		Assert(XLogRecGetDataLen(r) > (SizeOfNeonHeapDelete + SizeOfNeonHeapHeader));
+		Assert(XLogRecGetDataLen(r) > (SizeOfSerenDBHeapDelete + SizeOfSerenDBHeapHeader));
 
 		change->data.tp.oldtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
 
-		DecodeXLogTuple((char *) xlrec + SizeOfNeonHeapDelete,
+		DecodeXLogTuple((char *) xlrec + SizeOfSerenDBHeapDelete,
 						datalen, change->data.tp.oldtuple);
 	}
 
@@ -592,15 +592,15 @@ DecodeNeonDelete(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Updates can possibly contain a new tuple and the old primary key.
  */
 static void
-DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_update *xlrec;
+	xl_serendb_heap_update *xlrec;
 	ReorderBufferChange *change;
 	char	   *data;
 	RelFileLocator target_locator;
 
-	xlrec = (xl_neon_heap_update *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_update *) XLogRecGetData(r);
 
 	/* only interested in our database */
 	XLogRecGetBlockTag(r, 0, &target_locator, NULL, NULL);
@@ -623,7 +623,7 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 		data = XLogRecGetBlockData(r, 0, &datalen);
 
-		tuplelen = datalen - SizeOfNeonHeapHeader;
+		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
 		change->data.tp.newtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
@@ -637,9 +637,9 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 		Size		tuplelen;
 
 		/* caution, remaining data in record is not aligned */
-		data = XLogRecGetData(r) + SizeOfNeonHeapUpdate;
-		datalen = XLogRecGetDataLen(r) - SizeOfNeonHeapUpdate;
-		tuplelen = datalen - SizeOfNeonHeapHeader;
+		data = XLogRecGetData(r) + SizeOfSerenDBHeapUpdate;
+		datalen = XLogRecGetDataLen(r) - SizeOfSerenDBHeapUpdate;
+		tuplelen = datalen - SizeOfSerenDBHeapHeader;
 
 		change->data.tp.oldtuple =
 			ReorderBufferGetTupleBuf(ctx->reorder, tuplelen);
@@ -659,17 +659,17 @@ DecodeNeonUpdate(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
  * Currently MULTI_INSERT will always contain the full tuples.
  */
 static void
-DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
+DecodeSerenDBMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 {
 	XLogReaderState *r = buf->record;
-	xl_neon_heap_multi_insert *xlrec;
+	xl_serendb_heap_multi_insert *xlrec;
 	int			i;
 	char	   *data;
 	char	   *tupledata;
 	Size		tuplelen;
 	RelFileLocator rlocator;
 
-	xlrec = (xl_neon_heap_multi_insert *) XLogRecGetData(r);
+	xlrec = (xl_serendb_heap_multi_insert *) XLogRecGetData(r);
 
 	/*
 	 * Ignore insert records without new tuples.  This happens when a
@@ -698,7 +698,7 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 	for (i = 0; i < xlrec->ntuples; i++)
 	{
 		ReorderBufferChange *change;
-		xl_neon_multi_insert_tuple *xlhdr;
+		xl_serendb_multi_insert_tuple *xlhdr;
 		int			datalen;
 		HeapTuple	tuple;
 		HeapTupleHeader header;
@@ -709,8 +709,8 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 
 		memcpy(&change->data.tp.rlocator, &rlocator, sizeof(RelFileLocator));
 
-		xlhdr = (xl_neon_multi_insert_tuple *) SHORTALIGN(data);
-		data = ((char *) xlhdr) + SizeOfNeonMultiInsertTuple;
+		xlhdr = (xl_serendb_multi_insert_tuple *) SHORTALIGN(data);
+		data = ((char *) xlhdr) + SizeOfSerenDBMultiInsertTuple;
 		datalen = xlhdr->datalen;
 
 		change->data.tp.newtuple =
@@ -752,7 +752,7 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 		ReorderBufferQueueChange(ctx->reorder, XLogRecGetXid(r),
 								 buf->origptr, change, false);
 
-		/* move to the next xl_neon_multi_insert_tuple entry */
+		/* move to the next xl_serendb_multi_insert_tuple entry */
 		data += datalen;
 	}
 	Assert(data == tupledata + tuplelen);
@@ -768,8 +768,8 @@ DecodeNeonMultiInsert(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
 static void
 DecodeXLogTuple(char *data, Size len, HeapTuple tuple)
 {
-	xl_neon_heap_header xlhdr;
-	int			datalen = len - SizeOfNeonHeapHeader;
+	xl_serendb_heap_header xlhdr;
+	int			datalen = len - SizeOfSerenDBHeapHeader;
 	HeapTupleHeader header;
 
 	Assert(datalen >= 0);
@@ -786,12 +786,12 @@ DecodeXLogTuple(char *data, Size len, HeapTuple tuple)
 	/* data is not stored aligned, copy to aligned storage */
 	memcpy((char *) &xlhdr,
 		   data,
-		   SizeOfNeonHeapHeader);
+		   SizeOfSerenDBHeapHeader);
 
 	memset(header, 0, SizeofHeapTupleHeader);
 
 	memcpy(((char *) tuple->t_data) + SizeofHeapTupleHeader,
-		   data + SizeOfNeonHeapHeader,
+		   data + SizeOfSerenDBHeapHeader,
 		   datalen);
 
 	header->t_infomask = xlhdr.t_infomask;

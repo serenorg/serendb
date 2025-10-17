@@ -7,7 +7,7 @@ from fixtures.pg_version import PgVersion
 from fixtures.utils import WITH_SANITIZERS, run_only_on_postgres
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.parametrize(
@@ -18,25 +18,25 @@ if TYPE_CHECKING:
         "💣",  # calls `trigger_segfault` internally
     ],
 )
-def test_endpoint_crash(neon_env_builder: NeonEnvBuilder, sql_func: str):
+def test_endpoint_crash(serendb_env_builder: SerenDBEnvBuilder, sql_func: str):
     """
-    Test that triggering crash from neon_test_utils crashes the endpoint
+    Test that triggering crash from serendb_test_utils crashes the endpoint
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.create_branch("test_endpoint_crash")
     endpoint = env.endpoints.create_start("test_endpoint_crash")
 
-    endpoint.safe_psql("CREATE EXTENSION neon_test_utils;")
+    endpoint.safe_psql("CREATE EXTENSION serendb_test_utils;")
     with pytest.raises(Exception, match="This probably means the server terminated abnormally"):
         endpoint.safe_psql(f"SELECT {sql_func}();")
 
 
 @run_only_on_postgres([PgVersion.V17], "Currently, build vith sanitizers is possible with v17 only")
-def test_sanitizers(neon_env_builder: NeonEnvBuilder):
+def test_sanitizers(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that undefined behavior leads to endpoint abort with sanitizers enabled
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.create_branch("test_ubsan")
     endpoint = env.endpoints.create_start("test_ubsan")
 

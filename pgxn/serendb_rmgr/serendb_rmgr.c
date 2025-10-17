@@ -5,7 +5,7 @@
 #include "access/bufmask.h"
 #include "access/heapam_xlog.h"
 #include "access/htup_details.h"
-#include "access/neon_xlog.h"
+#include "access/serendb_xlog.h"
 #include "access/rmgr.h"
 #include "access/visibilitymap.h"
 #include "access/xlog_internal.h"
@@ -15,31 +15,31 @@
 #include "storage/bufmgr.h"
 #include "storage/bufpage.h"
 #include "storage/freespace.h"
-#include "neon_rmgr.h"
+#include "serendb_rmgr.h"
 
 PG_MODULE_MAGIC;
 void		_PG_init(void);
 
-static void neon_rm_redo(XLogReaderState *record);
-static void neon_rm_startup(void);
-static void neon_rm_cleanup(void);
-static void neon_rm_mask(char *pagedata, BlockNumber blkno);
+static void serendb_rm_redo(XLogReaderState *record);
+static void serendb_rm_startup(void);
+static void serendb_rm_cleanup(void);
+static void serendb_rm_mask(char *pagedata, BlockNumber blkno);
 
-static void redo_neon_heap_insert(XLogReaderState *record);
-static void redo_neon_heap_delete(XLogReaderState *record);
-static void redo_neon_heap_update(XLogReaderState *record, bool hot_update);
-static void redo_neon_heap_lock(XLogReaderState *record);
-static void redo_neon_heap_multi_insert(XLogReaderState *record);
+static void redo_serendb_heap_insert(XLogReaderState *record);
+static void redo_serendb_heap_delete(XLogReaderState *record);
+static void redo_serendb_heap_update(XLogReaderState *record, bool hot_update);
+static void redo_serendb_heap_lock(XLogReaderState *record);
+static void redo_serendb_heap_multi_insert(XLogReaderState *record);
 
-const static RmgrData NeonRmgr = {
-	.rm_name = "neon",
-	.rm_redo = neon_rm_redo,
-	.rm_desc = neon_rm_desc,
-	.rm_identify = neon_rm_identify,
-	.rm_startup = neon_rm_startup,
-	.rm_cleanup = neon_rm_cleanup,
-	.rm_mask = neon_rm_mask,
-	.rm_decode = neon_rm_decode,
+const static RmgrData SerenDBRmgr = {
+	.rm_name = "serendb",
+	.rm_redo = serendb_rm_redo,
+	.rm_desc = serendb_rm_desc,
+	.rm_identify = serendb_rm_identify,
+	.rm_startup = serendb_rm_startup,
+	.rm_cleanup = serendb_rm_cleanup,
+	.rm_mask = serendb_rm_mask,
+	.rm_decode = serendb_rm_decode,
 };
 
 void
@@ -48,53 +48,53 @@ _PG_init(void)
 	if (!process_shared_preload_libraries_in_progress)
 		return;
 
-	RegisterCustomRmgr(RM_NEON_ID, &NeonRmgr);
+	RegisterCustomRmgr(RM_SERENDB_ID, &SerenDBRmgr);
 }
 
 static void
-neon_rm_redo(XLogReaderState *record)
+serendb_rm_redo(XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	switch (info & XLOG_NEON_OPMASK)
+	switch (info & XLOG_SERENDB_OPMASK)
 	{
-		case XLOG_NEON_HEAP_INSERT:
-			redo_neon_heap_insert(record);
+		case XLOG_SERENDB_HEAP_INSERT:
+			redo_serendb_heap_insert(record);
 			break;
-		case XLOG_NEON_HEAP_DELETE:
-			redo_neon_heap_delete(record);
+		case XLOG_SERENDB_HEAP_DELETE:
+			redo_serendb_heap_delete(record);
 			break;
-		case XLOG_NEON_HEAP_UPDATE:
-			redo_neon_heap_update(record, false);
+		case XLOG_SERENDB_HEAP_UPDATE:
+			redo_serendb_heap_update(record, false);
 			break;
-		case XLOG_NEON_HEAP_HOT_UPDATE:
-			redo_neon_heap_update(record, true);
+		case XLOG_SERENDB_HEAP_HOT_UPDATE:
+			redo_serendb_heap_update(record, true);
 			break;
-		case XLOG_NEON_HEAP_LOCK:
-			redo_neon_heap_lock(record);
+		case XLOG_SERENDB_HEAP_LOCK:
+			redo_serendb_heap_lock(record);
 			break;
-		case XLOG_NEON_HEAP_MULTI_INSERT:
-			redo_neon_heap_multi_insert(record);
+		case XLOG_SERENDB_HEAP_MULTI_INSERT:
+			redo_serendb_heap_multi_insert(record);
 			break;
 		default:
-			elog(PANIC, "neon_rm_redo: unknown op code %u", info);
+			elog(PANIC, "serendb_rm_redo: unknown op code %u", info);
 	}
 }
 
 static void
-neon_rm_startup(void)
+serendb_rm_startup(void)
 {
 	/* nothing to do here */
 }
 
 static void
-neon_rm_cleanup(void)
+serendb_rm_cleanup(void)
 {
 	/* nothing to do here */
 }
 
 static void
-neon_rm_mask(char *pagedata, BlockNumber blkno)
+serendb_rm_mask(char *pagedata, BlockNumber blkno)
 {
 	Page		page = (Page) pagedata;
 	OffsetNumber off;
@@ -206,10 +206,10 @@ fix_infomask_from_infobits(uint8 infobits, uint16 *infomask, uint16 *infomask2)
 }
 
 static void
-redo_neon_heap_insert(XLogReaderState *record)
+redo_serendb_heap_insert(XLogReaderState *record)
 {
 	XLogRecPtr	lsn = record->EndRecPtr;
-	xl_neon_heap_insert *xlrec = (xl_neon_heap_insert *) XLogRecGetData(record);
+	xl_serendb_heap_insert *xlrec = (xl_serendb_heap_insert *) XLogRecGetData(record);
 	Buffer		buffer;
 	Page		page;
 	union
@@ -218,7 +218,7 @@ redo_neon_heap_insert(XLogReaderState *record)
 		char		data[MaxHeapTupleSize];
 	}			tbuf;
 	HeapTupleHeader htup;
-	xl_neon_heap_header xlhdr;
+	xl_serendb_heap_header xlhdr;
 	uint32		newlen;
 	Size		freespace = 0;
 	RelFileLocator target_locator;
@@ -266,14 +266,14 @@ redo_neon_heap_insert(XLogReaderState *record)
 		page = BufferGetPage(buffer);
 
 		if (PageGetMaxOffsetNumber(page) + 1 < xlrec->offnum)
-			elog(PANIC, "neon_rm_redo: invalid max offset number");
+			elog(PANIC, "serendb_rm_redo: invalid max offset number");
 
 		data = XLogRecGetBlockData(record, 0, &datalen);
 
-		newlen = datalen - SizeOfNeonHeapHeader;
-		Assert(datalen > SizeOfNeonHeapHeader && newlen <= MaxHeapTupleSize);
-		memcpy((char *) &xlhdr, data, SizeOfNeonHeapHeader);
-		data += SizeOfNeonHeapHeader;
+		newlen = datalen - SizeOfSerenDBHeapHeader;
+		Assert(datalen > SizeOfSerenDBHeapHeader && newlen <= MaxHeapTupleSize);
+		memcpy((char *) &xlhdr, data, SizeOfSerenDBHeapHeader);
+		data += SizeOfSerenDBHeapHeader;
 
 		htup = &tbuf.hdr;
 		MemSet((char *) htup, 0, SizeofHeapTupleHeader);
@@ -291,7 +291,7 @@ redo_neon_heap_insert(XLogReaderState *record)
 
 		if (PageAddItem(page, (Item) htup, newlen, xlrec->offnum,
 						true, true) == InvalidOffsetNumber)
-			elog(PANIC, "neon_rm_redo: failed to add tuple");
+			elog(PANIC, "serendb_rm_redo: failed to add tuple");
 
 		freespace = PageGetHeapFreeSpace(page); /* needed to update FSM below */
 
@@ -323,10 +323,10 @@ redo_neon_heap_insert(XLogReaderState *record)
 }
 
 static void
-redo_neon_heap_delete(XLogReaderState *record)
+redo_serendb_heap_delete(XLogReaderState *record)
 {
 	XLogRecPtr	lsn = record->EndRecPtr;
-	xl_neon_heap_delete *xlrec = (xl_neon_heap_delete *) XLogRecGetData(record);
+	xl_serendb_heap_delete *xlrec = (xl_serendb_heap_delete *) XLogRecGetData(record);
 	Buffer		buffer;
 	Page		page;
 	ItemId		lp = NULL;
@@ -362,7 +362,7 @@ redo_neon_heap_delete(XLogReaderState *record)
 			lp = PageGetItemId(page, xlrec->offnum);
 
 		if (PageGetMaxOffsetNumber(page) < xlrec->offnum || !ItemIdIsNormal(lp))
-			elog(PANIC, "neon_rm_redo: invalid lp");
+			elog(PANIC, "serendb_rm_redo: invalid lp");
 
 		htup = (HeapTupleHeader) PageGetItem(page, lp);
 
@@ -396,10 +396,10 @@ redo_neon_heap_delete(XLogReaderState *record)
 }
 
 static void
-redo_neon_heap_update(XLogReaderState *record, bool hot_update)
+redo_serendb_heap_update(XLogReaderState *record, bool hot_update)
 {
 	XLogRecPtr	lsn = record->EndRecPtr;
-	xl_neon_heap_update *xlrec = (xl_neon_heap_update *) XLogRecGetData(record);
+	xl_serendb_heap_update *xlrec = (xl_serendb_heap_update *) XLogRecGetData(record);
 	RelFileLocator rlocator;
 	BlockNumber oldblk;
 	BlockNumber newblk;
@@ -419,7 +419,7 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 		HeapTupleHeaderData hdr;
 		char		data[MaxHeapTupleSize];
 	}			tbuf;
-	xl_neon_heap_header xlhdr;
+	xl_serendb_heap_header xlhdr;
 	uint32		newlen;
 	Size		freespace = 0;
 	XLogRedoAction oldaction;
@@ -476,7 +476,7 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 			lp = PageGetItemId(page, offnum);
 
 		if (PageGetMaxOffsetNumber(page) < offnum || !ItemIdIsNormal(lp))
-			elog(PANIC, "neon_rm_redo: invalid lp");
+			elog(PANIC, "serendb_rm_redo: invalid lp");
 
 		htup = (HeapTupleHeader) PageGetItem(page, lp);
 
@@ -554,7 +554,7 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 
 		offnum = xlrec->new_offnum;
 		if (PageGetMaxOffsetNumber(page) + 1 < offnum)
-			elog(PANIC, "neon_rm_redo: invalid max offset number");
+			elog(PANIC, "serendb_rm_redo: invalid max offset number");
 
 		if (xlrec->flags & XLH_UPDATE_PREFIX_FROM_OLD)
 		{
@@ -569,8 +569,8 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 			recdata += sizeof(uint16);
 		}
 
-		memcpy((char *) &xlhdr, recdata, SizeOfNeonHeapHeader);
-		recdata += SizeOfNeonHeapHeader;
+		memcpy((char *) &xlhdr, recdata, SizeOfSerenDBHeapHeader);
+		recdata += SizeOfSerenDBHeapHeader;
 
 		tuplen = recdata_end - recdata;
 		Assert(tuplen <= MaxHeapTupleSize);
@@ -632,7 +632,7 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 
 		offnum = PageAddItem(page, (Item) htup, newlen, offnum, true, true);
 		if (offnum == InvalidOffsetNumber)
-			elog(PANIC, "neon_rm_redo: failed to add tuple");
+			elog(PANIC, "serendb_rm_redo: failed to add tuple");
 
 		if (xlrec->flags & XLH_UPDATE_NEW_ALL_VISIBLE_CLEARED)
 			PageClearAllVisible(page);
@@ -668,10 +668,10 @@ redo_neon_heap_update(XLogReaderState *record, bool hot_update)
 }
 
 static void
-redo_neon_heap_lock(XLogReaderState *record)
+redo_serendb_heap_lock(XLogReaderState *record)
 {
 	XLogRecPtr	lsn = record->EndRecPtr;
-	xl_neon_heap_lock *xlrec = (xl_neon_heap_lock *) XLogRecGetData(record);
+	xl_serendb_heap_lock *xlrec = (xl_serendb_heap_lock *) XLogRecGetData(record);
 	Buffer		buffer;
 	Page		page;
 	OffsetNumber offnum;
@@ -708,7 +708,7 @@ redo_neon_heap_lock(XLogReaderState *record)
 			lp = PageGetItemId(page, offnum);
 
 		if (PageGetMaxOffsetNumber(page) < offnum || !ItemIdIsNormal(lp))
-			elog(PANIC, "neon_rm_redo: invalid lp");
+			elog(PANIC, "serendb_rm_redo: invalid lp");
 
 		htup = (HeapTupleHeader) PageGetItem(page, lp);
 
@@ -739,10 +739,10 @@ redo_neon_heap_lock(XLogReaderState *record)
 }
 
 static void
-redo_neon_heap_multi_insert(XLogReaderState *record)
+redo_serendb_heap_multi_insert(XLogReaderState *record)
 {
 	XLogRecPtr	lsn = record->EndRecPtr;
-	xl_neon_heap_multi_insert *xlrec;
+	xl_serendb_heap_multi_insert *xlrec;
 	RelFileLocator rlocator;
 	BlockNumber blkno;
 	Buffer		buffer;
@@ -763,7 +763,7 @@ redo_neon_heap_multi_insert(XLogReaderState *record)
 	 * Insertion doesn't overwrite MVCC data, so no conflict processing is
 	 * required.
 	 */
-	xlrec = (xl_neon_heap_multi_insert *) XLogRecGetData(record);
+	xlrec = (xl_serendb_heap_multi_insert *) XLogRecGetData(record);
 
 	XLogRecGetBlockTag(record, 0, &rlocator, NULL, &blkno);
 
@@ -810,7 +810,7 @@ redo_neon_heap_multi_insert(XLogReaderState *record)
 		for (i = 0; i < xlrec->ntuples; i++)
 		{
 			OffsetNumber offnum;
-			xl_neon_multi_insert_tuple *xlhdr;
+			xl_serendb_multi_insert_tuple *xlhdr;
 
 			/*
 			 * If we're reinitializing the page, the tuples are stored in
@@ -822,10 +822,10 @@ redo_neon_heap_multi_insert(XLogReaderState *record)
 			else
 				offnum = xlrec->offsets[i];
 			if (PageGetMaxOffsetNumber(page) + 1 < offnum)
-				elog(PANIC, "neon_rm_redo: invalid max offset number");
+				elog(PANIC, "serendb_rm_redo: invalid max offset number");
 
-			xlhdr = (xl_neon_multi_insert_tuple *) SHORTALIGN(tupdata);
-			tupdata = ((char *) xlhdr) + SizeOfNeonMultiInsertTuple;
+			xlhdr = (xl_serendb_multi_insert_tuple *) SHORTALIGN(tupdata);
+			tupdata = ((char *) xlhdr) + SizeOfSerenDBMultiInsertTuple;
 
 			newlen = xlhdr->datalen;
 			Assert(newlen <= MaxHeapTupleSize);
@@ -848,10 +848,10 @@ redo_neon_heap_multi_insert(XLogReaderState *record)
 
 			offnum = PageAddItem(page, (Item) htup, newlen, offnum, true, true);
 			if (offnum == InvalidOffsetNumber)
-				elog(PANIC, "neon_rm_redo: failed to add tuple");
+				elog(PANIC, "serendb_rm_redo: failed to add tuple");
 		}
 		if (tupdata != endptr)
-			elog(PANIC, "neon_rm_redo: total tuple length mismatch");
+			elog(PANIC, "serendb_rm_redo: total tuple length mismatch");
 
 		freespace = PageGetHeapFreeSpace(page); /* needed to update FSM below */
 

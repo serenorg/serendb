@@ -9,7 +9,7 @@
 #include "utils/errcodes.h"
 #include "utils/guc.h"
 
-#include "neon_pgversioncompat.h"
+#include "serendb_pgversioncompat.h"
 #include "unstable_extensions.h"
 
 static bool					allow_unstable_extensions = false;
@@ -65,8 +65,8 @@ CheckUnstableExtension(
 			{
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-						 errmsg("%s extension is in beta and may be unstable or introduce backward-incompatible changes.\nWe recommend testing it in a separate, dedicated Neon project.", stmt->extname),
-						 errhint("to proceed with installation, run SET neon.allow_unstable_extensions='true'")));
+						 errmsg("%s extension is in beta and may be unstable or introduce backward-incompatible changes.\nWe recommend testing it in a separate, dedicated SerenDB project.", stmt->extname),
+						 errhint("to proceed with installation, run SET serendb.allow_unstable_extensions='true'")));
 			}
 			break;
 		}
@@ -105,7 +105,7 @@ void
 InitUnstableExtensionsSupport(void)
 {
 	DefineCustomBoolVariable(
-		"neon.allow_unstable_extensions",
+		"serendb.allow_unstable_extensions",
 		"Allow unstable extensions to be installed and used",
 		NULL,
 		&allow_unstable_extensions,
@@ -115,7 +115,7 @@ InitUnstableExtensionsSupport(void)
 		NULL, NULL, NULL);
 
 	DefineCustomStringVariable(
-		"neon.unstable_extensions",
+		"serendb.unstable_extensions",
 		"List of unstable extensions",
 		NULL,
 		&unstable_extensions,

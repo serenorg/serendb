@@ -12,24 +12,24 @@ from fixtures.log_helper import log
 from fixtures.utils import USE_LFC
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnv, PgBin
 
 
 @pytest.mark.timeout(600)
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_lfc_resize(neon_simple_env: NeonEnv, pg_bin: PgBin):
+def test_lfc_resize(serendb_simple_env: SerenDBEnv, pg_bin: PgBin):
     """
     Test resizing the Local File Cache
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     cache_dir = env.repo_dir / "file_cache"
     cache_dir.mkdir(exist_ok=True)
     env.create_branch("test_lfc_resize")
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
-            "neon.max_file_cache_size=1GB",
-            "neon.file_cache_size_limit=1GB",
+            "serendb.max_file_cache_size=1GB",
+            "serendb.file_cache_size_limit=1GB",
         ],
     )
     n_resize = 10
@@ -49,7 +49,7 @@ def test_lfc_resize(neon_simple_env: NeonEnv, pg_bin: PgBin):
     conn = endpoint.connect()
     cur = conn.cursor()
 
-    cur.execute("create extension neon")
+    cur.execute("create extension serendb")
 
     def get_lfc_size() -> tuple[int, int]:
         lfc_file_path = endpoint.lfc_path()
@@ -71,7 +71,7 @@ def test_lfc_resize(neon_simple_env: NeonEnv, pg_bin: PgBin):
         # decrease it to.  This should ensure that the final size decrease
         # is really doing something.
         size = random.randint(192, 512)
-        cur.execute(f"alter system set neon.file_cache_size_limit='{size}MB'")
+        cur.execute(f"alter system set serendb.file_cache_size_limit='{size}MB'")
         cur.execute("select pg_reload_conf()")
         time.sleep(1)
 
@@ -91,7 +91,7 @@ def test_lfc_resize(neon_simple_env: NeonEnv, pg_bin: PgBin):
     #
     # We retry the check a few times, because it might take a while for the
     # system to react to changing the setting and shrinking the file.
-    cur.execute("alter system set neon.file_cache_size_limit='100MB'")
+    cur.execute("alter system set serendb.file_cache_size_limit='100MB'")
     cur.execute("select pg_reload_conf()")
     nretries = 10
     while True:
@@ -114,7 +114,7 @@ def test_lfc_resize(neon_simple_env: NeonEnv, pg_bin: PgBin):
         local_cache_size = cur.fetchall()[0][0]
 
         cur.execute(
-            "select lfc_value::bigint FROM neon_lfc_stats where lfc_key='file_cache_used_pages'"
+            "select lfc_value::bigint FROM serendb_lfc_stats where lfc_key='file_cache_used_pages'"
         )
         used_pages = cur.fetchall()[0][0]
 

@@ -374,7 +374,7 @@ impl FeatureStore {
                 )));
             };
             // TODO: sort the groups so that variant overrides always get evaluated first and it follows the PostHog
-            // Python SDK behavior; for now we do not configure conditions without variant overrides in Neon so it
+            // Python SDK behavior; for now we do not configure conditions without variant overrides in SerenDB so it
             // does not matter.
             for group in &flag_config.filters.groups {
                 match self.evaluate_group(group, hash_on_group_rollout_percentage, properties)? {
@@ -438,7 +438,7 @@ impl FeatureStore {
                 )));
             };
             // TODO: sort the groups so that variant overrides always get evaluated first and it follows the PostHog
-            // Python SDK behavior; for now we do not configure conditions without variant overrides in Neon so it
+            // Python SDK behavior; for now we do not configure conditions without variant overrides in SerenDB so it
             // does not matter.
             for group in &flag_config.filters.groups {
                 match self.evaluate_group(group, hash_on_global_rollout_percentage, properties)? {
@@ -492,11 +492,11 @@ pub struct PostHogClientConfig {
 ///
 /// At the point of writing this code, PostHog does not have a functional Rust client with feature flag support.
 /// This is a lite version that only supports local evaluation of feature flags and only supports those JSON specs
-/// that will be used within Neon.
+/// that will be used within SerenDB.
 ///
 /// PostHog is designed as a browser-server system: the browser (client) side uses the client key and is exposed
 /// to the end users; the server side uses a server key and is not exposed to the end users. The client and the
-/// server has different API keys and provide a different set of APIs. In Neon, we only have the server (that is
+/// server has different API keys and provide a different set of APIs. In SerenDB, we only have the server (that is
 /// pageserver), and it will use both the client API and the server API. So we need to store two API keys within
 /// our PostHog client.
 ///

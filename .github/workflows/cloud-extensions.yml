@@ -27,7 +27,7 @@ permissions:
 jobs:
   regress:
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
     strategy:
@@ -37,8 +37,8 @@ jobs:
 
     runs-on: us-east-2
     container:
-      # We use the neon-test-extensions image here as it contains the source code for the extensions.
-      image: ghcr.io/neondatabase/neon-test-extensions-v${{ matrix.pg-version }}:latest
+      # We use the serendb-test-extensions image here as it contains the source code for the extensions.
+      image: ghcr.io/serenorg/serendb-test-extensions-v${{ matrix.pg-version }}:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -64,27 +64,27 @@ jobs:
           settings=$(jq -c -n --arg libs $LIBS '{preload_libraries:{use_defaults:false,enabled_libraries:($libs| split(":"))}}')
           echo settings=$settings >> $GITHUB_OUTPUT
           
-      - name: Create Neon Project
-        id: create-neon-project
-        uses: ./.github/actions/neon-project-create
+      - name: Create SerenDB Project
+        id: create-serendb-project
+        uses: ./.github/actions/serendb-project-create
         with:
           region_id: ${{ inputs.region_id || 'aws-us-east-2' }}
           postgres_version: ${{ matrix.pg-version }}
           project_settings: ${{ steps.project-settings.outputs.settings }}
-          api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+          api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
       - name: Run the regression tests
         run: /run-tests.sh -r /ext-src
         env:
-          BENCHMARK_CONNSTR: ${{ steps.create-neon-project.outputs.dsn }}
+          BENCHMARK_CONNSTR: ${{ steps.create-serendb-project.outputs.dsn }}
           SKIP: "pg_hint_plan-src,pg_repack-src,pg_cron-src,plpgsql_check-src"
 
-      - name: Delete Neon Project
+      - name: Delete SerenDB Project
         if: ${{ always() }}
-        uses: ./.github/actions/neon-project-delete
+        uses: ./.github/actions/serendb-project-delete
         with:
-          project_id: ${{ steps.create-neon-project.outputs.project_id }}
-          api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+          project_id: ${{ steps.create-serendb-project.outputs.project_id }}
+          api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
       - name: Post to a Slack channel
         if: ${{ github.event.schedule && failure() }}

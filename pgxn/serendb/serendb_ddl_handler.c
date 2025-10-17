@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  *
- * neon_ddl_handler.c
+ * serendb_ddl_handler.c
  *	  Captures updates to roles/databases using ProcessUtility_hook and
  *        sends them to the control ProcessUtility_hook. The changes are sent
- *        via HTTP to the URL specified by the GUC neon.console_url when the
+ *        via HTTP to the URL specified by the GUC serendb.console_url when the
  *        transaction commits. Forwarding may be disabled temporarily by
- *        setting neon.forward_ddl to false.
+ *        setting serendb.forward_ddl to false.
  *
  *        Currently, the transaction may abort AFTER
  *        changes have already been forwarded, and that case is not handled.
@@ -16,7 +16,7 @@
  *    Support event triggers for {privileged_role_name}
  *
  * IDENTIFICATION
- *	 contrib/neon/neon_dll_handler.c
+ *	 contrib/serendb/serendb_dll_handler.c
  *
  *-------------------------------------------------------------------------
  */
@@ -47,14 +47,14 @@
 #include <utils/lsyscache.h>
 #include <utils/syscache.h>
 
-#include "neon_ddl_handler.h"
-#include "neon_utils.h"
-#include "neon.h"
+#include "serendb_ddl_handler.h"
+#include "serendb_utils.h"
+#include "serendb.h"
 
 static ProcessUtility_hook_type PreviousProcessUtilityHook = NULL;
 static fmgr_hook_type next_fmgr_hook = NULL;
 static needs_fmgr_hook_type next_needs_fmgr_hook = NULL;
-static bool neon_event_triggers = true;
+static bool serendb_event_triggers = true;
 
 static const char *jwt_token = NULL;
 
@@ -510,7 +510,7 @@ PopTable()
 }
 
 static void
-NeonSubXactCallback(
+SerenDBSubXactCallback(
 					SubXactEvent event,
 					SubTransactionId mySubid,
 					SubTransactionId parentSubid,
@@ -530,7 +530,7 @@ NeonSubXactCallback(
 }
 
 static void
-NeonXactCallback(XactEvent event, void *arg)
+SerenDBXactCallback(XactEvent event, void *arg)
 {
 	if (event == XACT_EVENT_PRE_COMMIT || event == XACT_EVENT_PARALLEL_PRE_COMMIT)
 	{
@@ -843,7 +843,7 @@ HandleRename(RenameStmt *stmt)
  */
 
 static bool
-neon_needs_fmgr_hook(Oid functionId) {
+serendb_needs_fmgr_hook(Oid functionId) {
 
 	return (next_needs_fmgr_hook && (*next_needs_fmgr_hook) (functionId))
 		|| get_func_rettype(functionId) == EVENT_TRIGGEROID;
@@ -891,13 +891,13 @@ force_noop(FmgrInfo *finfo)
  * Triggers are SECURITY DEFINER and user provided code could then attempt
  * privilege escalation.
  *
- * Also skip executing Event Triggers when GUC neon.event_triggers has been
+ * Also skip executing Event Triggers when GUC serendb.event_triggers has been
  * set to false. This might be necessary to be able to connect again after a
  * LOGIN Event Trigger has been installed that would prevent connections as
  * {privileged_role_name}.
  */
 static void
-neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
+serendb_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 {
 	/*
 	 * It can be other needs_fmgr_hook which cause our hook to be invoked for
@@ -913,21 +913,21 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 	}
 
 	/*
-	 * The {privileged_role_name} role can use the GUC neon.event_triggers to disable
+	 * The {privileged_role_name} role can use the GUC serendb.event_triggers to disable
 	 * firing Event Trigger.
 	 *
-	 *   SET neon.event_triggers TO false;
+	 *   SET serendb.event_triggers TO false;
 	 *
 	 * This only applies to the {privileged_role_name} role though, and only allows
 	 * skipping Event Triggers owned by {privileged_role_name}, which we check by
 	 * proxy of the Event Trigger function being owned by {privileged_role_name}.
 	 *
 	 * A role that is created in role {privileged_role_name} should be allowed to also
-	 * benefit from the neon_event_triggers GUC, and will be considered the
+	 * benefit from the serendb_event_triggers GUC, and will be considered the
 	 * same as the {privileged_role_name} role.
 	 */
 	if (event == FHET_START
-		&& !neon_event_triggers
+		&& !serendb_event_triggers
 		&& is_privileged_role())
 	{
 		Oid weak_superuser_oid = get_role_oid(privileged_role_name, false);
@@ -944,7 +944,7 @@ neon_fmgr_hook(FmgrHookEventType event, FmgrInfo *flinfo, Datum *private)
 			|| has_privs_of_role(fun_owner, weak_superuser_oid))
 		{
 			elog(WARNING,
-				 "Skipping Event Trigger: neon.event_triggers is false");
+				 "Skipping Event Trigger: serendb.event_triggers is false");
 
 			/*
 			 * we can't skip execution directly inside the fmgr_hook so instead we
@@ -1116,7 +1116,7 @@ alter_event_trigger_owner(const char *obj_name, Oid role_oid)
 
 
 /*
- * Neon processing of the CREATE EVENT TRIGGER requires special attention and
+ * SerenDB processing of the CREATE EVENT TRIGGER requires special attention and
  * is worth having its own ProcessUtility_hook for that.
  */
 static void
@@ -1257,10 +1257,10 @@ ProcessCreateEventTrigger(
 
 
 /*
- * Neon hooks for DDLs (handling privileges, limiting features, etc).
+ * SerenDB hooks for DDLs (handling privileges, limiting features, etc).
  */
 static void
-NeonProcessUtility(
+SerenDBProcessUtility(
 				   PlannedStmt *pstmt,
 				   const char *queryString,
 				   bool readOnlyTree,
@@ -1291,7 +1291,7 @@ NeonProcessUtility(
 	}
 
 	/*
-	 * Other commands that need Neon specific implementations are handled here:
+	 * Other commands that need SerenDB specific implementations are handled here:
 	 */
 	switch (nodeTag(parseTree))
 	{
@@ -1321,7 +1321,7 @@ NeonProcessUtility(
 			{
 				ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("CREATE TABLESPACE is not supported on Neon")));
+					errmsg("CREATE TABLESPACE is not supported on SerenDB")));
 			}
    			break;
 		default:
@@ -1355,16 +1355,16 @@ NeonProcessUtility(
 }
 
 /*
- * Only {privileged_role_name} is granted privilege to edit neon.event_triggers GUC.
+ * Only {privileged_role_name} is granted privilege to edit serendb.event_triggers GUC.
  */
 static void
-neon_event_triggers_assign_hook(bool newval, void *extra)
+serendb_event_triggers_assign_hook(bool newval, void *extra)
 {
 	if (IsTransactionState() && !is_privileged_role())
 	{
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("permission denied to set neon.event_triggers"),
+				 errmsg("permission denied to set serendb.event_triggers"),
 				 errdetail("Only \"%s\" is allowed to set the GUC", privileged_role_name)));
 	}
 }
@@ -1374,40 +1374,40 @@ void
 InitDDLHandler()
 {
 	PreviousProcessUtilityHook = ProcessUtility_hook;
-	ProcessUtility_hook = NeonProcessUtility;
+	ProcessUtility_hook = SerenDBProcessUtility;
 
     next_needs_fmgr_hook = needs_fmgr_hook;
-	needs_fmgr_hook = neon_needs_fmgr_hook;
+	needs_fmgr_hook = serendb_needs_fmgr_hook;
 
 	next_fmgr_hook = fmgr_hook;
-	fmgr_hook = neon_fmgr_hook;
+	fmgr_hook = serendb_fmgr_hook;
 
-	RegisterXactCallback(NeonXactCallback, NULL);
-	RegisterSubXactCallback(NeonSubXactCallback, NULL);
+	RegisterXactCallback(SerenDBXactCallback, NULL);
+	RegisterSubXactCallback(SerenDBSubXactCallback, NULL);
 
 	/*
-	 * The GUC neon.event_triggers should provide the same effect as the
-	 * Postgres GUC event_triggers, but the neon one is PGC_USERSET.
+	 * The GUC serendb.event_triggers should provide the same effect as the
+	 * Postgres GUC event_triggers, but the SerenDB one is PGC_USERSET.
 	 *
 	 * This allows using the GUC in the connection string and work out of a
 	 * LOGIN Event Trigger that would break database access, all without
 	 * having to edit and reload the Postgres configuration file.
 	 */
 	DefineCustomBoolVariable(
-							 "neon.event_triggers",
+							 "serendb.event_triggers",
 							 "Enable firing of event triggers",
 							 NULL,
-							 &neon_event_triggers,
+							 &serendb_event_triggers,
 							 true,
 							 PGC_USERSET,
 							 0,
 							 NULL,
-							 neon_event_triggers_assign_hook,
+							 serendb_event_triggers_assign_hook,
 							 NULL);
 
 	DefineCustomStringVariable(
-							   "neon.console_url",
-							   "URL of the Neon Console, which will be forwarded changes to dbs and roles",
+							   "serendb.console_url",
+							   "URL of the SerenDB Console, which will be forwarded changes to dbs and roles",
 							   NULL,
 							   &ConsoleURL,
 							   NULL,
@@ -1418,7 +1418,7 @@ InitDDLHandler()
 							   NULL);
 
 	DefineCustomBoolVariable(
-							 "neon.forward_ddl",
+							 "serendb.forward_ddl",
 							 "Controls whether to forward DDL to the control plane",
 							 NULL,
 							 &ForwardDDL,
@@ -1430,7 +1430,7 @@ InitDDLHandler()
 							 NULL);
 
 	DefineCustomBoolVariable(
-							 "neon.regress_test_mode",
+							 "serendb.regress_test_mode",
 							 "Controls whether we are running in the regression test mode",
 							 NULL,
 							 &RegressTestMode,
@@ -1441,10 +1441,10 @@ InitDDLHandler()
 							 NULL,
 							 NULL);
 
-	jwt_token = getenv("NEON_CONTROL_PLANE_TOKEN");
+	jwt_token = getenv("SERENDB_CONTROL_PLANE_TOKEN");
 	if (!jwt_token)
 	{
-		elog(LOG, "Missing NEON_CONTROL_PLANE_TOKEN environment variable, forwarding will not be authenticated");
+		elog(LOG, "Missing SERENDB_CONTROL_PLANE_TOKEN environment variable, forwarding will not be authenticated");
 	}
 
 }

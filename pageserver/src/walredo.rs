@@ -10,7 +10,7 @@
 //! process. Then we get the page image back. Communication with the
 //! postgres process happens via stdin/stdout
 //!
-//! See pgxn/neon_walredo/walredoproc.c for the other side of
+//! See pgxn/serendb_walredo/walredoproc.c for the other side of
 //! this communication.
 //!
 //! The Postgres process is assumed to be secure against malicious WAL
@@ -21,8 +21,8 @@
 /// Process lifecycle and abstracction for the IPC protocol.
 mod process;
 
-/// Code to apply [`NeonWalRecord`]s.
-pub(crate) mod apply_neon;
+/// Code to apply [`SerenDBWalRecord`]s.
+pub(crate) mod apply_serendb;
 
 use std::future::Future;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ use tracing::*;
 use utils::lsn::Lsn;
 use utils::sync::gate::GateError;
 use utils::sync::heavier_once_cell;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
 use crate::config::PageServerConf;
 use crate::metrics::{
@@ -175,7 +175,7 @@ impl PostgresRedoManager {
         key: Key,
         lsn: Lsn,
         base_img: Option<(Lsn, Bytes)>,
-        records: Vec<(Lsn, NeonWalRecord)>,
+        records: Vec<(Lsn, SerenDBWalRecord)>,
         pg_version: PgMajorVersion,
         redo_attempt_type: RedoAttemptType,
     ) -> Result<Bytes, Error> {
@@ -191,14 +191,14 @@ impl PostgresRedoManager {
 
         let base_img_lsn = base_img.as_ref().map(|p| p.0).unwrap_or(Lsn::INVALID);
         let mut img = base_img.map(|p| p.1);
-        let mut batch_neon = apply_neon::can_apply_in_neon(&records[0].1);
+        let mut batch_serendb = apply_serendb::can_apply_in_serendb(&records[0].1);
         let mut batch_start = 0;
         for (i, record) in records.iter().enumerate().skip(1) {
-            let rec_neon = apply_neon::can_apply_in_neon(&record.1);
+            let rec_serendb = apply_serendb::can_apply_in_serendb(&record.1);
 
-            if rec_neon != batch_neon {
-                let result = if batch_neon {
-                    self.apply_batch_neon(key, lsn, img, &records[batch_start..i])
+            if rec_serendb != batch_serendb {
+                let result = if batch_serendb {
+                    self.apply_batch_serendb(key, lsn, img, &records[batch_start..i])
                 } else {
                     self.apply_batch_postgres(
                         key,
@@ -215,13 +215,13 @@ impl PostgresRedoManager {
                 };
                 img = Some(result?);
 
-                batch_neon = rec_neon;
+                batch_serendb = rec_serendb;
                 batch_start = i;
             }
         }
         // last batch
-        if batch_neon {
-            self.apply_batch_neon(key, lsn, img, &records[batch_start..])
+        if batch_serendb {
+            self.apply_batch_serendb(key, lsn, img, &records[batch_start..])
         } else {
             self.apply_batch_postgres(
                 key,
@@ -299,7 +299,7 @@ impl PostgresRedoManager {
     /// - no redo process is running
     /// - no new redo process will be spawned
     /// - redo requests that need walredo process will fail with [`Error::Cancelled`]
-    /// - [`apply_neon`]-only redo requests may still work, but this may change in the future
+    /// - [`apply_serendb`]-only redo requests may still work, but this may change in the future
     ///
     /// # Cancel-Safety
     ///
@@ -453,7 +453,7 @@ impl PostgresRedoManager {
         lsn: Lsn,
         base_img: Option<Bytes>,
         base_img_lsn: Lsn,
-        records: &[(Lsn, NeonWalRecord)],
+        records: &[(Lsn, SerenDBWalRecord)],
         wal_redo_timeout: Duration,
         pg_version: PgMajorVersion,
         max_retry_attempts: u32,
@@ -480,7 +480,7 @@ impl PostgresRedoManager {
                 let nbytes = records.iter().fold(0, |acumulator, record| {
                     acumulator
                         + match &record.1 {
-                            NeonWalRecord::Postgres { rec, .. } => rec.len(),
+                            SerenDBWalRecord::Postgres { rec, .. } => rec.len(),
                             _ => unreachable!("Only PostgreSQL records are accepted in this batch"),
                         }
                 });
@@ -537,14 +537,14 @@ impl PostgresRedoManager {
     }
 
     ///
-    /// Process a batch of WAL records using bespoken Neon code.
+    /// Process a batch of WAL records using bespoken SerenDB code.
     ///
-    fn apply_batch_neon(
+    fn apply_batch_serendb(
         &self,
         key: Key,
         lsn: Lsn,
         base_img: Option<Bytes>,
-        records: &[(Lsn, NeonWalRecord)],
+        records: &[(Lsn, SerenDBWalRecord)],
     ) -> Result<Bytes, Error> {
         let start_time = Instant::now();
 
@@ -554,12 +554,12 @@ impl PostgresRedoManager {
             page.extend_from_slice(&fpi[..]);
         } else {
             // All the current WAL record types that we can handle require a base image.
-            bail!("invalid neon WAL redo request with no base image");
+            bail!("invalid SerenDB WAL redo request with no base image");
         }
 
         // Apply all the WAL records in the batch
         for (record_lsn, record) in records.iter() {
-            self.apply_record_neon(key, &mut page, *record_lsn, record)?;
+            self.apply_record_serendb(key, &mut page, *record_lsn, record)?;
         }
         // Success!
         let duration = start_time.elapsed();
@@ -568,7 +568,7 @@ impl PostgresRedoManager {
         WAL_REDO_TIME.observe(duration.as_secs_f64());
 
         debug!(
-            "neon applied {} WAL records in {} us to reconstruct page image at LSN {}",
+            "SerenDB applied {} WAL records in {} us to reconstruct page image at LSN {}",
             records.len(),
             duration.as_micros(),
             lsn
@@ -577,14 +577,14 @@ impl PostgresRedoManager {
         Ok(page.freeze())
     }
 
-    fn apply_record_neon(
+    fn apply_record_serendb(
         &self,
         key: Key,
         page: &mut BytesMut,
         record_lsn: Lsn,
-        record: &NeonWalRecord,
+        record: &SerenDBWalRecord,
     ) -> anyhow::Result<()> {
-        apply_neon::apply_in_neon(record, record_lsn, key, page)?;
+        apply_serendb::apply_in_serendb(record, record_lsn, key, page)?;
 
         Ok(())
     }
@@ -635,7 +635,7 @@ mod tests {
     use postgres_ffi::PgMajorVersion;
     use tracing::Instrument;
     use utils::lsn::Lsn;
-    use wal_decoder::models::record::NeonWalRecord;
+    use wal_decoder::models::record::SerenDBWalRecord;
 
     use crate::walredo::RedoAttemptType;
     use crate::walredo::harness::RedoHarness;
@@ -731,18 +731,18 @@ mod tests {
     }
 
     #[allow(clippy::octal_escapes)]
-    fn short_records() -> Vec<(Lsn, NeonWalRecord)> {
+    fn short_records() -> Vec<(Lsn, SerenDBWalRecord)> {
         vec![
             (
                 Lsn::from_str("0/16A9388").unwrap(),
-                NeonWalRecord::Postgres {
+                SerenDBWalRecord::Postgres {
                     will_init: true,
                     rec: Bytes::from_static(b"j\x03\0\0\0\x04\0\0\xe8\x7fj\x01\0\0\0\0\0\n\0\0\xd0\x16\x13Y\0\x10\0\04\x03\xd4\0\x05\x7f\x06\0\0\xd22\0\0\xeb\x04\0\0\0\0\0\0\xff\x03\0\0\0\0\x80\xeca\x01\0\0\x01\0\xd4\0\xa0\x1d\0 \x04 \0\0\0\0/\0\x01\0\xa0\x9dX\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0.\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\00\x9f\x9a\x01P\x9e\xb2\x01\0\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x02\0!\0\x01\x08 \xff\xff\xff?\0\0\0\0\0\0@\0\0another_table\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x98\x08\0\0\x02@\0\0\0\0\0\0\n\0\0\0\x02\0\0\0\0@\0\0\0\0\0\0\0\0\0\0\0\0\x80\xbf\0\0\0\0\0\0\0\0\0\0pr\x01\0\0\0\0\0\0\0\0\x01d\0\0\0\0\0\0\x04\0\0\x01\0\0\0\0\0\0\0\x0c\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0/\0!\x80\x03+ \xff\xff\xff\x7f\0\0\0\0\0\xdf\x04\0\0pg_type\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0b\0\0\0G\0\0\0\0\0\0\0\n\0\0\0\x02\0\0\0\0\0\0\0\0\0\0\0\x0e\0\0\0\0@\x16D\x0e\0\0\0K\x10\0\0\x01\0pr \0\0\0\0\0\0\0\0\x01n\0\0\0\0\0\xd6\x02\0\0\x01\0\0\0[\x01\0\0\0\0\0\0\0\t\x04\0\0\x02\0\0\0\x01\0\0\0\n\0\0\0\n\0\0\0\x7f\0\0\0\0\0\0\0\n\0\0\0\x02\0\0\0\0\0\0C\x01\0\0\x15\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0.\0!\x80\x03+ \xff\xff\xff\x7f\0\0\0\0\0;\n\0\0pg_statistic\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0b\0\0\0\xfd.\0\0\0\0\0\0\n\0\0\0\x02\0\0\0;\n\0\0\0\0\0\0\x13\0\0\0\0\0\xcbC\x13\0\0\0\x18\x0b\0\0\x01\0pr\x1f\0\0\0\0\0\0\0\0\x01n\0\0\0\0\0\xd6\x02\0\0\x01\0\0\0C\x01\0\0\0\0\0\0\0\t\x04\0\0\x01\0\0\0\x01\0\0\0\n\0\0\0\n\0\0\0\x7f\0\0\0\0\0\0\x02\0\x01")
                 }
             ),
             (
                 Lsn::from_str("0/16D4080").unwrap(),
-                NeonWalRecord::Postgres {
+                SerenDBWalRecord::Postgres {
                     will_init: false,
                     rec: Bytes::from_static(b"\xbc\0\0\0\0\0\0\0h?m\x01\0\0\0\0p\n\0\09\x08\xa3\xea\0 \x8c\0\x7f\x06\0\0\xd22\0\0\xeb\x04\0\0\0\0\0\0\xff\x02\0@\0\0another_table\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x98\x08\0\0\x02@\0\0\0\0\0\0\n\0\0\0\x02\0\0\0\0@\0\0\0\0\0\0\x05\0\0\0\0@zD\x05\0\0\0\0\0\0\0\0\0pr\x01\0\0\0\0\0\0\0\0\x01d\0\0\0\0\0\0\x04\0\0\x01\0\0\0\x02\0")
                 }

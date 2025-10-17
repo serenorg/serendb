@@ -5,5 +5,5 @@
   values: [
     'getpage_wait_seconds_count',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }

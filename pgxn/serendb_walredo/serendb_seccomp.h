@@ -1,5 +1,5 @@
-#ifndef NEON_SECCOMP_H
-#define NEON_SECCOMP_H
+#ifndef SERENDB_SECCOMP_H
+#define SERENDB_SECCOMP_H
 
 #include <seccomp.h>
 
@@ -19,4 +19,4 @@ typedef struct {
 
 extern void seccomp_load_rules(PgSeccompRule *syscalls, int count);
 
-#endif /* NEON_SECCOMP_H */
+#endif /* SERENDB_SECCOMP_H */

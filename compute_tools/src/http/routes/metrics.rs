@@ -48,10 +48,10 @@ pub(in crate::http) async fn get_metrics() -> Response {
         .unwrap()
 }
 
-/// Fetch and forward metrics from the Postgres neon extension's metrics
+/// Fetch and forward metrics from the Postgres SerenDB extension's metrics
 /// exporter that are used by autoscaling-agent.
 ///
-/// The neon extension exposes these metrics over a Unix domain socket
+/// The SerenDB extension exposes these metrics over a Unix domain socket
 /// in the data directory. That's not accessible directly from the outside
 /// world, so we have this endpoint in compute_ctl to expose it
 pub(in crate::http) async fn get_autoscaling_metrics(

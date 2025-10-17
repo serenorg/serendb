@@ -180,7 +180,7 @@ InitLogicalReplicationMonitor(void)
 	BackgroundWorker bgw;
 
 	DefineCustomIntVariable(
-							"neon.logical_replication_max_snap_files",
+							"serendb.logical_replication_max_snap_files",
 							"Maximum allowed logical replication .snap files. When exceeded, slots are dropped until the limit is met. -1 disables the limit.",
 							NULL,
 							&logical_replication_max_snap_files,
@@ -190,7 +190,7 @@ InitLogicalReplicationMonitor(void)
 							NULL, NULL, NULL);
 
 	DefineCustomIntVariable(
-							"neon.logical_replication_max_logicalsnapdir_size",
+							"serendb.logical_replication_max_logicalsnapdir_size",
 							"Maximum allowed size of the pg_logical/snapshots directory (KB). When exceeded, slots are dropped until the limit is met. -1 disables the limit.",
 							NULL,
 							&logical_replication_max_logicalsnapdir_size,
@@ -202,7 +202,7 @@ InitLogicalReplicationMonitor(void)
 	memset(&bgw, 0, sizeof(bgw));
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	snprintf(bgw.bgw_library_name, BGW_MAXLEN, "neon");
+	snprintf(bgw.bgw_library_name, BGW_MAXLEN, "serendb");
 	snprintf(bgw.bgw_function_name, BGW_MAXLEN, "LogicalSlotsMonitorMain");
 	snprintf(bgw.bgw_name, BGW_MAXLEN, "Logical replication monitor");
 	snprintf(bgw.bgw_type, BGW_MAXLEN, "Logical replication monitor");

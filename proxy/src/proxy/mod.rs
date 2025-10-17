@@ -88,7 +88,7 @@ pub(crate) async fn handle_client<S: AsyncRead + AsyncWrite + Unpin + Send>(
         auth::Backend::ControlPlane(cplane, creds) => (cplane, creds),
         auth::Backend::Local(_) => unreachable!("local proxy does not run tcp proxy service"),
     };
-    let params_compat = creds.info.options.get(NeonOptions::PARAMS_COMPAT).is_some();
+    let params_compat = creds.info.options.get(SerenDBOptions::PARAMS_COMPAT).is_some();
     let mut auth_info = compute::AuthInfo::with_auth_keys(creds.keys);
     auth_info.set_startup_params(params, params_compat);
 
@@ -161,29 +161,29 @@ pub(crate) fn send_client_greeting(
     // Forward recorded latencies for probing requests
     if let Some(testodrome_id) = ctx.get_testodrome_id() {
         client.write_message(BeMessage::ParameterStatus {
-            name: "neon.testodrome_id".as_bytes(),
+            name: "serendb.testodrome_id".as_bytes(),
             value: testodrome_id.as_bytes(),
         });
 
         let latency_measured = ctx.get_proxy_latency();
 
         client.write_message(BeMessage::ParameterStatus {
-            name: "neon.cplane_latency".as_bytes(),
+            name: "serendb.cplane_latency".as_bytes(),
             value: latency_measured.cplane.as_micros().to_string().as_bytes(),
         });
 
         client.write_message(BeMessage::ParameterStatus {
-            name: "neon.client_latency".as_bytes(),
+            name: "serendb.client_latency".as_bytes(),
             value: latency_measured.client.as_micros().to_string().as_bytes(),
         });
 
         client.write_message(BeMessage::ParameterStatus {
-            name: "neon.compute_latency".as_bytes(),
+            name: "serendb.compute_latency".as_bytes(),
             value: latency_measured.compute.as_micros().to_string().as_bytes(),
         });
 
         client.write_message(BeMessage::ParameterStatus {
-            name: "neon.retry_latency".as_bytes(),
+            name: "serendb.retry_latency".as_bytes(),
             value: latency_measured.retry.as_micros().to_string().as_bytes(),
         });
     }
@@ -247,9 +247,9 @@ pub(crate) async fn forward_compute_params_to_client(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub(crate) struct NeonOptions(Vec<(SmolStr, SmolStr)>);
+pub(crate) struct SerenDBOptions(Vec<(SmolStr, SmolStr)>);
 
-impl NeonOptions {
+impl SerenDBOptions {
     // proxy options:
 
     /// `PARAMS_COMPAT` allows opting in to forwarding all startup parameters from client to compute.
@@ -299,7 +299,7 @@ impl NeonOptions {
 
     fn parse_from_iter<'a>(options: impl Iterator<Item = &'a str>) -> Self {
         let mut options = options
-            .filter_map(neon_option)
+            .filter_map(serendb_option)
             .map(|(k, v)| (k.into(), v.into()))
             .collect_vec();
         options.sort();
@@ -325,9 +325,9 @@ impl NeonOptions {
     }
 }
 
-pub(crate) fn neon_option(bytes: &str) -> Option<(&str, &str)> {
+pub(crate) fn serendb_option(bytes: &str) -> Option<(&str, &str)> {
     static RE: OnceCell<Regex> = OnceCell::new();
-    let re = RE.get_or_init(|| Regex::new(r"^neon_(\w+):(.+)").expect("regex should be correct"));
+    let re = RE.get_or_init(|| Regex::new(r"^serendb_(\w+):(.+)").expect("regex should be correct"));
 
     let cap = re.captures(bytes)?;
     let (_, [k, v]) = cap.extract();

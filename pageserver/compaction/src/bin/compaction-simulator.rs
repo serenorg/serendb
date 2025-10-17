@@ -13,7 +13,7 @@ project_git_version!(GIT_VERSION);
 #[derive(Parser)]
 #[command(
     version = GIT_VERSION,
-    about = "Neon Pageserver compaction simulator",
+    about = "SerenDB Pageserver compaction simulator",
     long_about = "A developer tool to visualize and test compaction"
 )]
 #[command(propagate_version = true)]

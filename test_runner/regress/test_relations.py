@@ -3,17 +3,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnvBuilder,
     )
 
-from fixtures.neon_fixtures import wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import wait_for_last_flush_lsn
 
 
 def test_pageserver_reldir_v2(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "rel_size_v2_enabled": "false",
         }

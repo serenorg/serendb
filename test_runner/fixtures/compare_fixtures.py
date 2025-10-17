@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING, final
 import pytest
 from typing_extensions import override
 
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
+    SerenDBEnv,
     PgBin,
     PgProtocol,
     RemotePostgres,
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 class PgCompare(ABC):
     """Common interface of all postgres implementations, useful for benchmarks.
 
-    This class is a helper class for the neon_with_baseline fixture. See its documentation
+    This class is a helper class for the serendb_with_baseline fixture. See its documentation
     for more details.
     """
 
@@ -52,7 +52,7 @@ class PgCompare(ABC):
 
     @property
     @abstractmethod
-    def zenbenchmark(self) -> NeonBenchmarker:
+    def zenbenchmark(self) -> SerenDBBenchmarker:
         pass
 
     @abstractmethod
@@ -109,21 +109,21 @@ class PgCompare(ABC):
 
 
 @final
-class NeonCompare(PgCompare):
-    """PgCompare interface for the neon stack."""
+class SerenDBCompare(PgCompare):
+    """PgCompare interface for the SerenDB stack."""
 
     def __init__(
         self,
-        zenbenchmark: NeonBenchmarker,
-        neon_simple_env: NeonEnv,
+        zenbenchmark: SerenDBBenchmarker,
+        serendb_simple_env: SerenDBEnv,
         pg_bin: PgBin,
     ):
-        self.env = neon_simple_env
+        self.env = serendb_simple_env
         self._zenbenchmark = zenbenchmark
         self._pg_bin = pg_bin
         self.pageserver_http_client = self.env.pageserver.http_client()
 
-        # note that neon_simple_env now uses LOCAL_FS remote storage
+        # note that serendb_simple_env now uses LOCAL_FS remote storage
         self.tenant = self.env.initial_tenant
         self.timeline = self.env.initial_timeline
 
@@ -141,7 +141,7 @@ class NeonCompare(PgCompare):
 
     @property
     @override
-    def zenbenchmark(self) -> NeonBenchmarker:
+    def zenbenchmark(self) -> SerenDBBenchmarker:
         return self._zenbenchmark
 
     @property
@@ -218,7 +218,7 @@ class NeonCompare(PgCompare):
 class VanillaCompare(PgCompare):
     """PgCompare interface for vanilla postgres."""
 
-    def __init__(self, zenbenchmark: NeonBenchmarker, vanilla_pg: VanillaPostgres):
+    def __init__(self, zenbenchmark: SerenDBBenchmarker, vanilla_pg: VanillaPostgres):
         self._pg = vanilla_pg
         self._zenbenchmark = zenbenchmark
         vanilla_pg.configure(
@@ -240,7 +240,7 @@ class VanillaCompare(PgCompare):
 
     @property
     @override
-    def zenbenchmark(self) -> NeonBenchmarker:
+    def zenbenchmark(self) -> SerenDBBenchmarker:
         return self._zenbenchmark
 
     @property
@@ -284,7 +284,7 @@ class VanillaCompare(PgCompare):
 class RemoteCompare(PgCompare):
     """PgCompare interface for a remote postgres instance."""
 
-    def __init__(self, zenbenchmark: NeonBenchmarker, remote_pg: RemotePostgres):
+    def __init__(self, zenbenchmark: SerenDBBenchmarker, remote_pg: RemotePostgres):
         self._pg = remote_pg
         self._zenbenchmark = zenbenchmark
 
@@ -299,7 +299,7 @@ class RemoteCompare(PgCompare):
 
     @property
     @override
-    def zenbenchmark(self) -> NeonBenchmarker:
+    def zenbenchmark(self) -> SerenDBBenchmarker:
         return self._zenbenchmark
 
     @property
@@ -336,31 +336,31 @@ class RemoteCompare(PgCompare):
 
 
 @pytest.fixture(scope="function")
-def neon_compare(
-    zenbenchmark: NeonBenchmarker,
+def serendb_compare(
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
-    neon_simple_env: NeonEnv,
-) -> NeonCompare:
-    return NeonCompare(zenbenchmark, neon_simple_env, pg_bin)
+    serendb_simple_env: SerenDBEnv,
+) -> SerenDBCompare:
+    return SerenDBCompare(zenbenchmark, serendb_simple_env, pg_bin)
 
 
 @pytest.fixture(scope="function")
-def vanilla_compare(zenbenchmark: NeonBenchmarker, vanilla_pg: VanillaPostgres) -> VanillaCompare:
+def vanilla_compare(zenbenchmark: SerenDBBenchmarker, vanilla_pg: VanillaPostgres) -> VanillaCompare:
     return VanillaCompare(zenbenchmark, vanilla_pg)
 
 
 @pytest.fixture(scope="function")
-def remote_compare(zenbenchmark: NeonBenchmarker, remote_pg: RemotePostgres) -> RemoteCompare:
+def remote_compare(zenbenchmark: SerenDBBenchmarker, remote_pg: RemotePostgres) -> RemoteCompare:
     return RemoteCompare(zenbenchmark, remote_pg)
 
 
-@pytest.fixture(params=["vanilla_compare", "neon_compare"], ids=["vanilla", "neon"])
-def neon_with_baseline(request: FixtureRequest) -> PgCompare:
-    """Parameterized fixture that helps compare neon against vanilla postgres.
+@pytest.fixture(params=["vanilla_compare", "serendb_compare"], ids=["vanilla", "serendb"])
+def serendb_with_baseline(request: FixtureRequest) -> PgCompare:
+    """Parameterized fixture that helps compare SerenDB against vanilla postgres.
 
     A test that uses this fixture turns into a parameterized test that runs against:
     1. A vanilla postgres instance
-    2. A simple neon env (see neon_simple_env)
+    2. A simple SerenDB env (see serendb_simple_env)
     3. Possibly other postgres protocol implementations.
 
     The main goal of this fixture is to make it easier for people to read and write
@@ -372,7 +372,7 @@ def neon_with_baseline(request: FixtureRequest) -> PgCompare:
     of that.
 
     If a test requires some one-off special implementation-specific logic, use of
-    isinstance(neon_with_baseline, NeonCompare) is encouraged. Though if that
+    isinstance(serendb_with_baseline, SerenDBCompare) is encouraged. Though if that
     implementation-specific logic is widely useful across multiple tests, it might
     make sense to add methods to the PgCompare class.
     """

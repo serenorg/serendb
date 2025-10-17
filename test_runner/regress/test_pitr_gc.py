@@ -7,23 +7,23 @@ from fixtures.log_helper import log
 from fixtures.utils import print_gc_result, query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Check pitr_interval GC behavior.
 # Insert some data, run GC and create a branch in the past.
 #
-def test_pitr_gc(neon_env_builder: NeonEnvBuilder):
+def test_pitr_gc(serendb_env_builder: SerenDBEnvBuilder):
     # Set pitr interval such that we need to keep the data
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={"pitr_interval": "1 day", "gc_horizon": "0"}
     )
     endpoint_main = env.endpoints.create_start("main")
 
     main_pg_conn = endpoint_main.connect()
     main_cur = main_pg_conn.cursor()
-    timeline = TimelineId(query_scalar(main_cur, "SHOW neon.timeline_id"))
+    timeline = TimelineId(query_scalar(main_cur, "SHOW serendb.timeline_id"))
 
     # Create table
     main_cur.execute("CREATE TABLE foo (t text)")

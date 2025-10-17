@@ -26,7 +26,7 @@
  * The communicator functions take request LSNs as arguments; the caller is
  * responsible for determining the correct LSNs to use. There's one exception
  * to that, in prefetch_do_request(); it sometimes calls back to
- * neon_get_request_lsns().  That's because sometimes a suitable response is
+ * serendb_get_request_lsns().  That's because sometimes a suitable response is
  * found in the prefetch buffer and the request LSns are not needed, and the
  * caller doesn't know whether it's needed or not.
  *
@@ -71,16 +71,16 @@
 #include "bitmap.h"
 #include "communicator.h"
 #include "file_cache.h"
-#include "neon.h"
-#include "neon_perf_counters.h"
+#include "serendb.h"
+#include "serendb_perf_counters.h"
 #include "pagestore_client.h"
 
 #if PG_VERSION_NUM >= 150000
 #include "access/xlogrecovery.h"
 #endif
 
-#define NEON_PANIC_CONNECTION_STATE(shard_no, elvl, message, ...) \
-	neon_shard_log(shard_no, elvl, "Broken connection state: " message, \
+#define SERENDB_PANIC_CONNECTION_STATE(shard_no, elvl, message, ...) \
+	serendb_shard_log(shard_no, elvl, "Broken connection state: " message, \
 				   ##__VA_ARGS__)
 
 page_server_api *page_server;
@@ -135,7 +135,7 @@ static void pagestore_timeout_handler(void);
  * this also will allow us to receive other prefetched pages.
  * Each request is immediately written to the output buffer of the pageserver
  * connection, but may not be flushed if smgr_prefetch is used: pageserver
- * flushes sent requests on manual flush, or every neon.flush_output_after
+ * flushes sent requests on manual flush, or every serendb.flush_output_after
  * unflushed requests; which is not necessarily always and all the time.
  *
  * Once we have received a response, this value will be stored in the response
@@ -190,9 +190,9 @@ typedef struct PrefetchRequest
 	shardno_t	shard_no;
 	uint8		status;		/* see PrefetchStatus for valid values */
 	uint8		flags;		/* see PrefetchRequestFlags */
-	neon_request_lsns request_lsns;
-	NeonRequestId reqid;
-	NeonResponse *response;		/* may be null */
+	serendb_request_lsns request_lsns;
+	SerenDBRequestId reqid;
+	SerenDBResponse *response;		/* may be null */
 	uint64		my_ring_index;
 } PrefetchRequest;
 
@@ -292,16 +292,16 @@ static process_interrupts_callback_t prev_interrupt_cb;
 
 static bool compact_prefetch_buffers(void);
 static void consume_prefetch_responses(void);
-static uint64 prefetch_register_bufferv(BufferTag tag, neon_request_lsns *frlsns,
+static uint64 prefetch_register_bufferv(BufferTag tag, serendb_request_lsns *frlsns,
 										BlockNumber nblocks, const bits8 *mask,
 										bool is_prefetch);
 static bool prefetch_read(PrefetchRequest *slot);
-static void prefetch_do_request(PrefetchRequest *slot, neon_request_lsns *force_request_lsns);
+static void prefetch_do_request(PrefetchRequest *slot, serendb_request_lsns *force_request_lsns);
 static bool prefetch_wait_for(uint64 ring_index);
 static void prefetch_cleanup_trailing_unused(void);
 static inline void prefetch_set_unused(uint64 ring_index);
 
-static bool neon_prefetch_response_usable(neon_request_lsns *request_lsns,
+static bool serendb_prefetch_response_usable(serendb_request_lsns *request_lsns,
 										  PrefetchRequest *slot);
 static bool communicator_processinterrupts(void);
 
@@ -388,7 +388,7 @@ compact_prefetch_buffers(void)
 		};
 		source_slot->response = NULL;
 		source_slot->my_ring_index = 0;
-		source_slot->request_lsns = (neon_request_lsns) {
+		source_slot->request_lsns = (serendb_request_lsns) {
 			InvalidXLogRecPtr, InvalidXLogRecPtr, InvalidXLogRecPtr
 		};
 
@@ -413,19 +413,19 @@ compact_prefetch_buffers(void)
  * Check that prefetch response matches the slot
  */
 static void
-check_getpage_response(PrefetchRequest* slot, NeonResponse* resp)
+check_getpage_response(PrefetchRequest* slot, SerenDBResponse* resp)
 {
-	if (resp->tag != T_NeonGetPageResponse && resp->tag != T_NeonErrorResponse)
+	if (resp->tag != T_SerenDBGetPageResponse && resp->tag != T_SerenDBErrorResponse)
 	{
-		neon_shard_log(slot->shard_no, PANIC, "Unexpected prefetch response %d, ring_receive=" UINT64_FORMAT ", ring_flush=" UINT64_FORMAT ", ring_unused=" UINT64_FORMAT "",
+		serendb_shard_log(slot->shard_no, PANIC, "Unexpected prefetch response %d, ring_receive=" UINT64_FORMAT ", ring_flush=" UINT64_FORMAT ", ring_unused=" UINT64_FORMAT "",
 					   resp->tag, MyPState->ring_receive, MyPState->ring_flush, MyPState->ring_unused);
 	}
-	if (neon_protocol_version >= 3)
+	if (serendb_protocol_version >= 3)
 	{
 		NRelFileInfo rinfo = BufTagGetNRelFileInfo(slot->buftag);
-		if (resp->tag == T_NeonGetPageResponse)
+		if (resp->tag == T_SerenDBGetPageResponse)
 		{
-			NeonGetPageResponse * getpage_resp = (NeonGetPageResponse *)resp;
+			SerenDBGetPageResponse * getpage_resp = (SerenDBGetPageResponse *)resp;
 			if (resp->reqid != slot->reqid ||
 				resp->lsn != slot->request_lsns.request_lsn ||
 				resp->not_modified_since != slot->request_lsns.not_modified_since ||
@@ -433,7 +433,7 @@ check_getpage_response(PrefetchRequest* slot, NeonResponse* resp)
 				getpage_resp->req.forknum != slot->buftag.forkNum ||
 				getpage_resp->req.blkno != slot->buftag.blockNum)
 			{
-				NEON_PANIC_CONNECTION_STATE(slot->shard_no, PANIC,
+				SERENDB_PANIC_CONNECTION_STATE(slot->shard_no, PANIC,
 											"Receive unexpected getpage response {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u, block=%u} to get page request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u, block=%u}",
 											resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since), RelFileInfoFmt(getpage_resp->req.rinfo), getpage_resp->req.forknum, getpage_resp->req.blkno,
 											slot->reqid, LSN_FORMAT_ARGS(slot->request_lsns.request_lsn), LSN_FORMAT_ARGS(slot->request_lsns.not_modified_since), RelFileInfoFmt(rinfo), slot->buftag.forkNum, slot->buftag.blockNum);
@@ -443,7 +443,7 @@ check_getpage_response(PrefetchRequest* slot, NeonResponse* resp)
 				 resp->lsn != slot->request_lsns.request_lsn ||
 				 resp->not_modified_since != slot->request_lsns.not_modified_since)
 		{
-			elog(WARNING, NEON_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match exists request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
+			elog(WARNING, SERENDB_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match exists request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
 				 resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since),
 				 slot->reqid, LSN_FORMAT_ARGS(slot->request_lsns.request_lsn), LSN_FORMAT_ARGS(slot->request_lsns.not_modified_since));
 		}
@@ -471,7 +471,7 @@ communicator_prefetch_pump_state(void)
 
 	while (MyPState->ring_receive != MyPState->ring_flush)
 	{
-		NeonResponse   *response;
+		SerenDBResponse   *response;
 		PrefetchRequest *slot;
 		MemoryContext	old;
 
@@ -491,7 +491,7 @@ communicator_prefetch_pump_state(void)
 			slot->response != NULL ||
 			slot->my_ring_index != MyPState->ring_receive)
 		{
-			neon_shard_log(slot->shard_no, PANIC,
+			serendb_shard_log(slot->shard_no, PANIC,
 						   "Incorrect prefetch slot state after receive: status=%d response=%p my=" UINT64_FORMAT " receive=" UINT64_FORMAT "",
 						   slot->status, slot->response,
 						   slot->my_ring_index, MyPState->ring_receive);
@@ -500,20 +500,20 @@ communicator_prefetch_pump_state(void)
 		MyPState->n_responses_buffered += 1;
 		MyPState->n_requests_inflight -= 1;
 		MyPState->ring_receive += 1;
-		MyNeonCounters->getpage_prefetches_buffered =
+		MySerenDBCounters->getpage_prefetches_buffered =
 			MyPState->n_responses_buffered;
 
 		/* update slot state */
 		slot->status = PRFS_RECEIVED;
 		slot->response = response;
 
-		if (response->tag == T_NeonGetPageResponse && !(slot->flags & PRFSF_LFC) && lfc_store_prefetch_result)
+		if (response->tag == T_SerenDBGetPageResponse && !(slot->flags & PRFSF_LFC) && lfc_store_prefetch_result)
 		{
 			/*
 			 * Store prefetched result in LFC (please read comments to lfc_prefetch
 			 * explaining why it can be done without holding shared buffer lock
 			 */
-			if (lfc_prefetch(BufTagGetNRelFileInfo(slot->buftag), slot->buftag.forkNum, slot->buftag.blockNum, ((NeonGetPageResponse*)response)->page, slot->request_lsns.not_modified_since))
+			if (lfc_prefetch(BufTagGetNRelFileInfo(slot->buftag), slot->buftag.forkNum, slot->buftag.blockNum, ((SerenDBGetPageResponse*)response)->page, slot->request_lsns.not_modified_since))
 			{
 				slot->flags |= PRFSF_LFC;
 			}
@@ -613,9 +613,9 @@ readahead_buffer_resize(int newsize, void *extra)
 	}
 	newPState->ring_flush = newPState->ring_receive;
 
-	MyNeonCounters->getpage_prefetches_buffered =
+	MySerenDBCounters->getpage_prefetches_buffered =
 		MyPState->n_responses_buffered;
-	MyNeonCounters->pageserver_open_requests =
+	MySerenDBCounters->pageserver_open_requests =
 		MyPState->n_requests_inflight;
 
 	for (; end >= MyPState->ring_last && end != UINT64_MAX; end -= 1)
@@ -769,7 +769,7 @@ prefetch_wait_for(uint64 ring_index)
 static bool
 prefetch_read(PrefetchRequest *slot)
 {
-	NeonResponse *response;
+	SerenDBResponse *response;
 	MemoryContext old;
 	BufferTag	buftag;
 	shardno_t	shard_no;
@@ -784,7 +784,7 @@ prefetch_read(PrefetchRequest *slot)
 		slot->response != NULL ||
 		slot->my_ring_index != MyPState->ring_receive)
 	{
-		neon_shard_log(slot->shard_no, PANIC,
+		serendb_shard_log(slot->shard_no, PANIC,
 					   "Incorrect prefetch read: status=%d response=%p my=" UINT64_FORMAT " receive=" UINT64_FORMAT "",
 					   slot->status, slot->response,
 					   slot->my_ring_index, MyPState->ring_receive);
@@ -800,7 +800,7 @@ prefetch_read(PrefetchRequest *slot)
 	my_ring_index = slot->my_ring_index;
 
 	old = MemoryContextSwitchTo(MyPState->errctx);
-	response = (NeonResponse *) page_server->receive(shard_no);
+	response = (SerenDBResponse *) page_server->receive(shard_no);
 	MemoryContextSwitchTo(old);
 	if (response)
 	{
@@ -811,7 +811,7 @@ prefetch_read(PrefetchRequest *slot)
 			slot->response != NULL ||
 			slot->my_ring_index != MyPState->ring_receive)
 		{
-			neon_shard_log(shard_no, PANIC,
+			serendb_shard_log(shard_no, PANIC,
 						   "Incorrect prefetch slot state after receive: status=%d response=%p my=" UINT64_FORMAT " receive=" UINT64_FORMAT "",
 						   slot->status, slot->response,
 						   slot->my_ring_index, MyPState->ring_receive);
@@ -821,20 +821,20 @@ prefetch_read(PrefetchRequest *slot)
 		MyPState->n_responses_buffered += 1;
 		MyPState->n_requests_inflight -= 1;
 		MyPState->ring_receive += 1;
-		MyNeonCounters->getpage_prefetches_buffered =
+		MySerenDBCounters->getpage_prefetches_buffered =
 			MyPState->n_responses_buffered;
 
 		/* update slot state */
 		slot->status = PRFS_RECEIVED;
 		slot->response = response;
 
-		if (response->tag == T_NeonGetPageResponse && !(slot->flags & PRFSF_LFC) && lfc_store_prefetch_result)
+		if (response->tag == T_SerenDBGetPageResponse && !(slot->flags & PRFSF_LFC) && lfc_store_prefetch_result)
 		{
 			/*
 			 * Store prefetched result in LFC (please read comments to lfc_prefetch
 			 * explaining why it can be done without holding shared buffer lock
 			 */
-			if (lfc_prefetch(BufTagGetNRelFileInfo(buftag), buftag.forkNum, buftag.blockNum, ((NeonGetPageResponse*)response)->page, slot->request_lsns.not_modified_since))
+			if (lfc_prefetch(BufTagGetNRelFileInfo(buftag), buftag.forkNum, buftag.blockNum, ((SerenDBGetPageResponse*)response)->page, slot->request_lsns.not_modified_since))
 			{
 				slot->flags |= PRFSF_LFC;
 			}
@@ -847,7 +847,7 @@ prefetch_read(PrefetchRequest *slot)
 		 * Note: The slot might no longer be valid, if the connection was lost
 		 * and the prefetch queue was flushed during the receive call
 		 */
-		neon_shard_log(shard_no, LOG,
+		serendb_shard_log(shard_no, LOG,
 					   "No response from reading prefetch entry " UINT64_FORMAT ": %u/%u/%u.%u block %u. This can be caused by a concurrent disconnect",
 					   my_ring_index,
 					   RelFileInfoFmt(BufTagGetNRelFileInfo(buftag)),
@@ -917,16 +917,16 @@ prefetch_on_ps_disconnect(void)
 
 		prefetch_set_unused(ring_index);
 		pgBufferUsage.prefetch.expired += 1;
-		MyNeonCounters->getpage_prefetch_discards_total += 1;
+		MySerenDBCounters->getpage_prefetch_discards_total += 1;
 	}
 
 	/*
 	 * We can have gone into retry due to network error, so update stats with
 	 * the latest available
 	 */
-	MyNeonCounters->pageserver_open_requests =
+	MySerenDBCounters->pageserver_open_requests =
 		MyPState->n_requests_inflight;
-	MyNeonCounters->getpage_prefetches_buffered =
+	MySerenDBCounters->getpage_prefetches_buffered =
 		MyPState->n_responses_buffered;
 
 	RESUME_INTERRUPTS();
@@ -963,7 +963,7 @@ prefetch_set_unused(uint64 ring_index)
 		MyPState->n_responses_buffered -= 1;
 		MyPState->n_unused += 1;
 
-		MyNeonCounters->getpage_prefetches_buffered =
+		MySerenDBCounters->getpage_prefetches_buffered =
 			MyPState->n_responses_buffered;
 	}
 	else
@@ -994,13 +994,13 @@ prefetch_set_unused(uint64 ring_index)
  * prefetch_wait_for().
  */
 static void
-prefetch_do_request(PrefetchRequest *slot, neon_request_lsns *force_request_lsns)
+prefetch_do_request(PrefetchRequest *slot, serendb_request_lsns *force_request_lsns)
 {
 	bool		found;
 	uint64		mySlotNo PG_USED_FOR_ASSERTS_ONLY = slot->my_ring_index;
 
-	NeonGetPageRequest request = {
-		.hdr.tag = T_NeonGetPageRequest,
+	SerenDBGetPageRequest request = {
+		.hdr.tag = T_SerenDBGetPageRequest,
 		/* lsn and not_modified_since are filled in below */
 		.rinfo = BufTagGetNRelFileInfo(slot->buftag),
 		.forknum = slot->buftag.forkNum,
@@ -1012,7 +1012,7 @@ prefetch_do_request(PrefetchRequest *slot, neon_request_lsns *force_request_lsns
 	if (force_request_lsns)
 		slot->request_lsns = *force_request_lsns;
 	else
-		neon_get_request_lsns(BufTagGetNRelFileInfo(slot->buftag),
+		serendb_get_request_lsns(BufTagGetNRelFileInfo(slot->buftag),
 							  slot->buftag.forkNum, slot->buftag.blockNum,
 							  &slot->request_lsns, 1);
 	request.hdr.lsn = slot->request_lsns.request_lsn;
@@ -1021,7 +1021,7 @@ prefetch_do_request(PrefetchRequest *slot, neon_request_lsns *force_request_lsns
 	Assert(slot->response == NULL);
 	Assert(slot->my_ring_index == MyPState->ring_unused);
 
-	while (!page_server->send(slot->shard_no, (NeonRequest *) &request))
+	while (!page_server->send(slot->shard_no, (SerenDBRequest *) &request))
 	{
 		Assert(mySlotNo == MyPState->ring_unused);
 		/* loop */
@@ -1047,7 +1047,7 @@ prefetch_do_request(PrefetchRequest *slot, neon_request_lsns *force_request_lsns
  */
 int
 communicator_prefetch_lookupv(NRelFileInfo rinfo, ForkNumber forknum, BlockNumber blocknum,
-							  neon_request_lsns *lsns, BlockNumber nblocks,
+							  serendb_request_lsns *lsns, BlockNumber nblocks,
 							  void **buffers, bits8 *mask)
 {
 	int hits = 0;
@@ -1086,18 +1086,18 @@ communicator_prefetch_lookupv(NRelFileInfo rinfo, ForkNumber forknum, BlockNumbe
 			 * If the caller specified a request LSN to use, only accept
 			 * prefetch responses that satisfy that request.
 			 */
-			if (!neon_prefetch_response_usable(&lsns[i], slot))
+			if (!serendb_prefetch_response_usable(&lsns[i], slot))
 				continue;
 
 			/*
 			 * Ignore errors
 			 */
-			if (slot->response->tag == T_NeonErrorResponse)
+			if (slot->response->tag == T_SerenDBErrorResponse)
 			{
 				continue;
 			}
-			Assert(slot->response->tag == T_NeonGetPageResponse); /* checked by check_getpage_response when response was assigned to the slot */
-			memcpy(buffers[i], ((NeonGetPageResponse*)slot->response)->page, BLCKSZ);
+			Assert(slot->response->tag == T_SerenDBGetPageResponse); /* checked by check_getpage_response when response was assigned to the slot */
+			memcpy(buffers[i], ((SerenDBGetPageResponse*)slot->response)->page, BLCKSZ);
 
 
 			/*
@@ -1141,7 +1141,7 @@ communicator_prefetch_lookupv(NRelFileInfo rinfo, ForkNumber forknum, BlockNumbe
  * invalidates any active pointers into the hash table.
  */
 void
-communicator_prefetch_register_bufferv(BufferTag tag, neon_request_lsns *frlsns,
+communicator_prefetch_register_bufferv(BufferTag tag, serendb_request_lsns *frlsns,
 									   BlockNumber nblocks, const bits8 *mask)
 {
 	uint64		ring_index PG_USED_FOR_ASSERTS_ONLY;
@@ -1156,7 +1156,7 @@ communicator_prefetch_register_bufferv(BufferTag tag, neon_request_lsns *frlsns,
 *  when nblocks==1)
 */
 static uint64
-prefetch_register_bufferv(BufferTag tag, neon_request_lsns *frlsns,
+prefetch_register_bufferv(BufferTag tag, serendb_request_lsns *frlsns,
 						  BlockNumber nblocks, const bits8 *mask,
 						  bool is_prefetch)
 {
@@ -1180,9 +1180,9 @@ Retry:
 	 * We can have gone into retry due to network error, so update stats with
 	 * the latest available
 	 */
-	MyNeonCounters->pageserver_open_requests =
+	MySerenDBCounters->pageserver_open_requests =
 		MyPState->ring_unused - MyPState->ring_receive;
-	MyNeonCounters->getpage_prefetches_buffered =
+	MySerenDBCounters->getpage_prefetches_buffered =
 		MyPState->n_responses_buffered;
 	last_ring_index = UINT64_MAX;
 
@@ -1190,7 +1190,7 @@ Retry:
 	{
 		PrefetchRequest *slot = NULL;
 		PrfHashEntry *entry = NULL;
-		neon_request_lsns *lsns;
+		serendb_request_lsns *lsns;
 
 		if (PointerIsValid(mask) && BITMAP_ISSET(mask, i))
 			continue;
@@ -1227,7 +1227,7 @@ Retry:
 			 */
 			if (!is_prefetch)
 			{
-				if (!neon_prefetch_response_usable(lsns, slot))
+				if (!serendb_prefetch_response_usable(lsns, slot))
 				{
 					/* Wait for the old request to finish and discard it */
 					if (!prefetch_wait_for(last_ring_index))
@@ -1236,7 +1236,7 @@ Retry:
 					entry = NULL;
 					slot = NULL;
 					pgBufferUsage.prefetch.expired += 1;
-					MyNeonCounters->getpage_prefetch_discards_total += 1;
+					MySerenDBCounters->getpage_prefetch_discards_total += 1;
 				}
 			}
 
@@ -1265,7 +1265,7 @@ Retry:
 		else if (!is_prefetch)
 		{
 			pgBufferUsage.prefetch.misses += 1;
-			MyNeonCounters->getpage_prefetch_misses_total++;
+			MySerenDBCounters->getpage_prefetch_misses_total++;
 		}
 		/*
 		 * We can only leave the block above by finding that there's
@@ -1325,13 +1325,13 @@ Retry:
 							goto Retry;
 						prefetch_set_unused(cleanup_index);
 						pgBufferUsage.prefetch.expired += 1;
-						MyNeonCounters->getpage_prefetch_discards_total += 1;
+						MySerenDBCounters->getpage_prefetch_discards_total += 1;
 						break;
 					case PRFS_RECEIVED:
 					case PRFS_TAG_REMAINS:
 						prefetch_set_unused(cleanup_index);
 						pgBufferUsage.prefetch.expired += 1;
-						MyNeonCounters->getpage_prefetch_discards_total += 1;
+						MySerenDBCounters->getpage_prefetch_discards_total += 1;
 						break;
 					default:
 						pg_unreachable();
@@ -1362,14 +1362,14 @@ Retry:
 		slot->flags = 0;
 
 		if (is_prefetch)
-			MyNeonCounters->getpage_prefetch_requests_total++;
+			MySerenDBCounters->getpage_prefetch_requests_total++;
 		else
-			MyNeonCounters->getpage_sync_requests_total++;
+			MySerenDBCounters->getpage_sync_requests_total++;
 
 		prefetch_do_request(slot, lsns);
 	}
 
-	MyNeonCounters->pageserver_open_requests =
+	MySerenDBCounters->pageserver_open_requests =
 		MyPState->ring_unused - MyPState->ring_receive;
 
 	Assert(any_hits);
@@ -1398,7 +1398,7 @@ Retry:
 }
 
 static bool
-equal_requests(NeonRequest* a, NeonRequest* b)
+equal_requests(SerenDBRequest* a, SerenDBRequest* b)
 {
 	return a->reqid == b->reqid && a->lsn == b->lsn && a->not_modified_since == b->not_modified_since;
 }
@@ -1408,30 +1408,30 @@ equal_requests(NeonRequest* a, NeonRequest* b)
  * Note: this function can get canceled and use a long jump to the next catch
  * context. Take care.
  */
-static NeonResponse *
+static SerenDBResponse *
 page_server_request(void const *req)
 {
-	NeonResponse *resp = NULL;
+	SerenDBResponse *resp = NULL;
 	BufferTag tag = {0};
 	shardno_t shard_no;
 
 	switch (messageTag(req))
 	{
-		case T_NeonExistsRequest:
-			CopyNRelFileInfoToBufTag(tag, ((NeonExistsRequest *) req)->rinfo);
+		case T_SerenDBExistsRequest:
+			CopyNRelFileInfoToBufTag(tag, ((SerenDBExistsRequest *) req)->rinfo);
 			break;
-		case T_NeonNblocksRequest:
-			CopyNRelFileInfoToBufTag(tag, ((NeonNblocksRequest *) req)->rinfo);
+		case T_SerenDBNblocksRequest:
+			CopyNRelFileInfoToBufTag(tag, ((SerenDBNblocksRequest *) req)->rinfo);
 			break;
-		case T_NeonDbSizeRequest:
-			NInfoGetDbOid(BufTagGetNRelFileInfo(tag)) = ((NeonDbSizeRequest *) req)->dbNode;
+		case T_SerenDBSizeRequest:
+			NInfoGetDbOid(BufTagGetNRelFileInfo(tag)) = ((SerenDBSizeRequest *) req)->dbNode;
 			break;
-		case T_NeonGetPageRequest:
-			CopyNRelFileInfoToBufTag(tag, ((NeonGetPageRequest *) req)->rinfo);
-			tag.blockNum = ((NeonGetPageRequest *) req)->blkno;
+		case T_SerenDBGetPageRequest:
+			CopyNRelFileInfoToBufTag(tag, ((SerenDBGetPageRequest *) req)->rinfo);
+			tag.blockNum = ((SerenDBGetPageRequest *) req)->blkno;
 			break;
 		default:
-			neon_log(PANIC, "Unexpected request tag: %d", messageTag(req));
+			serendb_log(PANIC, "Unexpected request tag: %d", messageTag(req));
 	}
 	shard_no = get_shard_number(&tag);
 
@@ -1439,7 +1439,7 @@ page_server_request(void const *req)
 	 * Current sharding model assumes that all metadata is present only at shard 0.
 	 * We still need to call get_shard_no() to check if shard map is up-to-date.
 	 */
-	if (((NeonRequest *) req)->tag != T_NeonGetPageRequest)
+	if (((SerenDBRequest *) req)->tag != T_SerenDBGetPageRequest)
 	{
 		shard_no = 0;
 	}
@@ -1451,14 +1451,14 @@ page_server_request(void const *req)
 		before_shmem_exit(prefetch_on_exit, Int32GetDatum(shard_no));
 		do
 		{
-			while (!page_server->send(shard_no, (NeonRequest *) req)
+			while (!page_server->send(shard_no, (SerenDBRequest *) req)
 				   || !page_server->flush(shard_no))
 			{
 				/* do nothing */
 			}
-			MyNeonCounters->pageserver_open_requests++;
+			MySerenDBCounters->pageserver_open_requests++;
 			resp = page_server->receive(shard_no);
-			MyNeonCounters->pageserver_open_requests--;
+			MySerenDBCounters->pageserver_open_requests--;
 		} while (resp == NULL);
 		cancel_before_shmem_exit(prefetch_on_exit, Int32GetDatum(shard_no));
 	}
@@ -1468,7 +1468,7 @@ page_server_request(void const *req)
 		/* Nothing should cancel disconnect: we should not leave connection in opaque state */
 		HOLD_INTERRUPTS();
 		page_server->disconnect(shard_no);
-		MyNeonCounters->pageserver_open_requests = 0;
+		MySerenDBCounters->pageserver_open_requests = 0;
 		RESUME_INTERRUPTS();
 
 		PG_RE_THROW();
@@ -1481,14 +1481,14 @@ page_server_request(void const *req)
 
 
 StringInfoData
-nm_pack_request(NeonRequest *msg)
+nm_pack_request(SerenDBRequest *msg)
 {
 	StringInfoData s;
 
 	initStringInfo(&s);
 
 	pq_sendbyte(&s, msg->tag);
-	if (neon_protocol_version >= 3)
+	if (serendb_protocol_version >= 3)
 	{
 		pq_sendint64(&s, msg->reqid);
 	}
@@ -1498,9 +1498,9 @@ nm_pack_request(NeonRequest *msg)
 	switch (messageTag(msg))
 	{
 			/* pagestore_client -> pagestore */
-		case T_NeonExistsRequest:
+		case T_SerenDBExistsRequest:
 			{
-				NeonExistsRequest *msg_req = (NeonExistsRequest *) msg;
+				SerenDBExistsRequest *msg_req = (SerenDBExistsRequest *) msg;
 
 				pq_sendint32(&s, NInfoGetSpcOid(msg_req->rinfo));
 				pq_sendint32(&s, NInfoGetDbOid(msg_req->rinfo));
@@ -1509,9 +1509,9 @@ nm_pack_request(NeonRequest *msg)
 
 				break;
 			}
-		case T_NeonNblocksRequest:
+		case T_SerenDBNblocksRequest:
 			{
-				NeonNblocksRequest *msg_req = (NeonNblocksRequest *) msg;
+				SerenDBNblocksRequest *msg_req = (SerenDBNblocksRequest *) msg;
 
 				pq_sendint32(&s, NInfoGetSpcOid(msg_req->rinfo));
 				pq_sendint32(&s, NInfoGetDbOid(msg_req->rinfo));
@@ -1520,17 +1520,17 @@ nm_pack_request(NeonRequest *msg)
 
 				break;
 			}
-		case T_NeonDbSizeRequest:
+		case T_SerenDBSizeRequest:
 			{
-				NeonDbSizeRequest *msg_req = (NeonDbSizeRequest *) msg;
+				SerenDBSizeRequest *msg_req = (SerenDBSizeRequest *) msg;
 
 				pq_sendint32(&s, msg_req->dbNode);
 
 				break;
 			}
-		case T_NeonGetPageRequest:
+		case T_SerenDBGetPageRequest:
 			{
-				NeonGetPageRequest *msg_req = (NeonGetPageRequest *) msg;
+				SerenDBGetPageRequest *msg_req = (SerenDBGetPageRequest *) msg;
 
 				pq_sendint32(&s, NInfoGetSpcOid(msg_req->rinfo));
 				pq_sendint32(&s, NInfoGetDbOid(msg_req->rinfo));
@@ -1541,9 +1541,9 @@ nm_pack_request(NeonRequest *msg)
 				break;
 			}
 
-		case T_NeonGetSlruSegmentRequest:
+		case T_SerenDBGetSlruSegmentRequest:
 			{
-				NeonGetSlruSegmentRequest *msg_req = (NeonGetSlruSegmentRequest *) msg;
+				SerenDBGetSlruSegmentRequest *msg_req = (SerenDBGetSlruSegmentRequest *) msg;
 
 				pq_sendbyte(&s, msg_req->kind);
 				pq_sendint32(&s, msg_req->segno);
@@ -1552,28 +1552,28 @@ nm_pack_request(NeonRequest *msg)
 			}
 
 			/* pagestore -> pagestore_client. We never need to create these. */
-		case T_NeonExistsResponse:
-		case T_NeonNblocksResponse:
-		case T_NeonGetPageResponse:
-		case T_NeonErrorResponse:
-		case T_NeonDbSizeResponse:
-		case T_NeonGetSlruSegmentResponse:
+		case T_SerenDBExistsResponse:
+		case T_SerenDBNblocksResponse:
+		case T_SerenDBGetPageResponse:
+		case T_SerenDBErrorResponse:
+		case T_SerenDBSizeResponse:
+		case T_SerenDBGetSlruSegmentResponse:
 		default:
-			neon_log(PANIC, "unexpected neon message tag 0x%02x", msg->tag);
+			serendb_log(PANIC, "unexpected serendb message tag 0x%02x", msg->tag);
 			break;
 	}
 	return s;
 }
 
-NeonResponse *
+SerenDBResponse *
 nm_unpack_response(StringInfo s)
 {
-	NeonMessageTag tag = pq_getmsgbyte(s);
-	NeonResponse resp_hdr = {0}; /* make valgrind happy */
-	NeonResponse *resp = NULL;
+	SerenDBMessageTag tag = pq_getmsgbyte(s);
+	SerenDBResponse resp_hdr = {0}; /* make valgrind happy */
+	SerenDBResponse *resp = NULL;
 
 	resp_hdr.tag = tag;
-	if (neon_protocol_version >= 3)
+	if (serendb_protocol_version >= 3)
 	{
 		resp_hdr.reqid = pq_getmsgint64(s);
 		resp_hdr.lsn = pq_getmsgint64(s);
@@ -1582,11 +1582,11 @@ nm_unpack_response(StringInfo s)
 	switch (tag)
 	{
 			/* pagestore -> pagestore_client */
-		case T_NeonExistsResponse:
+		case T_SerenDBExistsResponse:
 			{
-				NeonExistsResponse *msg_resp = palloc0(sizeof(NeonExistsResponse));
+				SerenDBExistsResponse *msg_resp = palloc0(sizeof(SerenDBExistsResponse));
 
-				if (neon_protocol_version >= 3)
+				if (serendb_protocol_version >= 3)
 				{
 					NInfoGetSpcOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
 					NInfoGetDbOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
@@ -1597,15 +1597,15 @@ nm_unpack_response(StringInfo s)
 				msg_resp->exists = pq_getmsgbyte(s);
 				pq_getmsgend(s);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
-		case T_NeonNblocksResponse:
+		case T_SerenDBNblocksResponse:
 			{
-				NeonNblocksResponse *msg_resp = palloc0(sizeof(NeonNblocksResponse));
+				SerenDBNblocksResponse *msg_resp = palloc0(sizeof(SerenDBNblocksResponse));
 
-				if (neon_protocol_version >= 3)
+				if (serendb_protocol_version >= 3)
 				{
 					NInfoGetSpcOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
 					NInfoGetDbOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
@@ -1616,16 +1616,16 @@ nm_unpack_response(StringInfo s)
 				msg_resp->n_blocks = pq_getmsgint(s, 4);
 				pq_getmsgend(s);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
-		case T_NeonGetPageResponse:
+		case T_SerenDBGetPageResponse:
 			{
-				NeonGetPageResponse *msg_resp;
+				SerenDBGetPageResponse *msg_resp;
 
 				msg_resp = MemoryContextAllocZero(MyPState->bufctx, PS_GETPAGERESPONSE_SIZE);
-				if (neon_protocol_version >= 3)
+				if (serendb_protocol_version >= 3)
 				{
 					NInfoGetSpcOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
 					NInfoGetDbOid(msg_resp->req.rinfo) = pq_getmsgint(s, 4);
@@ -1638,17 +1638,17 @@ nm_unpack_response(StringInfo s)
 				memcpy(msg_resp->page, pq_getmsgbytes(s, BLCKSZ), BLCKSZ);
 				pq_getmsgend(s);
 
-				Assert(msg_resp->req.hdr.tag == T_NeonGetPageResponse);
+				Assert(msg_resp->req.hdr.tag == T_SerenDBGetPageResponse);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
-		case T_NeonDbSizeResponse:
+		case T_SerenDBSizeResponse:
 			{
-				NeonDbSizeResponse *msg_resp = palloc0(sizeof(NeonDbSizeResponse));
+				SerenDBSizeResponse *msg_resp = palloc0(sizeof(SerenDBSizeResponse));
 
-				if (neon_protocol_version >= 3)
+				if (serendb_protocol_version >= 3)
 				{
 					msg_resp->req.dbNode = pq_getmsgint(s, 4);
 				}
@@ -1656,35 +1656,35 @@ nm_unpack_response(StringInfo s)
 				msg_resp->db_size = pq_getmsgint64(s);
 				pq_getmsgend(s);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
-		case T_NeonErrorResponse:
+		case T_SerenDBErrorResponse:
 			{
-				NeonErrorResponse *msg_resp;
+				SerenDBErrorResponse *msg_resp;
 				size_t		msglen;
 				const char *msgtext;
 
 				msgtext = pq_getmsgrawstring(s);
 				msglen = strlen(msgtext);
 
-				msg_resp = palloc0(sizeof(NeonErrorResponse) + msglen + 1);
+				msg_resp = palloc0(sizeof(SerenDBErrorResponse) + msglen + 1);
 				msg_resp->req = resp_hdr;
 				memcpy(msg_resp->message, msgtext, msglen + 1);
 				pq_getmsgend(s);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
-		case T_NeonGetSlruSegmentResponse:
+		case T_SerenDBGetSlruSegmentResponse:
 		    {
-				NeonGetSlruSegmentResponse *msg_resp;
+				SerenDBGetSlruSegmentResponse *msg_resp;
 				int n_blocks;
-				msg_resp = palloc0(sizeof(NeonGetSlruSegmentResponse));
+				msg_resp = palloc0(sizeof(SerenDBGetSlruSegmentResponse));
 
-				if (neon_protocol_version >= 3)
+				if (serendb_protocol_version >= 3)
 				{
 					msg_resp->req.kind = pq_getmsgbyte(s);
 					msg_resp->req.segno = pq_getmsgint(s, 4);
@@ -1696,7 +1696,7 @@ nm_unpack_response(StringInfo s)
 				memcpy(msg_resp->data, pq_getmsgbytes(s, n_blocks * BLCKSZ), n_blocks * BLCKSZ);
 				pq_getmsgend(s);
 
-				resp = (NeonResponse *) msg_resp;
+				resp = (SerenDBResponse *) msg_resp;
 				break;
 			}
 
@@ -1705,13 +1705,13 @@ nm_unpack_response(StringInfo s)
 			 *
 			 * We create these ourselves, and don't need to decode them.
 			 */
-		case T_NeonExistsRequest:
-		case T_NeonNblocksRequest:
-		case T_NeonGetPageRequest:
-		case T_NeonDbSizeRequest:
-		case T_NeonGetSlruSegmentRequest:
+		case T_SerenDBExistsRequest:
+		case T_SerenDBNblocksRequest:
+		case T_SerenDBGetPageRequest:
+		case T_SerenDBSizeRequest:
+		case T_SerenDBGetSlruSegmentRequest:
 		default:
-			neon_log(PANIC, "unexpected neon message tag 0x%02x", tag);
+			serendb_log(PANIC, "unexpected serendb message tag 0x%02x", tag);
 			break;
 	}
 
@@ -1720,7 +1720,7 @@ nm_unpack_response(StringInfo s)
 
 /* dump to json for debugging / error reporting purposes */
 char *
-nm_to_string(NeonMessage *msg)
+nm_to_string(SerenDBMessage *msg)
 {
 	StringInfoData s;
 
@@ -1729,11 +1729,11 @@ nm_to_string(NeonMessage *msg)
 	switch (messageTag(msg))
 	{
 			/* pagestore_client -> pagestore */
-		case T_NeonExistsRequest:
+		case T_SerenDBExistsRequest:
 			{
-				NeonExistsRequest *msg_req = (NeonExistsRequest *) msg;
+				SerenDBExistsRequest *msg_req = (SerenDBExistsRequest *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonExistsRequest\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBExistsRequest\"");
 				appendStringInfo(&s, ", \"rinfo\": \"%u/%u/%u\"", RelFileInfoFmt(msg_req->rinfo));
 				appendStringInfo(&s, ", \"forknum\": %d", msg_req->forknum);
 				appendStringInfo(&s, ", \"lsn\": \"%X/%X\"", LSN_FORMAT_ARGS(msg_req->hdr.lsn));
@@ -1742,11 +1742,11 @@ nm_to_string(NeonMessage *msg)
 				break;
 			}
 
-		case T_NeonNblocksRequest:
+		case T_SerenDBNblocksRequest:
 			{
-				NeonNblocksRequest *msg_req = (NeonNblocksRequest *) msg;
+				SerenDBNblocksRequest *msg_req = (SerenDBNblocksRequest *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonNblocksRequest\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBNblocksRequest\"");
 				appendStringInfo(&s, ", \"rinfo\": \"%u/%u/%u\"", RelFileInfoFmt(msg_req->rinfo));
 				appendStringInfo(&s, ", \"forknum\": %d", msg_req->forknum);
 				appendStringInfo(&s, ", \"lsn\": \"%X/%X\"", LSN_FORMAT_ARGS(msg_req->hdr.lsn));
@@ -1755,11 +1755,11 @@ nm_to_string(NeonMessage *msg)
 				break;
 			}
 
-		case T_NeonGetPageRequest:
+		case T_SerenDBGetPageRequest:
 			{
-				NeonGetPageRequest *msg_req = (NeonGetPageRequest *) msg;
+				SerenDBGetPageRequest *msg_req = (SerenDBGetPageRequest *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonGetPageRequest\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBGetPageRequest\"");
 				appendStringInfo(&s, ", \"rinfo\": \"%u/%u/%u\"", RelFileInfoFmt(msg_req->rinfo));
 				appendStringInfo(&s, ", \"forknum\": %d", msg_req->forknum);
 				appendStringInfo(&s, ", \"blkno\": %u", msg_req->blkno);
@@ -1768,22 +1768,22 @@ nm_to_string(NeonMessage *msg)
 				appendStringInfoChar(&s, '}');
 				break;
 			}
-		case T_NeonDbSizeRequest:
+		case T_SerenDBSizeRequest:
 			{
-				NeonDbSizeRequest *msg_req = (NeonDbSizeRequest *) msg;
+				SerenDBSizeRequest *msg_req = (SerenDBSizeRequest *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonDbSizeRequest\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBSizeRequest\"");
 				appendStringInfo(&s, ", \"dbnode\": \"%u\"", msg_req->dbNode);
 				appendStringInfo(&s, ", \"lsn\": \"%X/%X\"", LSN_FORMAT_ARGS(msg_req->hdr.lsn));
 				appendStringInfo(&s, ", \"not_modified_since\": \"%X/%X\"", LSN_FORMAT_ARGS(msg_req->hdr.not_modified_since));
 				appendStringInfoChar(&s, '}');
 				break;
 			}
-		case T_NeonGetSlruSegmentRequest:
+		case T_SerenDBGetSlruSegmentRequest:
 			{
-				NeonGetSlruSegmentRequest *msg_req = (NeonGetSlruSegmentRequest *) msg;
+				SerenDBGetSlruSegmentRequest *msg_req = (SerenDBGetSlruSegmentRequest *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonGetSlruSegmentRequest\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBGetSlruSegmentRequest\"");
 				appendStringInfo(&s, ", \"kind\": %u", msg_req->kind);
 				appendStringInfo(&s, ", \"segno\": %u", msg_req->segno);
 				appendStringInfo(&s, ", \"lsn\": \"%X/%X\"", LSN_FORMAT_ARGS(msg_req->hdr.lsn));
@@ -1792,65 +1792,65 @@ nm_to_string(NeonMessage *msg)
 				break;
 			}
 			/* pagestore -> pagestore_client */
-		case T_NeonExistsResponse:
+		case T_SerenDBExistsResponse:
 			{
-				NeonExistsResponse *msg_resp = (NeonExistsResponse *) msg;
+				SerenDBExistsResponse *msg_resp = (SerenDBExistsResponse *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonExistsResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBExistsResponse\"");
 				appendStringInfo(&s, ", \"exists\": %d}",
 								 msg_resp->exists);
 				appendStringInfoChar(&s, '}');
 
 				break;
 			}
-		case T_NeonNblocksResponse:
+		case T_SerenDBNblocksResponse:
 			{
-				NeonNblocksResponse *msg_resp = (NeonNblocksResponse *) msg;
+				SerenDBNblocksResponse *msg_resp = (SerenDBNblocksResponse *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonNblocksResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBNblocksResponse\"");
 				appendStringInfo(&s, ", \"n_blocks\": %u}",
 								 msg_resp->n_blocks);
 				appendStringInfoChar(&s, '}');
 
 				break;
 			}
-		case T_NeonGetPageResponse:
+		case T_SerenDBGetPageResponse:
 			{
-				NeonGetPageResponse *msg_resp = (NeonGetPageResponse *) msg;
+				SerenDBGetPageResponse *msg_resp = (SerenDBGetPageResponse *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonGetPageResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBGetPageResponse\"");
 				appendStringInfo(&s, ", \"rinfo\": %u/%u/%u", RelFileInfoFmt(msg_resp->req.rinfo));
 				appendStringInfo(&s, ", \"forknum\": %d", msg_resp->req.forknum);
 				appendStringInfo(&s, ", \"blkno\": %u", msg_resp->req.blkno);
 				appendStringInfoChar(&s, '}');
 				break;
 			}
-		case T_NeonErrorResponse:
+		case T_SerenDBErrorResponse:
 			{
-				NeonErrorResponse *msg_resp = (NeonErrorResponse *) msg;
+				SerenDBErrorResponse *msg_resp = (SerenDBErrorResponse *) msg;
 
 				/* FIXME: escape double-quotes in the message */
-				appendStringInfoString(&s, "{\"type\": \"NeonErrorResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBErrorResponse\"");
 				appendStringInfo(&s, ", \"message\": \"%s\"}", msg_resp->message);
 				appendStringInfoChar(&s, '}');
 				break;
 			}
-		case T_NeonDbSizeResponse:
+		case T_SerenDBSizeResponse:
 			{
-				NeonDbSizeResponse *msg_resp = (NeonDbSizeResponse *) msg;
+				SerenDBSizeResponse *msg_resp = (SerenDBSizeResponse *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonDbSizeResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBSizeResponse\"");
 				appendStringInfo(&s, ", \"db_size\": " INT64_FORMAT "}",
 								 msg_resp->db_size);
 				appendStringInfoChar(&s, '}');
 
 				break;
 			}
-		case T_NeonGetSlruSegmentResponse:
+		case T_SerenDBGetSlruSegmentResponse:
 			{
-				NeonGetSlruSegmentResponse *msg_resp = (NeonGetSlruSegmentResponse *) msg;
+				SerenDBGetSlruSegmentResponse *msg_resp = (SerenDBGetSlruSegmentResponse *) msg;
 
-				appendStringInfoString(&s, "{\"type\": \"NeonGetSlruSegmentResponse\"");
+				appendStringInfoString(&s, "{\"type\": \"SerenDBGetSlruSegmentResponse\"");
 				appendStringInfo(&s, ", \"n_blocks\": %u}",
 								 msg_resp->n_blocks);
 				appendStringInfoChar(&s, '}');
@@ -1885,8 +1885,8 @@ communicator_init(void)
 	 * releases.
 	 */
 #if PG_VERSION_NUM>=150000
-	if (MyNeonCounters >= &neon_per_backend_counters_shared[NUM_NEON_PERF_COUNTER_SLOTS])
-		elog(ERROR, "MyNeonCounters points past end of array");
+	if (MySerenDBCounters >= &serendb_per_backend_counters_shared[NUM_SERENDB_PERF_COUNTER_SLOTS])
+		elog(ERROR, "MySerenDBCounters points past end of array");
 #endif
 
 	prfs_size = offsetof(PrefetchState, prf_buffer) +
@@ -1897,14 +1897,14 @@ communicator_init(void)
 	MyPState->n_unused = readahead_buffer_size;
 
 	MyPState->bufctx = SlabContextCreate(TopMemoryContext,
-										 "NeonSMGR/prefetch",
+										 "SerenDBSMGR/prefetch",
 										 SLAB_DEFAULT_BLOCK_SIZE * 17,
 										 PS_GETPAGERESPONSE_SIZE);
 	MyPState->errctx = AllocSetContextCreate(TopMemoryContext,
-											 "NeonSMGR/errors",
+											 "SerenDBSMGR/errors",
 											 ALLOCSET_DEFAULT_SIZES);
 	MyPState->hashctx = AllocSetContextCreate(TopMemoryContext,
-											  "NeonSMGR/prefetch",
+											  "SerenDBSMGR/prefetch",
 											  ALLOCSET_DEFAULT_SIZES);
 
 	MyPState->prf_hash = prfh_create(MyPState->hashctx,
@@ -1912,13 +1912,13 @@ communicator_init(void)
 }
 
 /*
- *  neon_prefetch_response_usable -- Can a new request be satisfied by old one?
+ *  serendb_prefetch_response_usable -- Can a new request be satisfied by old one?
  *
  * This is used to check if the response to a prefetch request can be used to
  * satisfy a page read now.
  */
 static bool
-neon_prefetch_response_usable(neon_request_lsns *request_lsns,
+serendb_prefetch_response_usable(serendb_request_lsns *request_lsns,
 							  PrefetchRequest *slot)
 {
 	/* sanity check the LSN's on the old and the new request */
@@ -1933,7 +1933,7 @@ neon_prefetch_response_usable(neon_request_lsns *request_lsns,
 	/*
 	 * The new request's LSN should never be older than the old one.  This
 	 * could be an Assert, except that for testing purposes, we do provide an
-	 * interface in neon_test_utils to fetch pages at arbitary LSNs, which
+	 * interface in serendb_test_utils to fetch pages at arbitary LSNs, which
 	 * violates this.
 	 *
 	 * Similarly, the not_modified_since value calculated for a page should
@@ -1950,7 +1950,7 @@ neon_prefetch_response_usable(neon_request_lsns *request_lsns,
 	{
 		ereport(LOG,
 				(errcode(ERRCODE_IO_ERROR),
-				 errmsg(NEON_TAG "request with unexpected LSN after prefetch"),
+				 errmsg(SERENDB_TAG "request with unexpected LSN after prefetch"),
 				 errdetail("Request %X/%X not_modified_since %X/%X, prefetch %X/%X not_modified_since %X/%X)",
 						   LSN_FORMAT_ARGS(request_lsns->effective_request_lsn),
 						   LSN_FORMAT_ARGS(request_lsns->not_modified_since),
@@ -1966,7 +1966,7 @@ neon_prefetch_response_usable(neon_request_lsns *request_lsns,
 	 * in the primary node, we always use UINT64_MAX as the `request_lsn`, so
 	 * we remember `effective_request_lsn` separately. In a primary,
 	 * `effective_request_lsn` is the same as  `not_modified_since`.
-	 * See comments in neon_get_request_lsns why we can not use last flush WAL position here.
+	 * See comments in serendb_get_request_lsns why we can not use last flush WAL position here.
 	 *
 	 * To determine whether a response to a GetPage request issued earlier is
 	 * still valid to satisfy a new page read, we look at the
@@ -2013,14 +2013,14 @@ neon_prefetch_response_usable(neon_request_lsns *request_lsns,
  *	Does the physical file exist?
  */
 bool
-communicator_exists(NRelFileInfo rinfo, ForkNumber forkNum, neon_request_lsns *request_lsns)
+communicator_exists(NRelFileInfo rinfo, ForkNumber forkNum, serendb_request_lsns *request_lsns)
 {
 	bool		exists;
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 
 	{
-		NeonExistsRequest request = {
-			.hdr.tag = T_NeonExistsRequest,
+		SerenDBExistsRequest request = {
+			.hdr.tag = T_SerenDBExistsRequest,
 			.hdr.lsn = request_lsns->request_lsn,
 			.hdr.not_modified_since = request_lsns->not_modified_since,
 			.rinfo = rinfo,
@@ -2031,16 +2031,16 @@ communicator_exists(NRelFileInfo rinfo, ForkNumber forkNum, neon_request_lsns *r
 
 		switch (resp->tag)
 		{
-			case T_NeonExistsResponse:
+			case T_SerenDBExistsResponse:
 			{
-				NeonExistsResponse* exists_resp = (NeonExistsResponse *) resp;
-				if (neon_protocol_version >= 3)
+				SerenDBExistsResponse* exists_resp = (SerenDBExistsResponse *) resp;
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr) ||
 						!RelFileInfoEquals(exists_resp->req.rinfo, request.rinfo) ||
 						exists_resp->req.forknum != request.forknum)
 					{
-						NEON_PANIC_CONNECTION_STATE(0, PANIC,
+						SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 													"Unexpect response {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u} to exits request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u}",
 													resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since), RelFileInfoFmt(exists_resp->req.rinfo), exists_resp->req.forknum,
 													request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since), RelFileInfoFmt(request.rinfo), request.forknum);
@@ -2049,31 +2049,31 @@ communicator_exists(NRelFileInfo rinfo, ForkNumber forkNum, neon_request_lsns *r
 				exists = exists_resp->exists;
 				break;
 			}
-			case T_NeonErrorResponse:
-				if (neon_protocol_version >= 3)
+			case T_SerenDBErrorResponse:
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr))
 					{
-						elog(WARNING, NEON_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match exists request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
+						elog(WARNING, SERENDB_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match exists request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
 							 resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since),
 							 request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since));
 					}
 				}
 				ereport(ERROR,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg(NEON_TAG "[reqid " UINT64_HEX_FORMAT "] could not read relation existence of rel %u/%u/%u.%u from page server at lsn %X/%08X",
+						 errmsg(SERENDB_TAG "[reqid " UINT64_HEX_FORMAT "] could not read relation existence of rel %u/%u/%u.%u from page server at lsn %X/%08X",
 								resp->reqid,
 								RelFileInfoFmt(rinfo),
 								forkNum,
 								LSN_FORMAT_ARGS(request_lsns->effective_request_lsn)),
 						 errdetail("page server returned error: %s",
-								   ((NeonErrorResponse *) resp)->message)));
+								   ((SerenDBErrorResponse *) resp)->message)));
 				break;
 
 			default:
-				NEON_PANIC_CONNECTION_STATE(0, PANIC,
+				SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 											"Expected Exists (0x%02x) or Error (0x%02x) response to ExistsRequest, but got 0x%02x",
-											T_NeonExistsResponse, T_NeonErrorResponse, resp->tag);
+											T_SerenDBExistsResponse, T_SerenDBErrorResponse, resp->tag);
 		}
 		pfree(resp);
 	}
@@ -2091,10 +2091,10 @@ communicator_exists(NRelFileInfo rinfo, ForkNumber forkNum, neon_request_lsns *r
  */
 void
 communicator_read_at_lsnv(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber base_blockno,
-						  neon_request_lsns *request_lsns,
+						  serendb_request_lsns *request_lsns,
 						  void **buffers, BlockNumber nblocks, const bits8 *mask)
 {
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 	uint64		ring_index;
 	PrfHashEntry *entry;
 	PrefetchRequest *slot;
@@ -2120,7 +2120,7 @@ communicator_read_at_lsnv(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber ba
 	 * don't return until after REDO has finished replaying up to that LwLSN,
 	 * as the page should have been locked up to that point.
 	 *
-	 * See also the description on neon_redo_read_buffer_filter below.
+	 * See also the description on serendb_redo_read_buffer_filter below.
 	 *
 	 * NOTE: It is possible that the WAL redo process will still do IO due to
 	 * concurrent failed read IOs. Those IOs should never have a request_lsn
@@ -2134,7 +2134,7 @@ communicator_read_at_lsnv(NRelFileInfo rinfo, ForkNumber forkNum, BlockNumber ba
 	{
 		void	   *buffer = buffers[i];
 		BlockNumber blockno = base_blockno + i;
-		neon_request_lsns *reqlsns = &request_lsns[i];
+		serendb_request_lsns *reqlsns = &request_lsns[i];
 		TimestampTz		start_ts, end_ts;
 
 		if (PointerIsValid(mask) && BITMAP_ISSET(mask, i))
@@ -2155,7 +2155,7 @@ Retry:
 		if (entry != NULL)
 		{
 			slot = entry->slot;
-			if (neon_prefetch_response_usable(reqlsns, slot))
+			if (serendb_prefetch_response_usable(reqlsns, slot))
 			{
 				ring_index = slot->my_ring_index;
 			}
@@ -2177,7 +2177,7 @@ Retry:
 				/* drop caches */
 				prefetch_set_unused(slot->my_ring_index);
 				pgBufferUsage.prefetch.expired += 1;
-				MyNeonCounters->getpage_prefetch_discards_total++;
+				MySerenDBCounters->getpage_prefetch_discards_total++;
 				/* make it look like a prefetch cache miss */
 				entry = NULL;
 			}
@@ -2220,9 +2220,9 @@ Retry:
 
 		switch (resp->tag)
 		{
-			case T_NeonGetPageResponse:
+			case T_SerenDBGetPageResponse:
 			{
-				NeonGetPageResponse* getpage_resp = (NeonGetPageResponse *) resp;
+				SerenDBGetPageResponse* getpage_resp = (SerenDBGetPageResponse *) resp;
 				memcpy(buffer, getpage_resp->page, BLCKSZ);
 
 				/*
@@ -2234,19 +2234,19 @@ Retry:
 					lfc_write(rinfo, forkNum, blockno, buffer);
 				break;
 			}
-			case T_NeonErrorResponse:
+			case T_SerenDBErrorResponse:
 				ereport(ERROR,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg(NEON_TAG "[shard %d, reqid " UINT64_HEX_FORMAT "] could not read block %u in rel %u/%u/%u.%u from page server at lsn %X/%08X",
+						 errmsg(SERENDB_TAG "[shard %d, reqid " UINT64_HEX_FORMAT "] could not read block %u in rel %u/%u/%u.%u from page server at lsn %X/%08X",
 								slot->shard_no, resp->reqid, blockno, RelFileInfoFmt(rinfo),
 								forkNum, LSN_FORMAT_ARGS(reqlsns->effective_request_lsn)),
 						 errdetail("page server returned error: %s",
-								   ((NeonErrorResponse *) resp)->message)));
+								   ((SerenDBErrorResponse *) resp)->message)));
 				break;
 			default:
-				NEON_PANIC_CONNECTION_STATE(slot->shard_no, PANIC,
+				SERENDB_PANIC_CONNECTION_STATE(slot->shard_no, PANIC,
 											"Expected GetPage (0x%02x) or Error (0x%02x) response to GetPageRequest, but got 0x%02x",
-											T_NeonGetPageResponse, T_NeonErrorResponse, resp->tag);
+											T_SerenDBGetPageResponse, T_SerenDBErrorResponse, resp->tag);
 		}
 
 		/* buffer was used, clean up for later reuse */
@@ -2259,17 +2259,17 @@ Retry:
 }
 
 /*
- *	neon_nblocks() -- Get the number of blocks stored in a relation.
+ *	serendb_nblocks() -- Get the number of blocks stored in a relation.
  */
 BlockNumber
-communicator_nblocks(NRelFileInfo rinfo, ForkNumber forknum, neon_request_lsns *request_lsns)
+communicator_nblocks(NRelFileInfo rinfo, ForkNumber forknum, serendb_request_lsns *request_lsns)
 {
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 	BlockNumber n_blocks;
 
 	{
-		NeonNblocksRequest request = {
-			.hdr.tag = T_NeonNblocksRequest,
+		SerenDBNblocksRequest request = {
+			.hdr.tag = T_SerenDBNblocksRequest,
 			.hdr.lsn = request_lsns->request_lsn,
 			.hdr.not_modified_since = request_lsns->not_modified_since,
 			.rinfo = rinfo,
@@ -2280,16 +2280,16 @@ communicator_nblocks(NRelFileInfo rinfo, ForkNumber forknum, neon_request_lsns *
 
 		switch (resp->tag)
 		{
-			case T_NeonNblocksResponse:
+			case T_SerenDBNblocksResponse:
 			{
-				NeonNblocksResponse * relsize_resp = (NeonNblocksResponse *) resp;
-				if (neon_protocol_version >= 3)
+				SerenDBNblocksResponse * relsize_resp = (SerenDBNblocksResponse *) resp;
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr) ||
 						!RelFileInfoEquals(relsize_resp->req.rinfo, request.rinfo) ||
 						relsize_resp->req.forknum != forknum)
 					{
-						NEON_PANIC_CONNECTION_STATE(0, PANIC,
+						SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 													"Unexpect response {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u} to get relsize request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, rel=%u/%u/%u.%u}",
 													resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since), RelFileInfoFmt(relsize_resp->req.rinfo), relsize_resp->req.forknum,
 													request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since), RelFileInfoFmt(request.rinfo), forknum);
@@ -2298,31 +2298,31 @@ communicator_nblocks(NRelFileInfo rinfo, ForkNumber forknum, neon_request_lsns *
 				n_blocks = relsize_resp->n_blocks;
 				break;
 			}
-			case T_NeonErrorResponse:
-				if (neon_protocol_version >= 3)
+			case T_SerenDBErrorResponse:
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr))
 					{
-						elog(WARNING, NEON_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get relsize request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
+						elog(WARNING, SERENDB_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get relsize request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
 							 resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since),
 							 request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since));
 					}
 				}
 				ereport(ERROR,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg(NEON_TAG "[reqid " UINT64_HEX_FORMAT "] could not read relation size of rel %u/%u/%u.%u from page server at lsn %X/%08X",
+						 errmsg(SERENDB_TAG "[reqid " UINT64_HEX_FORMAT "] could not read relation size of rel %u/%u/%u.%u from page server at lsn %X/%08X",
 								resp->reqid,
 								RelFileInfoFmt(rinfo),
 								forknum,
 								LSN_FORMAT_ARGS(request_lsns->effective_request_lsn)),
 						 errdetail("page server returned error: %s",
-								   ((NeonErrorResponse *) resp)->message)));
+								   ((SerenDBErrorResponse *) resp)->message)));
 				break;
 
 			default:
-				NEON_PANIC_CONNECTION_STATE(0, PANIC,
+				SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 											"Expected Nblocks (0x%02x) or Error (0x%02x) response to NblocksRequest, but got 0x%02x",
-											T_NeonNblocksResponse, T_NeonErrorResponse, resp->tag);
+											T_SerenDBNblocksResponse, T_SerenDBErrorResponse, resp->tag);
 		}
 
 		pfree(resp);
@@ -2331,17 +2331,17 @@ communicator_nblocks(NRelFileInfo rinfo, ForkNumber forknum, neon_request_lsns *
 }
 
 /*
- *	neon_db_size() -- Get the size of the database in bytes.
+ *	serendb_db_size() -- Get the size of the database in bytes.
  */
 int64
-communicator_dbsize(Oid dbNode, neon_request_lsns *request_lsns)
+communicator_dbsize(Oid dbNode, serendb_request_lsns *request_lsns)
 {
-	NeonResponse *resp;
+	SerenDBResponse *resp;
 	int64		db_size;
 
 	{
-		NeonDbSizeRequest request = {
-			.hdr.tag = T_NeonDbSizeRequest,
+		SerenDBSizeRequest request = {
+			.hdr.tag = T_SerenDBSizeRequest,
 			.hdr.lsn = request_lsns->request_lsn,
 			.hdr.not_modified_since = request_lsns->not_modified_since,
 			.dbNode = dbNode,
@@ -2351,15 +2351,15 @@ communicator_dbsize(Oid dbNode, neon_request_lsns *request_lsns)
 
 		switch (resp->tag)
 		{
-			case T_NeonDbSizeResponse:
+			case T_SerenDBSizeResponse:
 			{
-				NeonDbSizeResponse* dbsize_resp = (NeonDbSizeResponse *) resp;
-				if (neon_protocol_version >= 3)
+				SerenDBSizeResponse* dbsize_resp = (SerenDBSizeResponse *) resp;
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr) ||
 						dbsize_resp->req.dbNode != dbNode)
 					{
-						NEON_PANIC_CONNECTION_STATE(0, PANIC,
+						SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 													"Unexpect response {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, dbNode=%u} to get DB size request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, dbNode=%u}",
 													resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since), dbsize_resp->req.dbNode,
 													request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since), dbNode);
@@ -2368,29 +2368,29 @@ communicator_dbsize(Oid dbNode, neon_request_lsns *request_lsns)
 				db_size = dbsize_resp->db_size;
 				break;
 			}
-			case T_NeonErrorResponse:
-				if (neon_protocol_version >= 3)
+			case T_SerenDBErrorResponse:
+				if (serendb_protocol_version >= 3)
 				{
 					if (!equal_requests(resp, &request.hdr))
 					{
-						elog(WARNING, NEON_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get DB size request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
+						elog(WARNING, SERENDB_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get DB size request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
 							 resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since),
 							 request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since));
 					}
 				}
 				ereport(ERROR,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg(NEON_TAG "[reqid " UINT64_HEX_FORMAT "] could not read db size of db %u from page server at lsn %X/%08X",
+						 errmsg(SERENDB_TAG "[reqid " UINT64_HEX_FORMAT "] could not read db size of db %u from page server at lsn %X/%08X",
 								resp->reqid,
 								dbNode, LSN_FORMAT_ARGS(request_lsns->effective_request_lsn)),
 						 errdetail("page server returned error: %s",
-								   ((NeonErrorResponse *) resp)->message)));
+								   ((SerenDBErrorResponse *) resp)->message)));
 				break;
 
 			default:
-				NEON_PANIC_CONNECTION_STATE(0, PANIC,
+				SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 											"Expected DbSize (0x%02x) or Error (0x%02x) response to DbSizeRequest, but got 0x%02x",
-											T_NeonDbSizeResponse, T_NeonErrorResponse, resp->tag);
+											T_SerenDBSizeResponse, T_SerenDBErrorResponse, resp->tag);
 		}
 
 		pfree(resp);
@@ -2399,16 +2399,16 @@ communicator_dbsize(Oid dbNode, neon_request_lsns *request_lsns)
 }
 
 int
-communicator_read_slru_segment(SlruKind kind, int64 segno, neon_request_lsns *request_lsns,
+communicator_read_slru_segment(SlruKind kind, int64 segno, serendb_request_lsns *request_lsns,
 							   void *buffer)
 {
 	int			n_blocks;
 	shardno_t	shard_no = 0; /* All SLRUs are at shard 0 */
-	NeonResponse *resp = NULL;
-	NeonGetSlruSegmentRequest request;
+	SerenDBResponse *resp = NULL;
+	SerenDBGetSlruSegmentRequest request;
 
-	request = (NeonGetSlruSegmentRequest) {
-		.hdr.tag = T_NeonGetSlruSegmentRequest,
+	request = (SerenDBGetSlruSegmentRequest) {
+		.hdr.tag = T_SerenDBGetSlruSegmentRequest,
 		.hdr.lsn = request_lsns->request_lsn,
 		.hdr.not_modified_since = request_lsns->not_modified_since,
 		.kind = kind,
@@ -2441,16 +2441,16 @@ communicator_read_slru_segment(SlruKind kind, int64 segno, neon_request_lsns *re
 
 	switch (resp->tag)
 	{
-		case T_NeonGetSlruSegmentResponse:
+		case T_SerenDBGetSlruSegmentResponse:
 		{
-			NeonGetSlruSegmentResponse* slru_resp = (NeonGetSlruSegmentResponse *) resp;
-			if (neon_protocol_version >= 3)
+			SerenDBGetSlruSegmentResponse* slru_resp = (SerenDBGetSlruSegmentResponse *) resp;
+			if (serendb_protocol_version >= 3)
 			{
 				if (!equal_requests(resp, &request.hdr) ||
 					slru_resp->req.kind != kind ||
 					slru_resp->req.segno != segno)
 				{
-					NEON_PANIC_CONNECTION_STATE(0, PANIC,
+					SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 												"Unexpect response {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, kind=%u, segno=%u} to get SLRU segment request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X, kind=%u, segno=%lluu}",
 												resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since), slru_resp->req.kind, slru_resp->req.segno,
 												request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since), kind, (unsigned long long) segno);
@@ -2460,31 +2460,31 @@ communicator_read_slru_segment(SlruKind kind, int64 segno, neon_request_lsns *re
 			memcpy(buffer, slru_resp->data, n_blocks*BLCKSZ);
 			break;
 		}
-		case T_NeonErrorResponse:
-			if (neon_protocol_version >= 3)
+		case T_SerenDBErrorResponse:
+			if (serendb_protocol_version >= 3)
 			{
 				if (!equal_requests(resp, &request.hdr))
 				{
-					elog(WARNING, NEON_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get SLRU segment request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
+					elog(WARNING, SERENDB_TAG "Error message {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X} doesn't match get SLRU segment request {reqid=" UINT64_HEX_FORMAT ",lsn=%X/%08X, since=%X/%08X}",
 						 resp->reqid, LSN_FORMAT_ARGS(resp->lsn), LSN_FORMAT_ARGS(resp->not_modified_since),
 						 request.hdr.reqid, LSN_FORMAT_ARGS(request.hdr.lsn), LSN_FORMAT_ARGS(request.hdr.not_modified_since));
 				}
 			}
 			ereport(ERROR,
 					(errcode(ERRCODE_IO_ERROR),
-					 errmsg(NEON_TAG "[reqid " UINT64_HEX_FORMAT "] could not read SLRU %d segment %llu at lsn %X/%08X",
+					 errmsg(SERENDB_TAG "[reqid " UINT64_HEX_FORMAT "] could not read SLRU %d segment %llu at lsn %X/%08X",
 							resp->reqid,
 							kind,
 							(unsigned long long) segno,
 							LSN_FORMAT_ARGS(request_lsns->request_lsn)),
 					 errdetail("page server returned error: %s",
-							   ((NeonErrorResponse *) resp)->message)));
+							   ((SerenDBErrorResponse *) resp)->message)));
 			break;
 
 		default:
-			NEON_PANIC_CONNECTION_STATE(0, PANIC,
+			SERENDB_PANIC_CONNECTION_STATE(0, PANIC,
 										"Expected GetSlruSegment (0x%02x) or Error (0x%02x) response to GetSlruSegmentRequest, but got 0x%02x",
-										T_NeonGetSlruSegmentResponse, T_NeonErrorResponse, resp->tag);
+										T_SerenDBGetSlruSegmentResponse, T_SerenDBErrorResponse, resp->tag);
 	}
 	pfree(resp);
 

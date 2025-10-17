@@ -220,7 +220,7 @@ pub fn syncfs(fd: impl AsFd) -> anyhow::Result<()> {
     }
     #[cfg(target_os = "macos")]
     {
-        // macOS is not a production platform for Neon, don't even bother.
+        // macOS is not a production platform for SerenDB, don't even bother.
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {

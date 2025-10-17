@@ -131,7 +131,7 @@ impl FeatureResolver {
                                 if let Some(cplane_region) = cplane_region.as_str() {
                                     // This region contains the cell number
                                     properties.insert(
-                                        "neon_region".to_string(),
+                                        "serendb_region".to_string(),
                                         PostHogFlagFilterPropertyValue::String(
                                             cplane_region.to_string(),
                                         ),

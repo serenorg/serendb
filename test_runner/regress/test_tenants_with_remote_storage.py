@@ -14,10 +14,10 @@ from pathlib import Path
 
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     last_flush_lsn_upload,
 )
 from fixtures.pageserver.common_types import parse_layer_file_name
@@ -33,7 +33,7 @@ from fixtures.remote_storage import (
 from fixtures.utils import query_scalar, wait_until
 
 
-async def tenant_workload(env: NeonEnv, endpoint: Endpoint):
+async def tenant_workload(env: SerenDBEnv, endpoint: Endpoint):
     await env.pageserver.connect_async()
 
     pg_conn = await endpoint.connect_async()
@@ -50,7 +50,7 @@ async def tenant_workload(env: NeonEnv, endpoint: Endpoint):
         assert res == i * 1000
 
 
-async def all_tenants_workload(env: NeonEnv, tenants_endpoints):
+async def all_tenants_workload(env: SerenDBEnv, tenants_endpoints):
     workers = []
     for _, endpoint in tenants_endpoints:
         worker = tenant_workload(env, endpoint)
@@ -60,8 +60,8 @@ async def all_tenants_workload(env: NeonEnv, tenants_endpoints):
     await asyncio.gather(*workers)
 
 
-def test_tenants_many(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_tenants_many(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     tenants_endpoints: list[tuple[TenantId, Endpoint]] = []
 
@@ -85,7 +85,7 @@ def test_tenants_many(neon_env_builder: NeonEnvBuilder):
     pageserver_http = env.pageserver.http_client()
     for _tenant, endpoint in tenants_endpoints:
         res = endpoint.safe_psql_many(
-            ["SHOW neon.tenant_id", "SHOW neon.timeline_id", "SELECT pg_current_wal_flush_lsn()"]
+            ["SHOW serendb.tenant_id", "SHOW serendb.timeline_id", "SELECT pg_current_wal_flush_lsn()"]
         )
         tenant_id = TenantId(res[0][0][0])
         timeline_id = TimelineId(res[1][0][0])
@@ -99,8 +99,8 @@ def test_tenants_many(neon_env_builder: NeonEnvBuilder):
         wait_for_upload(pageserver_http, tenant_id, timeline_id, current_lsn)
 
 
-def test_tenants_attached_after_download(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_tenants_attached_after_download(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     data_id = 1
     data_secret = "very secret secret"
@@ -108,10 +108,10 @@ def test_tenants_attached_after_download(neon_env_builder: NeonEnvBuilder):
     # Exercise retry code path by making all uploads and downloads fail for the
     # first time. The retries print INFO-messages to the log; we will check
     # that they are present after the test.
-    neon_env_builder.pageserver_config_override = "test_remote_failures=1"
+    serendb_env_builder.pageserver_config_override = "test_remote_failures=1"
 
     ##### First start, insert secret data and upload it to the remote storage
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     pageserver_http = env.pageserver.http_client()
     endpoint = env.endpoints.create_start("main")
@@ -197,10 +197,10 @@ def test_tenants_attached_after_download(neon_env_builder: NeonEnvBuilder):
 
 
 def test_tenant_redownloads_truncated_file_on_startup(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     # we store the layer file length metadata, we notice on startup that a layer file is of wrong size, and proceed to redownload it.
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     assert isinstance(env.pageserver_remote_storage, LocalFsStorage)
 

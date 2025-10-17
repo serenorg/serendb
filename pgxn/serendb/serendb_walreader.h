@@ -1,38 +1,38 @@
-#ifndef __NEON_WALREADER_H__
-#define __NEON_WALREADER_H__
+#ifndef __SERENDB_WALREADER_H__
+#define __SERENDB_WALREADER_H__
 
 #include "access/xlogdefs.h"
 
 /* forward declare so we don't have to expose the struct to the public */
-struct NeonWALReader;
-typedef struct NeonWALReader NeonWALReader;
+struct SerenDBWALReader;
+typedef struct SerenDBWALReader SerenDBWALReader;
 
 /* avoid including walproposer.h as it includes us */
 struct WalProposer;
 typedef struct WalProposer WalProposer;
 
-/* NeonWALRead return value */
+/* SerenDBWALRead return value */
 typedef enum
 {
-	NEON_WALREAD_SUCCESS,
-	NEON_WALREAD_WOULDBLOCK,
-	NEON_WALREAD_ERROR,
-} NeonWALReadResult;
+	SERENDB_WALREAD_SUCCESS,
+	SERENDB_WALREAD_WOULDBLOCK,
+	SERENDB_WALREAD_ERROR,
+} SerenDBWALReadResult;
 
-extern NeonWALReader *NeonWALReaderAllocate(int wal_segment_size, XLogRecPtr available_lsn, char *log_prefix, TimeLineID tlid);
-extern void NeonWALReaderFree(NeonWALReader *state);
-extern void NeonWALReaderResetRemote(NeonWALReader *state);
-extern TimeLineID NeonWALReaderLocalActiveTimeLineID(NeonWALReader *state);
-extern NeonWALReadResult NeonWALRead(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
-extern pgsocket NeonWALReaderSocket(NeonWALReader *state);
-extern uint32 NeonWALReaderEvents(NeonWALReader *state);
-extern bool NeonWALReaderIsRemConnEstablished(NeonWALReader *state);
-extern char *NeonWALReaderErrMsg(NeonWALReader *state);
-extern XLogRecPtr NeonWALReaderGetRemLsn(NeonWALReader *state);
-extern const WALOpenSegment *NeonWALReaderGetSegment(NeonWALReader *state);
-extern bool neon_wal_segment_open(NeonWALReader *state, XLogSegNo nextSegNo, TimeLineID *tli_p);
-extern void neon_wal_segment_close(NeonWALReader *state);
-extern bool NeonWALReaderUpdateDonor(NeonWALReader *state);
+extern SerenDBWALReader *SerenDBWALReaderAllocate(int wal_segment_size, XLogRecPtr available_lsn, char *log_prefix, TimeLineID tlid);
+extern void SerenDBWALReaderFree(SerenDBWALReader *state);
+extern void SerenDBWALReaderResetRemote(SerenDBWALReader *state);
+extern TimeLineID SerenDBWALReaderLocalActiveTimeLineID(SerenDBWALReader *state);
+extern SerenDBWALReadResult SerenDBWALRead(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
+extern pgsocket SerenDBWALReaderSocket(SerenDBWALReader *state);
+extern uint32 SerenDBWALReaderEvents(SerenDBWALReader *state);
+extern bool SerenDBWALReaderIsRemConnEstablished(SerenDBWALReader *state);
+extern char *SerenDBWALReaderErrMsg(SerenDBWALReader *state);
+extern XLogRecPtr SerenDBWALReaderGetRemLsn(SerenDBWALReader *state);
+extern const WALOpenSegment *SerenDBWALReaderGetSegment(SerenDBWALReader *state);
+extern bool serendb_wal_segment_open(SerenDBWALReader *state, XLogSegNo nextSegNo, TimeLineID *tli_p);
+extern void serendb_wal_segment_close(SerenDBWALReader *state);
+extern bool SerenDBWALReaderUpdateDonor(SerenDBWALReader *state);
 
 
-#endif							/* __NEON_WALREADER_H__ */
+#endif							/* __SERENDB_WALREADER_H__ */

@@ -34,7 +34,7 @@ use crate::compute::ComputeNode;
 /// the compute. The external server is what receives communication from the
 /// control plane, the metrics scraper, etc. We make the distinction because
 /// certain routes in `compute_ctl` only need to be exposed to local processes
-/// like Postgres via the neon extension and local_proxy.
+/// like Postgres via the SerenDB extension and local_proxy.
 #[derive(Clone, Debug)]
 pub enum Server {
     Internal {

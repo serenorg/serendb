@@ -156,19 +156,19 @@ pub fn generate_pg_control(
     // The upshot is that if 'redo' is equal to the "current" LSN, there was a shutdown
     // checkpoint record at that point in WAL, with no new WAL records after it. That case
     // can be treated as starting from a clean shutdown. All other cases are treated as
-    // non-clean shutdown. In Neon, we don't do WAL replay at startup in either case, so
+    // non-clean shutdown. In SerenDB, we don't do WAL replay at startup in either case, so
     // that distinction doesn't matter very much. As of this writing, it only affects
     // whether the persisted pg_stats information can be used or not.
     //
     // In the Checkpoint struct in the returned pg_control file, the redo pointer is
     // always set to the LSN we're starting at, to hint that no WAL replay is required.
-    // (There's some neon-specific code in Postgres startup to make that work, though.
+    // (There's some SerenDB-specific code in Postgres startup to make that work, though.
     // Just setting the redo pointer is not sufficient.)
     let was_shutdown = Lsn(checkpoint.redo) == lsn;
     checkpoint.redo = normalize_lsn(lsn, WAL_SEGMENT_SIZE).0;
 
     // We use DBState_DB_SHUTDOWNED even if it was not a clean shutdown.  The
-    // neon-specific code at postgres startup ignores the state stored in the control
+    // SerenDB-specific code at postgres startup ignores the state stored in the control
     // file, similar to archive recovery in standalone PostgreSQL. Similarly, the
     // checkPoint pointer is ignored, so just set it to 0.
     pg_control.checkPoint = 0;

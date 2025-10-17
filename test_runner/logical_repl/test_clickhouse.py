@@ -1,5 +1,5 @@
 """
-Test the logical replication in Neon with ClickHouse as a consumer
+Test the logical replication in SerenDB with ClickHouse as a consumer
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from fixtures.log_helper import log
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import RemotePostgres
+    from fixtures.serendb_fixtures import RemotePostgres
 
 
 def query_clickhouse(
@@ -85,6 +85,6 @@ def test_clickhouse(remote_pg: RemotePostgres):
         ),
         timeout=60,
     )
-    log.debug("Sleeping before final checking if Neon is still alive")
+    log.debug("Sleeping before final checking if SerenDB is still alive")
     time.sleep(3)
     cur.execute("SELECT 1")

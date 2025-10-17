@@ -60,7 +60,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Create release PR
-        uses: neondatabase/dev-actions/release-pr@290dec821d86fa8a93f019e8c69720f5865b5677
+        uses: serenorg/dev-actions/release-pr@290dec821d86fa8a93f019e8c69720f5865b5677
         with:
           component: ${{ inputs.component }}
           cherry-pick: ${{ inputs.cherry-pick }}

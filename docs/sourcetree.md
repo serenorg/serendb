@@ -4,12 +4,12 @@ Below you will find a brief overview of each subdir in the source tree in alphab
 
 `storage_broker`:
 
-Neon storage broker, providing messaging between safekeepers and pageservers.
+SerenDB storage broker, providing messaging between safekeepers and pageservers.
 [storage_broker.md](./storage_broker.md)
 
 `storage_controller`:
 
-Neon storage controller, manages a cluster of pageservers and exposes an API that enables
+SerenDB storage controller, manages a cluster of pageservers and exposes an API that enables
 managing a many-sharded tenant as a single entity.
 
 `/control_plane`:
@@ -20,12 +20,12 @@ Intended to be used in integration tests and in CLI tools for local installation
 
 `/docs`:
 
-Documentation of the Neon features and concepts.
+Documentation of the SerenDB features and concepts.
 Now it is mostly dev documentation.
 
 `/pageserver`:
 
-Neon storage service.
+SerenDB storage service.
 The pageserver has a few different duties:
 
 - Store and manage the data.
@@ -48,23 +48,23 @@ Integration tests, written in Python using the `pytest` framework.
 
 `/vendor/postgres-v14` and `/vendor/postgres-v15`:
 
-PostgreSQL source tree per version, with the modifications needed for Neon.
+PostgreSQL source tree per version, with the modifications needed for SerenDB.
 
-`/pgxn/neon`:
+`/pgxn/serendb`:
 
 PostgreSQL extension that implements storage manager API and network communications with remote page server.
 
-`/pgxn/neon_test_utils`:
+`/pgxn/serendb_test_utils`:
 
 PostgreSQL extension that contains functions needed for testing and debugging.
 
-`/pgxn/neon_walredo`:
+`/pgxn/serendb_walredo`:
 
 Library to run Postgres as a "WAL redo process" in the pageserver.
 
 `/safekeeper`:
 
-The neon WAL service that receives WAL from a primary compute nodes and streams it to the pageserver.
+The SerenDB WAL service that receives WAL from a primary compute nodes and streams it to the pageserver.
 It acts as a holding area and redistribution center for recently generated WAL.
 
 For more detailed info, see [walservice.md](./walservice.md)
@@ -75,7 +75,7 @@ The workspace_hack crate exists only to pin down some dependencies.
 We use [cargo-hakari](https://crates.io/crates/cargo-hakari) for automation.
 
 `/libs`:
-Unites granular neon helper crates under the hood.
+Unites granular SerenDB helper crates under the hood.
 
 `/libs/postgres_ffi`:
 
@@ -157,18 +157,18 @@ To add new package or change an existing one you can use `poetry add` or `poetry
 More details are available in poetry's [documentation](https://python-poetry.org/docs/).
 
 ## Configuring IDEs
-Neon consists of three projects in different languages which use different project models.
+SerenDB consists of three projects in different languages which use different project models.
 
 * A bunch of Rust crates, all available from the root `Cargo.toml`.
 * Integration tests in Python in the `test_runner` directory. Some stand-alone Python scripts exist as well.
 * Postgres and our Postgres extensions in C built with Makefiles under `vendor/postgres` and `pgxn`.
 
 ### CLion
-You can use CLion with the [Rust plugin](https://plugins.jetbrains.com/plugin/8182-rust) to develop Neon. It should pick up Rust and Python projects whenever you open Neon's repository as a project. We have not tried setting up a debugger, though.
+You can use CLion with the [Rust plugin](https://plugins.jetbrains.com/plugin/8182-rust) to develop SerenDB. It should pick up Rust and Python projects whenever you open SerenDB's repository as a project. We have not tried setting up a debugger, though.
 
 C code requires some extra care, as it's built via Make, not CMake. Some of our developers have successfully used [compilation database](https://www.jetbrains.com/help/clion/compilation-database.html#compdb_generate) for CLion. It is a JSON file which lists all C source files and corresponding compilation keys. CLion can use it instead of `CMakeLists.txt`. To set up a project with a compilation database:
 
-1. Clone the Neon repository and install all dependencies, including Python. Do not open it with CLion just yet.
+1. Clone the SerenDB repository and install all dependencies, including Python. Do not open it with CLion just yet.
 2. Run the following commands in the repository's root:
    ```bash
    # Install a `compiledb` tool which can parse make's output and generate the compilation database.
@@ -182,7 +182,7 @@ C code requires some extra care, as it's built via Make, not CMake. Some of our 
    # You can alter the -j parameter to your liking.
    # Note that we only build for a specific version of Postgres. The extension code is shared, but headers are
    # different, so we set up CLion to only use a specific version of the headers.
-   make -j$(nproc) --print-directory postgres-v15 neon-pg-ext-v15 | poetry run compiledb --verbose --no-build
+   make -j$(nproc) --print-directory postgres-v15 serendb-pg-ext-v15 | poetry run compiledb --verbose --no-build
    # Uninstall the tool
    poetry remove -D compiledb
    # Make sure the compile_commands.json file is not committed.

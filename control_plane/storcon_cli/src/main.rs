@@ -322,7 +322,7 @@ enum Command {
 #[command(arg_required_else_help(true))]
 struct Cli {
     #[arg(long)]
-    /// URL to storage controller.  e.g. http://127.0.0.1:1234 when using `neon_local`
+    /// URL to storage controller.  e.g. http://127.0.0.1:1234 when using `serendb_local`
     api: Url,
 
     #[arg(long)]

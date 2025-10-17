@@ -5,7 +5,7 @@ We use JWT tokens in communication between almost all components (compute, pages
 storage_broker currently has no authentication.
 Authentication is optional and is disabled by default for easier debugging.
 It is used in some tests, though.
-Note that we do not cover authentication with `pg.neon.tech` here.
+Note that we do not cover authentication with `pg.serendb.com` here.
 
 For HTTP connections we use the Bearer authentication scheme.
 For PostgreSQL connections we expect the token to be passed as a password.
@@ -26,7 +26,7 @@ JWT tokens are signed using a private key.
 Compute/pageserver/safekeeper use the private key's public counterpart to validate JWT tokens.
 These components should not have access to the private key and may only get tokens from their configuration or external clients. 
 
-The key pair is generated once for an installation of compute/pageserver/safekeeper, e.g. by `neon_local init`.
+The key pair is generated once for an installation of compute/pageserver/safekeeper, e.g. by `serendb_local init`.
 There is currently no way to rotate the key without bringing down all components.
 
 ### Best practices
@@ -36,7 +36,7 @@ See [RFC 8725: JSON Web Token Best Current Practices](https://www.rfc-editor.org
 
 ### Token format
 
-The JWT tokens in Neon use "EdDSA" as the algorithm (defined in [RFC8037](https://www.rfc-editor.org/rfc/rfc8037)).
+The JWT tokens in SerenDB use "EdDSA" as the algorithm (defined in [RFC8037](https://www.rfc-editor.org/rfc/rfc8037)).
 
 Example:
 
@@ -75,7 +75,7 @@ Currently also used for connection from any pageserver to any safekeeper.
 "admin": Provides access to the control plane and admin APIs of the storage controller.
 
 ### CLI
-CLI generates a key pair during call to `neon_local init` with the following commands:
+CLI generates a key pair during call to `serendb_local init` with the following commands:
 
 ```bash
 openssl genpkey -algorithm ed25519 -out auth_private_key.pem
@@ -110,21 +110,21 @@ There is no administrative API except those provided by PostgreSQL.
 
 #### Outgoing connections
 Compute connects to Pageserver for getting pages. The connection string is
-configured by the `neon.pageserver_connstring` PostgreSQL GUC,
-e.g. `postgresql://no_user@localhost:15028`. If the `$NEON_AUTH_TOKEN`
+configured by the `serendb.pageserver_connstring` PostgreSQL GUC,
+e.g. `postgresql://no_user@localhost:15028`. If the `$SERENDB_AUTH_TOKEN`
 environment variable is set, it is used as the password for the connection. (The
 pageserver uses JWT tokens for authentication, so the password is really a
 token.)
 
 Compute connects to Safekeepers to write and commit data. The list of safekeeper
-addresses is given in the `neon.safekeepers` GUC. The connections to the
-safekeepers take the password from the `$NEON_AUTH_TOKEN` environment
+addresses is given in the `serendb.safekeepers` GUC. The connections to the
+safekeepers take the password from the `$SERENDB_AUTH_TOKEN` environment
 variable, if set.
 
 The `compute_ctl` binary that runs before the PostgreSQL server, and launches
 PostgreSQL, also makes a connection to the pageserver. It uses it to fetch the
 initial "base backup" dump, to initialize the PostgreSQL data directory. It also
-uses `$NEON_AUTH_TOKEN` as the password for the connection.
+uses `$SERENDB_AUTH_TOKEN` as the password for the connection.
 
 ### Pageserver
 #### Overview
@@ -155,7 +155,7 @@ for the libpq connections from compute. The `http_auth_type` and
 have one of these values:
 
 * `Trust` removes all authentication.
-* `NeonJWT` enables JWT validation.
+* `SerenDBJWT` enables JWT validation.
    Tokens are validated using the public key which lies in a PEM file
    specified in the `auth_validation_public_key_path` config.
 
@@ -163,7 +163,7 @@ have one of these values:
 Pageserver makes a connection to a Safekeeper for each active timeline.
 As Pageserver may want to access any timeline it has on the disk,
 it is given a blanket JWT token to access any data on any Safekeeper.
-This token is passed through an environment variable called `NEON_AUTH_TOKEN`
+This token is passed through an environment variable called `SERENDB_AUTH_TOKEN`
 (non-configurable as of writing this text).
 
 A better way _may be_ to store JWT token for each timeline next to it,
@@ -195,7 +195,7 @@ Tests do not use authentication by default.
 If you need it, you can enable it by configuring the test's environment:
 
 ```python
-neon_env_builder.auth_enabled = True
+serendb_env_builder.auth_enabled = True
 ```
 
 You will have to generate tokens if you want to access components inside the test directly,

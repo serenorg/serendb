@@ -28,7 +28,7 @@ motd(PG_FUNCTION_ARGS)
 Datum
 fun_fact(PG_FUNCTION_ARGS)
 {
-    elog(NOTICE, "Neon has a melting point of -246.08 C");
+    elog(NOTICE, "SerenDB has a melting point of -246.08 C");
 
     PG_RETURN_VOID();
 }

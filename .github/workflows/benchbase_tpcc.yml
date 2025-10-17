@@ -47,9 +47,9 @@ jobs:
       statuses: write
       id-token: write # aws-actions/configure-aws-credentials
     env:
-      PG_CONFIG: /tmp/neon/pg_install/v17/bin/pg_config
-      PSQL: /tmp/neon/pg_install/v17/bin/psql
-      PG_17_LIB_PATH: /tmp/neon/pg_install/v17/lib
+      PG_CONFIG: /tmp/serendb/pg_install/v17/bin/pg_config
+      PSQL: /tmp/serendb/pg_install/v17/bin/psql
+      PG_17_LIB_PATH: /tmp/serendb/pg_install/v17/lib
       POSTGRES_VERSION: 17
     runs-on: [ self-hosted, us-east-2, x64 ]
     timeout-minutes: 1440
@@ -69,36 +69,36 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours is currently max associated with IAM role
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
-    - name: Create Neon Project
-      id: create-neon-project-tpcc
-      uses: ./.github/actions/neon-project-create
+    - name: Create SerenDB Project
+      id: create-serendb-project-tpcc
+      uses: ./.github/actions/serendb-project-create
       with:
         region_id: aws-us-east-2
         postgres_version: ${{ env.POSTGRES_VERSION }}
         compute_units: '[${{ matrix.min_cu }}, ${{ matrix.max_cu }}]'
-        api_key: ${{ secrets.NEON_PRODUCTION_API_KEY_4_BENCHMARKS }}
-        api_host: console.neon.tech  # production (!)
+        api_key: ${{ secrets.SERENDB_PRODUCTION_API_KEY_4_BENCHMARKS }}
+        api_host: console.serendb.com  # production (!)
 
-    - name: Initialize Neon project
+    - name: Initialize SerenDB project
       env:
-          BENCHMARK_TPCC_CONNSTR: ${{ steps.create-neon-project-tpcc.outputs.dsn }}
-          PROJECT_ID: ${{ steps.create-neon-project-tpcc.outputs.project_id }}
+          BENCHMARK_TPCC_CONNSTR: ${{ steps.create-serendb-project-tpcc.outputs.dsn }}
+          PROJECT_ID: ${{ steps.create-serendb-project-tpcc.outputs.project_id }}
       run: |
-        echo "Initializing Neon project with project_id: ${PROJECT_ID}"
+        echo "Initializing SerenDB project with project_id: ${PROJECT_ID}"
         export LD_LIBRARY_PATH=${PG_17_LIB_PATH}
         
         # Retry logic for psql connection with 1 minute sleep between attempts
         for attempt in {1..3}; do
-          echo "Attempt ${attempt}/3: Creating extensions in Neon project"
-          if ${PSQL} "${BENCHMARK_TPCC_CONNSTR}" -c "CREATE EXTENSION IF NOT EXISTS neon; CREATE EXTENSION IF NOT EXISTS neon_utils;"; then
+          echo "Attempt ${attempt}/3: Creating extensions in SerenDB project"
+          if ${PSQL} "${BENCHMARK_TPCC_CONNSTR}" -c "CREATE EXTENSION IF NOT EXISTS serendb; CREATE EXTENSION IF NOT EXISTS serendb_utils;"; then
             echo "Successfully created extensions"
             break
           else
@@ -123,7 +123,7 @@ jobs:
         echo "Generating BenchBase configs for warehouses: ${WAREHOUSES}, max_rate: ${MAX_RATE}"
         
         # Extract hostname and password from connection string
-        # Format: postgresql://username:password@hostname/database?params (no port for Neon)
+        # Format: postgresql://username:password@hostname/database?params (no port for SerenDB)
         HOSTNAME=$(echo "${BENCHMARK_TPCC_CONNSTR}" | sed -n 's|.*://[^:]*:[^@]*@\([^/]*\)/.*|\1|p')
         PASSWORD=$(echo "${BENCHMARK_TPCC_CONNSTR}" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
         
@@ -192,7 +192,7 @@ jobs:
         WAREHOUSES: ${{ matrix.warehouses }}
         MIN_CU: ${{ matrix.min_cu }}
         MAX_CU: ${{ matrix.max_cu }}
-        PROJECT_ID: ${{ steps.create-neon-project-tpcc.outputs.project_id }}
+        PROJECT_ID: ${{ steps.create-serendb-project-tpcc.outputs.project_id }}
         REVISION: ${{ github.sha }}
         PERF_DB_CONNSTR: ${{ secrets.PERF_TEST_RESULT_CONNSTR }}
       run: |
@@ -360,7 +360,7 @@ jobs:
         
     - name: Upload benchmark results to S3
       env:
-        S3_BUCKET: neon-public-benchmark-results
+        S3_BUCKET: serendb-public-benchmark-results
         S3_PREFIX: benchbase-tpc-c/${{ steps.set-date.outputs.date }}/${{ github.run_id }}/${{ matrix.warehouses }}-warehouses
       run: |
         echo "Redacting passwords from configuration files before upload..."
@@ -375,10 +375,10 @@ jobs:
         
         echo "Upload completed"
         
-    - name: Delete Neon Project
+    - name: Delete SerenDB Project
       if: ${{ always() }}
-      uses: ./.github/actions/neon-project-delete
+      uses: ./.github/actions/serendb-project-delete
       with:
-        project_id: ${{ steps.create-neon-project-tpcc.outputs.project_id }}
-        api_key: ${{ secrets.NEON_PRODUCTION_API_KEY_4_BENCHMARKS }} 
-        api_host: console.neon.tech  # production (!)
+        project_id: ${{ steps.create-serendb-project-tpcc.outputs.project_id }}
+        api_key: ${{ secrets.SERENDB_PRODUCTION_API_KEY_4_BENCHMARKS }} 
+        api_host: console.serendb.com  # production (!)

@@ -15,5 +15,5 @@ set -euo pipefail
 
 thisscript="${BASH_SOURCE[0]}"
 thisscript_dir="$(dirname "$thisscript")"
-CLIPPY_COMMON_ARGS="$( source .neon_clippy_args; echo "$CLIPPY_COMMON_ARGS")"
+CLIPPY_COMMON_ARGS="$( source .serendb_clippy_args; echo "$CLIPPY_COMMON_ARGS")"
 exec cargo clippy --all-features $CLIPPY_COMMON_ARGS

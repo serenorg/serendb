@@ -11,16 +11,16 @@ use postgres_ffi::{BLCKSZ, pg_constants};
 use postgres_ffi_types::forknum::VISIBILITYMAP_FORKNUM;
 use tracing::*;
 use utils::lsn::Lsn;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
-/// Can this request be served by neon redo functions
+/// Can this request be served by SerenDB redo functions
 /// or we need to pass it to wal-redo postgres process?
-pub(crate) fn can_apply_in_neon(rec: &NeonWalRecord) -> bool {
+pub(crate) fn can_apply_in_serendb(rec: &SerenDBWalRecord) -> bool {
     // Currently, we don't have bespoken Rust code to replay any
-    // Postgres WAL records. But everything else is handled in neon.
+    // Postgres WAL records. But everything else is handled in SerenDB.
     #[allow(clippy::match_like_matches_macro)]
     match rec {
-        NeonWalRecord::Postgres {
+        SerenDBWalRecord::Postgres {
             will_init: _,
             rec: _,
         } => false,
@@ -28,23 +28,23 @@ pub(crate) fn can_apply_in_neon(rec: &NeonWalRecord) -> bool {
     }
 }
 
-pub(crate) fn apply_in_neon(
-    record: &NeonWalRecord,
+pub(crate) fn apply_in_serendb(
+    record: &SerenDBWalRecord,
     lsn: Lsn,
     key: Key,
     page: &mut BytesMut,
 ) -> Result<(), anyhow::Error> {
     match record {
-        NeonWalRecord::Postgres {
+        SerenDBWalRecord::Postgres {
             will_init: _,
             rec: _,
         } => {
-            anyhow::bail!("tried to pass postgres wal record to neon WAL redo");
+            anyhow::bail!("tried to pass postgres wal record to SerenDB WAL redo");
         }
         //
         // Code copied from PostgreSQL `visibilitymap_prepare_truncate` function in `visibilitymap.c`
         //
-        NeonWalRecord::TruncateVisibilityMap {
+        SerenDBWalRecord::TruncateVisibilityMap {
             trunc_byte,
             trunc_offs,
         } => {
@@ -68,7 +68,7 @@ pub(crate) fn apply_in_neon(
              */
             map[*trunc_byte] &= (1 << *trunc_offs) - 1;
         }
-        NeonWalRecord::ClearVisibilityMapFlags {
+        SerenDBWalRecord::ClearVisibilityMapFlags {
             new_heap_blkno,
             old_heap_blkno,
             flags,
@@ -117,7 +117,7 @@ pub(crate) fn apply_in_neon(
         }
         // Non-relational WAL records are handled here, with custom code that has the
         // same effects as the corresponding Postgres WAL redo function.
-        NeonWalRecord::ClogSetCommitted { xids, timestamp } => {
+        SerenDBWalRecord::ClogSetCommitted { xids, timestamp } => {
             let (slru_kind, segno, blknum) = key.to_slru_block().context("invalid record")?;
             assert_eq!(
                 slru_kind,
@@ -157,7 +157,7 @@ pub(crate) fn apply_in_neon(
                 );
             }
         }
-        NeonWalRecord::ClogSetAborted { xids } => {
+        SerenDBWalRecord::ClogSetAborted { xids } => {
             let (slru_kind, segno, blknum) = key.to_slru_block().context("invalid record")?;
             assert_eq!(
                 slru_kind,
@@ -182,7 +182,7 @@ pub(crate) fn apply_in_neon(
                 transaction_id_set_status(xid, pg_constants::TRANSACTION_STATUS_ABORTED, page);
             }
         }
-        NeonWalRecord::MultixactOffsetCreate { mid, moff } => {
+        SerenDBWalRecord::MultixactOffsetCreate { mid, moff } => {
             let (slru_kind, segno, blknum) = key.to_slru_block().context("invalid record")?;
             assert_eq!(
                 slru_kind,
@@ -209,7 +209,7 @@ pub(crate) fn apply_in_neon(
 
             LittleEndian::write_u32(&mut page[offset..offset + 4], *moff);
         }
-        NeonWalRecord::MultixactMembersCreate { moff, members } => {
+        SerenDBWalRecord::MultixactMembersCreate { moff, members } => {
             let (slru_kind, segno, blknum) = key.to_slru_block().context("invalid record")?;
             assert_eq!(
                 slru_kind,
@@ -245,12 +245,12 @@ pub(crate) fn apply_in_neon(
                 LittleEndian::write_u32(&mut page[memberoff..memberoff + 4], member.xid);
             }
         }
-        NeonWalRecord::AuxFile { .. } => {
+        SerenDBWalRecord::AuxFile { .. } => {
             // No-op: this record will never be created in aux v2.
             warn!("AuxFile record should not be created in aux v2");
         }
         #[cfg(feature = "testing")]
-        NeonWalRecord::Test {
+        SerenDBWalRecord::Test {
             append,
             clear,
             will_init,

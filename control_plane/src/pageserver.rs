@@ -3,7 +3,7 @@
 //! In the local test environment, the data for each pageserver is stored in
 //!
 //! ```text
-//!   .neon/pageserver_<pageserver_id>
+//!   .serendb/pageserver_<pageserver_id>
 //! ```
 //!
 use std::collections::HashMap;
@@ -28,9 +28,9 @@ use utils::id::{NodeId, TenantId, TimelineId};
 use utils::lsn::Lsn;
 
 use crate::background_process;
-use crate::local_env::{LocalEnv, NeonLocalInitPageserverConf, PageServerConf};
+use crate::local_env::{LocalEnv, SerenDBLocalInitPageserverConf, PageServerConf};
 
-/// Directory within .neon which will be used by default for LocalFs remote storage.
+/// Directory within .serendb which will be used by default for LocalFs remote storage.
 pub const PAGESERVER_REMOTE_STORAGE_DIR: &str = "local_fs_remote_storage/pageserver";
 
 //
@@ -73,7 +73,7 @@ impl PageServerNode {
                 {
                     match conf.http_auth_type {
                         AuthType::Trust => None,
-                        AuthType::NeonJWT => Some(
+                        AuthType::SerenDBJWT => Some(
                             env.generate_auth_token(&Claims::new(None, Scope::PageServerApi))
                                 .unwrap(),
                         ),
@@ -90,12 +90,12 @@ impl PageServerNode {
 
     fn pageserver_init_make_toml(
         &self,
-        conf: NeonLocalInitPageserverConf,
+        conf: SerenDBLocalInitPageserverConf,
     ) -> anyhow::Result<toml_edit::DocumentMut> {
         assert_eq!(
             &PageServerConf::from(&conf),
             &self.conf,
-            "during neon_local init, we derive the runtime state of ps conf (self.conf) from the --config flag fully"
+            "during serendb_local init, we derive the runtime state of ps conf (self.conf) from the --config flag fully"
         );
 
         // TODO(christian): instead of what we do here, create a pageserver_api::config::ConfigToml (PR #7656)
@@ -117,7 +117,7 @@ impl PageServerNode {
 
         // Storage controller uses the same auth as pageserver: if JWT is enabled
         // for us, we will also need it to talk to them.
-        if matches!(conf.http_auth_type, AuthType::NeonJWT) {
+        if matches!(conf.http_auth_type, AuthType::SerenDBJWT) {
             let jwt_token = self
                 .env
                 .generate_auth_token(&Claims::new(None, Scope::GenerationsApi))
@@ -132,7 +132,7 @@ impl PageServerNode {
         }
 
         if [conf.http_auth_type, conf.pg_auth_type, conf.grpc_auth_type]
-            .contains(&AuthType::NeonJWT)
+            .contains(&AuthType::SerenDBJWT)
         {
             // Keys are generated in the toplevel repo dir, pageservers' workdirs
             // are one level below that, so refer to keys with ../
@@ -166,7 +166,7 @@ impl PageServerNode {
     }
 
     /// Initializes a pageserver node by creating its config with the overrides provided.
-    pub fn initialize(&self, conf: NeonLocalInitPageserverConf) -> anyhow::Result<()> {
+    pub fn initialize(&self, conf: SerenDBLocalInitPageserverConf) -> anyhow::Result<()> {
         self.pageserver_init(conf)
             .with_context(|| format!("Failed to run init for pageserver node {}", self.conf.id))
     }
@@ -187,7 +187,7 @@ impl PageServerNode {
         self.start_node(retry_timeout).await
     }
 
-    fn pageserver_init(&self, conf: NeonLocalInitPageserverConf) -> anyhow::Result<()> {
+    fn pageserver_init(&self, conf: SerenDBLocalInitPageserverConf) -> anyhow::Result<()> {
         let datadir = self.repo_path();
         let node_id = self.conf.id;
         println!(
@@ -351,7 +351,7 @@ impl PageServerNode {
             let token = self
                 .env
                 .generate_auth_token(&Claims::new(None, Scope::SafekeeperData))?;
-            vec![("NEON_AUTH_TOKEN".to_owned(), token)]
+            vec![("SERENDB_AUTH_TOKEN".to_owned(), token)]
         } else {
             Vec::new()
         })

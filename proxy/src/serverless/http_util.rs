@@ -20,19 +20,19 @@ use crate::config::AuthenticationConfig;
 use crate::context::RequestContext;
 use crate::metrics::{Metrics, SniGroup, SniKind};
 use crate::pqproto::StartupMessageParams;
-use crate::proxy::NeonOptions;
+use crate::proxy::SerenDBOptions;
 use crate::types::{DbName, EndpointId, RoleName};
 
 // Common header names used across serverless modules
-pub(super) static NEON_REQUEST_ID: HeaderName = HeaderName::from_static("neon-request-id");
-pub(super) static CONN_STRING: HeaderName = HeaderName::from_static("neon-connection-string");
-pub(super) static RAW_TEXT_OUTPUT: HeaderName = HeaderName::from_static("neon-raw-text-output");
-pub(super) static ARRAY_MODE: HeaderName = HeaderName::from_static("neon-array-mode");
-pub(super) static ALLOW_POOL: HeaderName = HeaderName::from_static("neon-pool-opt-in");
+pub(super) static SERENDB_REQUEST_ID: HeaderName = HeaderName::from_static("serendb-request-id");
+pub(super) static CONN_STRING: HeaderName = HeaderName::from_static("serendb-connection-string");
+pub(super) static RAW_TEXT_OUTPUT: HeaderName = HeaderName::from_static("serendb-raw-text-output");
+pub(super) static ARRAY_MODE: HeaderName = HeaderName::from_static("serendb-array-mode");
+pub(super) static ALLOW_POOL: HeaderName = HeaderName::from_static("serendb-pool-opt-in");
 pub(super) static TXN_ISOLATION_LEVEL: HeaderName =
-    HeaderName::from_static("neon-batch-isolation-level");
-pub(super) static TXN_READ_ONLY: HeaderName = HeaderName::from_static("neon-batch-read-only");
-pub(super) static TXN_DEFERRABLE: HeaderName = HeaderName::from_static("neon-batch-deferrable");
+    HeaderName::from_static("serendb-batch-isolation-level");
+pub(super) static TXN_READ_ONLY: HeaderName = HeaderName::from_static("serendb-batch-read-only");
+pub(super) static TXN_DEFERRABLE: HeaderName = HeaderName::from_static("serendb-batch-deferrable");
 
 pub(crate) fn uuid_to_header_value(id: Uuid) -> HeaderValue {
     let mut uuid = [0; uuid::fmt::Hyphenated::LENGTH];
@@ -225,7 +225,7 @@ pub(crate) fn get_conn_info(
     for (key, value) in pairs {
         params.insert(&key, &value);
         if key == "options" {
-            options = Some(NeonOptions::parse_options_raw(&value));
+            options = Some(SerenDBOptions::parse_options_raw(&value));
         }
     }
 

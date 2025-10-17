@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 
 SIGNED_CHAR_EXTRACT = """
     WITH
@@ -21,7 +21,7 @@ SIGNED_CHAR_EXTRACT = """
     """
 
 
-def test_signed_char(neon_simple_env: NeonEnv):
+def test_signed_char(serendb_simple_env: SerenDBEnv):
     """
     Test that postgres was compiled with -fsigned-char.
     ---
@@ -33,7 +33,7 @@ def test_signed_char(neon_simple_env: NeonEnv):
     The following query gets all the data present in the leaf page of a GIN index,
     which is ordered by the CRC hash and is consistent across platforms.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     with endpoint.connect().cursor() as ses1:

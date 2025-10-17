@@ -173,7 +173,7 @@ mod tests {
     use std::sync::atomic::AtomicBool;
 
     use super::*;
-    use crate::proxy::NeonOptions;
+    use crate::proxy::SerenDBOptions;
     use crate::serverless::cancel_set::CancelSet;
     use crate::types::{BranchId, EndpointId, ProjectId};
 
@@ -240,7 +240,7 @@ mod tests {
             user_info: ComputeUserInfo {
                 user: "user".into(),
                 endpoint: "endpoint".into(),
-                options: NeonOptions::default(),
+                options: SerenDBOptions::default(),
             },
             dbname: "dbname".into(),
         };
@@ -291,7 +291,7 @@ mod tests {
             user_info: ComputeUserInfo {
                 user: "user".into(),
                 endpoint: "endpoint-2".into(),
-                options: NeonOptions::default(),
+                options: SerenDBOptions::default(),
             },
             dbname: "dbname".into(),
         };

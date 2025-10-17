@@ -8,10 +8,10 @@ public class Example
 {
     public static void main( String[] args ) throws Exception
     {
-        String host = System.getenv("NEON_HOST");
-        String database = System.getenv("NEON_DATABASE");
-        String user = System.getenv("NEON_USER");
-        String password = System.getenv("NEON_PASSWORD");
+        String host = System.getenv("SERENDB_HOST");
+        String database = System.getenv("SERENDB_DATABASE");
+        String user = System.getenv("SERENDB_USER");
+        String password = System.getenv("SERENDB_PASSWORD");
 
         String url = "jdbc:postgresql://%s/%s".formatted(host, database);
         Properties props = new Properties();

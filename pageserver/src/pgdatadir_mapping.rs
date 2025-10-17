@@ -36,7 +36,7 @@ use tracing::{debug, info, info_span, trace, warn};
 use utils::bin_ser::{BeSer, DeserializeError};
 use utils::lsn::Lsn;
 use utils::pausable_failpoint;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 use wal_decoder::models::value::Value;
 use wal_decoder::serialized_batch::{SerializedValueBatch, ValueMeta};
 
@@ -1980,7 +1980,7 @@ impl DatadirModification<'_> {
         &mut self,
         rel: RelTag,
         blknum: BlockNumber,
-        rec: NeonWalRecord,
+        rec: SerenDBWalRecord,
     ) -> Result<(), WalIngestError> {
         ensure_walingest!(rel.relnode != 0, RelationError::InvalidRelnode);
         self.put(rel_block_to_key(rel, blknum), Value::WalRecord(rec));
@@ -1993,7 +1993,7 @@ impl DatadirModification<'_> {
         kind: SlruKind,
         segno: u32,
         blknum: BlockNumber,
-        rec: NeonWalRecord,
+        rec: SerenDBWalRecord,
     ) -> Result<(), WalIngestError> {
         if !self.tline.tenant_shard_id.is_shard_zero() {
             return Ok(());

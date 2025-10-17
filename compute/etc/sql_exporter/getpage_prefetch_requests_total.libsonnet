@@ -5,5 +5,5 @@
   values: [
     'getpage_prefetch_requests_total',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }

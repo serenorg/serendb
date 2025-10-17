@@ -12,11 +12,11 @@ from fixtures.pg_version import PgVersion
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder, PgBin
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder, PgBin
 
 
-def test_pageserver_getpage_throttle(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
-    env = neon_env_builder.init_start()
+def test_pageserver_getpage_throttle(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
+    env = serendb_env_builder.init_start()
 
     env.pageserver.tenant_detach(env.initial_tenant)
 
@@ -52,7 +52,7 @@ def test_pageserver_getpage_throttle(neon_env_builder: NeonEnvBuilder, pg_bin: P
 
     def run_pagebench_at_max_speed_and_get_total_requests_completed(duration_secs: int):
         cmd = [
-            str(env.neon_binpath / "pagebench"),
+            str(env.serendb_binpath / "pagebench"),
             "get-page-latest-lsn",
             "--mgmt-api-endpoint",
             ps_http.base_url,

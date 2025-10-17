@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import wait_for_last_flush_lsn
+from fixtures.serendb_fixtures import wait_for_last_flush_lsn
 
 if TYPE_CHECKING:
-    from fixtures.compare_fixtures import NeonCompare
+    from fixtures.compare_fixtures import SerenDBCompare
 
 
 #
@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 # some delta layers. Then it runs manual compaction, measuring how long it takes.
 #
 @pytest.mark.timeout(1000)
-def test_compaction(neon_compare: NeonCompare):
-    env = neon_compare.env
+def test_compaction(serendb_compare: SerenDBCompare):
+    env = serendb_compare.env
     pageserver_http = env.pageserver.http_client()
 
     tenant_id, timeline_id = env.create_tenant(
@@ -34,8 +34,8 @@ def test_compaction(neon_compare: NeonCompare):
             "image_creation_threshold": "1",
         }
     )
-    neon_compare.tenant = tenant_id
-    neon_compare.timeline = timeline_id
+    serendb_compare.tenant = tenant_id
+    serendb_compare.timeline = timeline_id
 
     # Create some tables, and run a bunch of INSERTs and UPDATes on them,
     # to generate WAL and layers
@@ -54,23 +54,23 @@ def test_compaction(neon_compare: NeonCompare):
     wait_for_last_flush_lsn(env, endpoint, tenant_id, timeline_id)
 
     # First compaction generates L1 layers
-    with neon_compare.zenbenchmark.record_duration("compaction"):
+    with serendb_compare.zenbenchmark.record_duration("compaction"):
         pageserver_http.timeline_compact(tenant_id, timeline_id)
 
     # And second compaction triggers image layer creation
-    with neon_compare.zenbenchmark.record_duration("image_creation"):
+    with serendb_compare.zenbenchmark.record_duration("image_creation"):
         pageserver_http.timeline_compact(tenant_id, timeline_id)
 
-    neon_compare.report_size()
+    serendb_compare.report_size()
 
 
-def test_compaction_l0_memory(neon_compare: NeonCompare):
+def test_compaction_l0_memory(serendb_compare: SerenDBCompare):
     """
     Generate a large stack of L0s pending compaction into L1s, and
     measure the pageserver's peak RSS while doing so
     """
 
-    env = neon_compare.env
+    env = serendb_compare.env
     pageserver_http = env.pageserver.http_client()
 
     tenant_id, timeline_id = env.create_tenant(
@@ -81,8 +81,8 @@ def test_compaction_l0_memory(neon_compare: NeonCompare):
             "compaction_upper_limit": 12,
         }
     )
-    neon_compare.tenant = tenant_id
-    neon_compare.timeline = timeline_id
+    serendb_compare.tenant = tenant_id
+    serendb_compare.timeline = timeline_id
 
     endpoint = env.endpoints.create_start(
         "main", tenant_id=tenant_id, config_lines=["shared_buffers=512MB"]

@@ -6,7 +6,7 @@
   vars:
     script_dir: /storage/ansible_sk_cleanup
     tenants_file: "{{ script_dir }}/tenants.txt"
-    trash_dir: /storage/neon-trash/2023-01-01--changeme
+    trash_dir: /storage/serendb-trash/2023-01-01--changeme
     
   tasks:
 

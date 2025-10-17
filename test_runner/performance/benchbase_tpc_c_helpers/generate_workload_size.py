@@ -27,8 +27,8 @@ WARMUP_XML = """<?xml version="1.0"?>
 <parameters>
     <type>POSTGRES</type>
     <driver>org.postgresql.Driver</driver>
-    <url>jdbc:postgresql://{hostname}/neondb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
-    <username>neondb_owner</username>
+    <url>jdbc:postgresql://{hostname}/serendb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
+    <username>serendb_owner</username>
     <password>{password}</password>
     <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
     <isolation>TRANSACTION_READ_COMMITTED</isolation>
@@ -59,8 +59,8 @@ MAX_RATE_XML = """<?xml version="1.0"?>
 <parameters>
     <type>POSTGRES</type>
     <driver>org.postgresql.Driver</driver>
-    <url>jdbc:postgresql://{hostname}/neondb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
-    <username>neondb_owner</username>
+    <url>jdbc:postgresql://{hostname}/serendb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
+    <username>serendb_owner</username>
     <password>{password}</password>
     <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
     <isolation>TRANSACTION_READ_COMMITTED</isolation>
@@ -91,8 +91,8 @@ OPT_RATE_XML = """<?xml version="1.0"?>
 <parameters>
     <type>POSTGRES</type>
     <driver>org.postgresql.Driver</driver>
-    <url>jdbc:postgresql://{hostname}/neondb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
-    <username>neondb_owner</username>
+    <url>jdbc:postgresql://{hostname}/serendb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
+    <username>serendb_owner</username>
     <password>{password}</password>
     <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
     <isolation>TRANSACTION_READ_COMMITTED</isolation>
@@ -123,8 +123,8 @@ RAMP_UP_XML = """<?xml version="1.0"?>
 <parameters>
     <type>POSTGRES</type>
     <driver>org.postgresql.Driver</driver>
-    <url>jdbc:postgresql://{hostname}/neondb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
-    <username>neondb_owner</username>
+    <url>jdbc:postgresql://{hostname}/serendb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
+    <username>serendb_owner</username>
     <password>{password}</password>
     <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
     <isolation>TRANSACTION_READ_COMMITTED</isolation>
@@ -177,8 +177,8 @@ LOAD_XML = """<?xml version="1.0"?>
 <parameters>
     <type>POSTGRES</type>
     <driver>org.postgresql.Driver</driver>
-    <url>jdbc:postgresql://{hostname}/neondb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
-    <username>neondb_owner</username>
+    <url>jdbc:postgresql://{hostname}/serendb?sslmode=require&amp;ApplicationName=tpcc&amp;reWriteBatchedInserts=true</url>
+    <username>serendb_owner</username>
     <password>{password}</password>
     <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
     <isolation>TRANSACTION_READ_COMMITTED</isolation>
@@ -248,7 +248,7 @@ def main():
 
     # Get the appropriate Docker architecture tag
     docker_arch = get_docker_arch_tag(runner_arch)
-    docker_image = f"ghcr.io/neondatabase-labs/benchbase-postgres:latest-{docker_arch}"
+    docker_image = f"ghcr.io/serenorg-labs/benchbase-postgres:latest-{docker_arch}"
 
     opt_rate = math.ceil(max_rate * OPTIMAL_RATE_FACTOR)
     # Calculate terminals as next rounded integer of 40% of warehouses

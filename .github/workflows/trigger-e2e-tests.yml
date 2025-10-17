@@ -43,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CI_ACCESS_TOKEN }}
         run: |
-          gh workflow --repo neondatabase/cloud \
+          gh workflow --repo serenorg/cloud \
             run cancel-previous-in-concurrency-group.yml \
               --field concurrency_group="${{ env.E2E_CONCURRENCY_GROUP }}"
 
@@ -77,7 +77,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Wait for `push-{neon,compute}-image-dev` job to finish
+      - name: Wait for `push-{serendb,compute}-image-dev` job to finish
         # It's important to have a timeout here, the script in the step can run infinitely
         timeout-minutes: 60
         run: |
@@ -88,7 +88,7 @@ jobs:
           # For PRs we use the run id as the tag
           BUILD_AND_TEST_RUN_ID=${TAG}
           while true; do
-            gh run --repo ${GITHUB_REPOSITORY} view ${BUILD_AND_TEST_RUN_ID} --json jobs --jq '[.jobs[] | select((.name | startswith("push-neon-image-dev")) or (.name | startswith("push-compute-image-dev"))) | {"name": .name, "conclusion": .conclusion, "url": .url}]' > jobs.json
+            gh run --repo ${GITHUB_REPOSITORY} view ${BUILD_AND_TEST_RUN_ID} --json jobs --jq '[.jobs[] | select((.name | startswith("push-serendb-image-dev")) or (.name | startswith("push-compute-image-dev"))) | {"name": .name, "conclusion": .conclusion, "url": .url}]' > jobs.json
             if [ $(jq '[.[] | select(.conclusion == "success")] | length' jobs.json) -eq 2 ]; then
               break
             fi
@@ -100,7 +100,7 @@ jobs:
                   ;;
               esac
             done
-            echo "The 'push-{neon,compute}-image-dev' jobs haven't succeeded yet. Waiting..."
+            echo "The 'push-{serendb,compute}-image-dev' jobs haven't succeeded yet. Waiting..."
             sleep 60
           done
 
@@ -113,8 +113,8 @@ jobs:
           # Default set of platforms to run e2e tests on
           platforms='["docker", "k8s"]'
 
-          # If a PR changes anything that affects computes, add k8s-neonvm to the list of platforms.
-          # If the workflow run is not a pull request, add k8s-neonvm to the list.
+          # If a PR changes anything that affects computes, add k8s-serendbvm to the list of platforms.
+          # If the workflow run is not a pull request, add k8s-serendbvm to the list.
           if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
             for f in $(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename'); do
               case "$f" in
@@ -124,7 +124,7 @@ jobs:
                 # For example, compute_ctl also depends on libs/utils, but we don't trigger
                 # an e2e run on that.
                 vendor/*|pgxn/*|compute_tools/*|libs/vm_monitor/*|compute/compute-node.Dockerfile)
-                  platforms=$(echo "${platforms}" | jq --compact-output '. += ["k8s-neonvm"] | unique')
+                  platforms=$(echo "${platforms}" | jq --compact-output '. += ["k8s-serendbvm"] | unique')
                   ;;
                 *)
                   # no-op
@@ -132,7 +132,7 @@ jobs:
               esac
             done
           else
-            platforms=$(echo "${platforms}" | jq --compact-output '. += ["k8s-neonvm"] | unique')
+            platforms=$(echo "${platforms}" | jq --compact-output '. += ["k8s-serendbvm"] | unique')
           fi
 
           echo "e2e-platforms=${platforms}" | tee -a $GITHUB_OUTPUT
@@ -149,12 +149,12 @@ jobs:
             --method POST \
             --raw-field "state=pending" \
             --raw-field "description=[$REMOTE_REPO] Remote CI job is about to start" \
-            --raw-field "context=neon-cloud-e2e"
+            --raw-field "context=serendb-cloud-e2e"
 
           gh workflow --repo ${REMOTE_REPO} \
             run testing.yml \
               --ref "main" \
-              --raw-field "ci_job_name=neon-cloud-e2e" \
+              --raw-field "ci_job_name=serendb-cloud-e2e" \
               --raw-field "commit_hash=$COMMIT_SHA" \
               --raw-field "remote_repo=${GITHUB_REPOSITORY}" \
               --raw-field "storage_image_tag=${TAG}" \

@@ -23,10 +23,10 @@ jobs:
         egress-policy: audit
 
     - name: Export Workflow Run for the past 2 hours
-      uses: neondatabase/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
+      uses: serenorg/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
       with:
         db_uri: ${{ secrets.GH_REPORT_STATS_DB_RW_CONNSTR }}
-        db_table: "gh_workflow_stats_neon"
+        db_table: "gh_workflow_stats_serendb"
         gh_token: ${{ secrets.GITHUB_TOKEN }}
         duration: '2h'
 
@@ -43,10 +43,10 @@ jobs:
         egress-policy: audit
 
     - name: Export Workflow Run for the past 48 hours
-      uses: neondatabase/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
+      uses: serenorg/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
       with:
         db_uri: ${{ secrets.GH_REPORT_STATS_DB_RW_CONNSTR }}
-        db_table: "gh_workflow_stats_neon"
+        db_table: "gh_workflow_stats_serendb"
         gh_token: ${{ secrets.GITHUB_TOKEN }}
         duration: '48h'
 
@@ -63,9 +63,9 @@ jobs:
         egress-policy: audit
 
     - name: Export Workflow Run for the past 30 days
-      uses: neondatabase/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
+      uses: serenorg/gh-workflow-stats-action@701b1f202666d0b82e67b4d387e909af2b920127 # v0.2.2
       with:
         db_uri: ${{ secrets.GH_REPORT_STATS_DB_RW_CONNSTR }}
-        db_table: "gh_workflow_stats_neon"
+        db_table: "gh_workflow_stats_serendb"
         gh_token: ${{ secrets.GITHUB_TOKEN }}
         duration: '720h'

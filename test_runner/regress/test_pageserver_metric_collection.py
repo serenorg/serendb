@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     wait_for_last_flush_lsn,
 )
 from fixtures.remote_storage import (
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 def test_metric_collection(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     (host, port) = httpserver_listen_address
@@ -54,18 +54,18 @@ def test_metric_collection(
         uploads.put((events, is_last == "true"))
         return Response(status=200)
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    assert neon_env_builder.pageserver_remote_storage is not None
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    assert serendb_env_builder.pageserver_remote_storage is not None
 
     # Require collecting metrics frequently, since we change
     # the timeline and want something to be logged about it.
     #
     # Disable time-based pitr, we will use the manual GC calls
     # to trigger remote storage operations in a controlled way
-    neon_env_builder.pageserver_config_override = f"""
+    serendb_env_builder.pageserver_config_override = f"""
         metric_collection_interval="1s"
         metric_collection_endpoint="{metric_collection_endpoint}"
-        metric_collection_bucket={remote_storage_to_toml_inline_table(neon_env_builder.pageserver_remote_storage)}
+        metric_collection_bucket={remote_storage_to_toml_inline_table(serendb_env_builder.pageserver_remote_storage)}
         synthetic_size_calculation_interval="3s"
         """
 
@@ -76,8 +76,8 @@ def test_metric_collection(
         metrics_handler
     )
 
-    # spin up neon,  after http server is ready
-    env = neon_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
+    # spin up SerenDB,  after http server is ready
+    env = serendb_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
     # httpserver is shut down before pageserver during passing run
     env.pageserver.allowed_errors.extend(
         [
@@ -202,7 +202,7 @@ def test_metric_collection(
 
 def test_metric_collection_cleans_up_tempfile(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     (host, port) = httpserver_listen_address
@@ -226,21 +226,21 @@ def test_metric_collection_cleans_up_tempfile(
     #
     # Disable time-based pitr, we will use the manual GC calls
     # to trigger remote storage operations in a controlled way
-    neon_env_builder.pageserver_config_override = f"""
+    serendb_env_builder.pageserver_config_override = f"""
         metric_collection_interval="1s"
         metric_collection_endpoint="{metric_collection_endpoint}"
         synthetic_size_calculation_interval="3s"
         """
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # mock http server that returns OK for the metrics
     httpserver.expect_request("/billing/api/v1/usage_events", method="POST").respond_with_handler(
         metrics_handler
     )
 
-    # spin up neon,  after http server is ready
-    env = neon_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
+    # spin up SerenDB,  after http server is ready
+    env = serendb_env_builder.init_start(initial_tenant_conf={"pitr_interval": "0 sec"})
     pageserver_http = env.pageserver.http_client()
 
     # httpserver is shut down before pageserver during passing run

@@ -13,11 +13,11 @@ import psycopg2.extras
 import pytest
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
-    NeonEnv,
-    NeonEnvBuilder,
-    NeonPageserver,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
+    SerenDBPageserver,
     PgBin,
     VanillaPostgres,
     wait_for_last_flush_lsn,
@@ -39,8 +39,8 @@ if TYPE_CHECKING:
     from fixtures.port_distributor import PortDistributor
 
 
-def test_timeline_size(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_timeline_size(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     new_timeline_id = env.create_branch("test_timeline_size", ancestor_branch_name="main")
 
     client = env.pageserver.http_client()
@@ -71,8 +71,8 @@ def test_timeline_size(neon_simple_env: NeonEnv):
             assert res["current_logical_size"] == res["current_logical_size_non_incremental"]
 
 
-def test_timeline_size_createdropdb(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_timeline_size_createdropdb(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     new_timeline_id = env.create_branch(
         "test_timeline_size_createdropdb", ancestor_branch_name="main"
     )
@@ -140,9 +140,9 @@ def wait_for_pageserver_catchup(endpoint_main: Endpoint, polling_interval=1, tim
         res = endpoint_main.safe_psql(
             """
             SELECT
-                pg_size_pretty(neon.pg_cluster_size()),
+                pg_size_pretty(serendb.pg_cluster_size()),
                 pg_wal_lsn_diff(pg_current_wal_flush_lsn(), received_lsn) as received_lsn_lag
-            FROM neon.backpressure_lsns();
+            FROM serendb.backpressure_lsns();
             """,
             dbname="postgres",
         )[0]
@@ -152,8 +152,8 @@ def wait_for_pageserver_catchup(endpoint_main: Endpoint, polling_interval=1, tim
         time.sleep(polling_interval)
 
 
-def test_timeline_size_quota_on_startup(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_timeline_size_quota_on_startup(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
     new_timeline_id = env.create_branch("test_timeline_size_quota_on_startup")
 
@@ -164,7 +164,7 @@ def test_timeline_size_quota_on_startup(neon_env_builder: NeonEnvBuilder):
     endpoint_main = env.endpoints.create(
         "test_timeline_size_quota_on_startup",
         # Set small limit for the test
-        config_lines=[f"neon.max_cluster_size={size_limit_mb}MB"],
+        config_lines=[f"serendb.max_cluster_size={size_limit_mb}MB"],
     )
     endpoint_main.start()
 
@@ -215,8 +215,8 @@ def test_timeline_size_quota_on_startup(neon_env_builder: NeonEnvBuilder):
     # Restart endpoint that reached the limit to ensure that it doesn't fail on startup
     # i.e. the size limit is not enforced during startup.
     endpoint_main.stop()
-    # don't skip pg_catalog updates - it runs CREATE EXTENSION neon
-    # which is needed for neon.pg_cluster_size() to work
+    # don't skip pg_catalog updates - it runs CREATE EXTENSION serendb
+    # which is needed for serendb.pg_cluster_size() to work
     endpoint_main.respec(skip_pg_catalog_updates=False)
     endpoint_main.start()
 
@@ -240,8 +240,8 @@ def test_timeline_size_quota_on_startup(neon_env_builder: NeonEnvBuilder):
                 log.info(f"Query expectedly failed with: {err}")
 
 
-def test_timeline_size_quota(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_timeline_size_quota(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
     new_timeline_id = env.create_branch("test_timeline_size_quota")
 
@@ -250,9 +250,9 @@ def test_timeline_size_quota(neon_env_builder: NeonEnvBuilder):
     endpoint_main = env.endpoints.create(
         "test_timeline_size_quota",
         # Set small limit for the test
-        config_lines=["neon.max_cluster_size=30MB"],
+        config_lines=["serendb.max_cluster_size=30MB"],
     )
-    # don't skip pg_catalog updates - it runs CREATE EXTENSION neon
+    # don't skip pg_catalog updates - it runs CREATE EXTENSION serendb
     # which is needed for pg_cluster_size() to work
     endpoint_main.respec(skip_pg_catalog_updates=False)
     endpoint_main.start()
@@ -307,7 +307,7 @@ def test_timeline_size_quota(neon_env_builder: NeonEnvBuilder):
 
             wait_for_pageserver_catchup(endpoint_main)
 
-            cur.execute("SELECT * from pg_size_pretty(neon.pg_cluster_size())")
+            cur.execute("SELECT * from pg_size_pretty(serendb.pg_cluster_size())")
             pg_cluster_size = cur.fetchone()
             log.info(f"pg_cluster_size = {pg_cluster_size}")
 
@@ -321,9 +321,9 @@ def test_timeline_size_quota(neon_env_builder: NeonEnvBuilder):
 
 @pytest.mark.parametrize("deletion_method", ["tenant_detach", "timeline_delete"])
 def test_timeline_initial_logical_size_calculation_cancellation(
-    neon_env_builder: NeonEnvBuilder, deletion_method: str
+    serendb_env_builder: SerenDBEnvBuilder, deletion_method: str
 ):
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     tenant_id = env.initial_tenant
@@ -375,10 +375,10 @@ def test_timeline_initial_logical_size_calculation_cancellation(
     # matter because it's a pausable_failpoint, which can be cancelled by drop.
 
 
-def test_timeline_physical_size_init(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_timeline_physical_size_init(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     new_timeline_id = env.create_branch("test_timeline_physical_size_init")
     endpoint = env.endpoints.create_start("test_timeline_physical_size_init")
@@ -407,10 +407,10 @@ def test_timeline_physical_size_init(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_timeline_physical_size_post_checkpoint(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_timeline_physical_size_post_checkpoint(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     pageserver_http = env.pageserver.http_client()
     new_timeline_id = env.create_branch("test_timeline_physical_size_post_checkpoint")
@@ -436,12 +436,12 @@ def test_timeline_physical_size_post_checkpoint(neon_env_builder: NeonEnvBuilder
     wait_until(check)
 
 
-def test_timeline_physical_size_post_compaction(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_timeline_physical_size_post_compaction(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # Disable background compaction as we don't want it to happen after `get_physical_size` request
     # and before checking the expected size on disk, which makes the assertion failed
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "checkpoint_distance": "100000",
             "compaction_period": "0s",
@@ -484,12 +484,12 @@ def test_timeline_physical_size_post_compaction(neon_env_builder: NeonEnvBuilder
     )
 
 
-def test_timeline_physical_size_post_gc(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_timeline_physical_size_post_gc(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # Disable background compaction and GC as we don't want it to happen after `get_physical_size` request
     # and before checking the expected size on disk, which makes the assertion failed
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "checkpoint_distance": "100000",
             "compaction_period": "0s",
@@ -537,13 +537,13 @@ def test_timeline_physical_size_post_gc(neon_env_builder: NeonEnvBuilder):
 # The timeline logical and physical sizes are also exposed as prometheus metrics.
 # Test the metrics.
 def test_timeline_size_metrics(
-    neon_simple_env: NeonEnv,
+    serendb_simple_env: SerenDBEnv,
     test_output_dir: Path,
     port_distributor: PortDistributor,
     pg_distrib_dir: Path,
     pg_version: PgVersion,
 ):
-    env = neon_simple_env
+    env = serendb_simple_env
     pageserver_http = env.pageserver.http_client()
 
     new_timeline_id = env.create_branch("test_timeline_size_metrics")
@@ -613,12 +613,12 @@ def test_timeline_size_metrics(
     assert math.isclose(dbsize_sum, tl_logical_size_metric, abs_tol=2 * 1024 * 1024)
 
 
-def test_tenant_physical_size(neon_env_builder: NeonEnvBuilder):
+def test_tenant_physical_size(serendb_env_builder: SerenDBEnvBuilder):
     random.seed(100)
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     pageserver_http = env.pageserver.http_client()
     client = env.pageserver.http_client()
@@ -673,7 +673,7 @@ class TimelinePhysicalSizeValues:
 
 
 def get_physical_size_values(
-    env: NeonEnv,
+    env: SerenDBEnv,
     tenant_id: TenantId,
     timeline_id: TimelineId,
 ) -> TimelinePhysicalSizeValues:
@@ -724,7 +724,7 @@ def wait_for_tenant_startup_completions(client: PageserverHttpClient, count: int
     wait_until(condition)
 
 
-def test_ondemand_activation(neon_env_builder: NeonEnvBuilder):
+def test_ondemand_activation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tenants warmuping up opportunistically will wait for one another's logical size calculations to complete
     before proceeding.  However, they skip this if a client is actively trying to access them.
@@ -736,9 +736,9 @@ def test_ondemand_activation(neon_env_builder: NeonEnvBuilder):
 
     # We will run with the limit set to 1, so that once we have one tenant stuck
     # in a pausable failpoint, the rest are prevented from proceeding through warmup.
-    neon_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
+    serendb_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     # Create some tenants
@@ -886,7 +886,7 @@ def test_ondemand_activation(neon_env_builder: NeonEnvBuilder):
 
 
 def delete_lazy_activating(
-    delete_tenant_id: TenantId, pageserver: NeonPageserver, expect_attaching: bool
+    delete_tenant_id: TenantId, pageserver: SerenDBPageserver, expect_attaching: bool
 ):
     pageserver_http = pageserver.http_client()
 
@@ -918,7 +918,7 @@ def delete_lazy_activating(
         background_delete.result(timeout=10)
 
 
-def test_timeline_logical_size_task_priority(neon_env_builder: NeonEnvBuilder):
+def test_timeline_logical_size_task_priority(serendb_env_builder: SerenDBEnvBuilder):
     """
     /v1/tenant/:tenant_shard_id/timeline and /v1/tenant/:tenant_shard_id
     should not bump the priority of the initial logical size computation
@@ -933,7 +933,7 @@ def test_timeline_logical_size_task_priority(neon_env_builder: NeonEnvBuilder):
     3. A fail point (walreceiver-after-ingest) is used to pause the walreceiver since
     otherwise it would force the logical size computation.
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     tenant_id = env.initial_tenant
@@ -986,10 +986,10 @@ def test_timeline_logical_size_task_priority(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_eager_attach_does_not_queue_up(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
+def test_eager_attach_does_not_queue_up(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # the supporting_second does nothing except queue behind env.initial_tenant
     # for purposes of showing that eager_tenant breezes past the queue
@@ -1063,11 +1063,11 @@ def test_eager_attach_does_not_queue_up(neon_env_builder: NeonEnvBuilder):
 
 
 @pytest.mark.parametrize("activation_method", ["endpoint", "branch", "delete"])
-def test_lazy_attach_activation(neon_env_builder: NeonEnvBuilder, activation_method: str):
+def test_lazy_attach_activation(serendb_env_builder: SerenDBEnvBuilder, activation_method: str):
     # env.initial_tenant will take up this permit when attaching with lazy because of a failpoint activated after restart
-    neon_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
+    serendb_env_builder.pageserver_config_override = "concurrent_tenant_warmup = 1"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # because this returns (also elsewhere in this file), we know that SpawnMode::Create skips the queue
     lazy_tenant, _ = env.create_tenant()

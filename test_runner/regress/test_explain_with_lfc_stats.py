@@ -8,12 +8,12 @@ from fixtures.log_helper import log
 from fixtures.utils import USE_LFC
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_explain_with_lfc_stats(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_explain_with_lfc_stats(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     cache_dir = Path(env.repo_dir) / "file_cache"
     cache_dir.mkdir(exist_ok=True)
@@ -22,8 +22,8 @@ def test_explain_with_lfc_stats(neon_simple_env: NeonEnv):
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
-            "neon.max_file_cache_size='128MB'",
-            "neon.file_cache_size_limit='64MB'",
+            "serendb.max_file_cache_size='128MB'",
+            "serendb.file_cache_size_limit='64MB'",
         ],
     )
 
@@ -38,8 +38,8 @@ CREATE TABLE pgbench_accounts (
     abalance integer,
     filler character(84),
     -- more web-app like columns
-    text_column_plain TEXT  DEFAULT repeat('NeonIsCool', 5),
-    jsonb_column_extended JSONB  DEFAULT ('{ "tell everyone": [' || repeat('{"Neon": "IsCool"},',9) || ' {"Neon": "IsCool"}]}')::jsonb
+    text_column_plain TEXT  DEFAULT repeat('SerenDBIsCool', 5),
+    jsonb_column_extended JSONB  DEFAULT ('{ "tell everyone": [' || repeat('{"SerenDB": "IsCool"},',9) || ' {"SerenDB": "IsCool"}]}')::jsonb
 )
 WITH (fillfactor='100');
 """

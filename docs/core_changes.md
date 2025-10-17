@@ -4,16 +4,16 @@ This lists all the changes that have been made to the PostgreSQL
 source tree, as a somewhat logical set of patches. The long-term goal
 is to eliminate all these changes, by submitting patches to upstream
 and refactoring code into extensions, so that you can run unmodified
-PostgreSQL against Neon storage.
+PostgreSQL against SerenDB storage.
 
-In Neon, we run PostgreSQL in the compute nodes, but we also run a special WAL redo process in the
+In SerenDB, we run PostgreSQL in the compute nodes, but we also run a special WAL redo process in the
 page server. We currently use the same binary for both, with --wal-redo runtime flag to launch it in
 the WAL redo mode. Some PostgreSQL changes are needed in the compute node, while others are just for
 the WAL redo process.
 
-In addition to core PostgreSQL changes, there is a Neon extension in the pgxn/neon directory that
-hooks into the smgr interface, and rmgr extension in pgxn/neon_rmgr. The extensions are loaded into
-the Postgres processes with shared_preload_libraries. Most of the Neon-specific code is in the
+In addition to core PostgreSQL changes, there is a SerenDB extension in the pgxn/serendb directory that
+hooks into the smgr interface, and rmgr extension in pgxn/serendb_rmgr. The extensions are loaded into
+the Postgres processes with shared_preload_libraries. Most of the SerenDB-specific code is in the
 extensions, and for any new features, that is preferred over modifying core PostgreSQL code.
 
 Below is a list of all the PostgreSQL source code changes, categorized into changes needed for
@@ -23,7 +23,7 @@ compute, and changes needed for the WAL redo process:
 
 ## Prefetching
 
-There are changes in many places to perform prefetching, for example for sequential scans. Neon
+There are changes in many places to perform prefetching, for example for sequential scans. SerenDB
 doesn't benefit from OS readahead, and the latency to pageservers is quite high compared to local
 disk, so prefetching is critical for performance, also for sequential scans.
 
@@ -40,15 +40,15 @@ do more.
  src/include/access/heapam_xlog.h                            |    6 +-
 ```
 
-We have added a new t_cid field to heap WAL records. This changes the WAL record format, making Neon WAL format incompatible with vanilla PostgreSQL!
+We have added a new t_cid field to heap WAL records. This changes the WAL record format, making SerenDB WAL format incompatible with vanilla PostgreSQL!
 
 ### Problem we're trying to solve
 
-The problem is that the XLOG_HEAP_INSERT record does not include the command id of the inserted row. And same with deletion/update. So in the primary, a row is inserted with current xmin + cmin. But in the replica, the cmin is always set to 1. That works in PostgreSQL, because the command id is only relevant to the inserting transaction itself. After commit/abort, no one cares about it anymore. But with Neon, we rely on WAL replay to reconstruct the page, even while the original transaction is still running.
+The problem is that the XLOG_HEAP_INSERT record does not include the command id of the inserted row. And same with deletion/update. So in the primary, a row is inserted with current xmin + cmin. But in the replica, the cmin is always set to 1. That works in PostgreSQL, because the command id is only relevant to the inserting transaction itself. After commit/abort, no one cares about it anymore. But with SerenDB, we rely on WAL replay to reconstruct the page, even while the original transaction is still running.
 
 ### How to get rid of the patch
 
-Bite the bullet and submit the patch to PostgreSQL, to add the t_cid to the WAL records. It makes the WAL records larger, which could make this unpopular in the PostgreSQL community. However, it might simplify some logical decoding code; Andres Freund briefly mentioned in PGCon 2022 discussion on Heikki's Neon presentation that logical decoding currently needs to jump through some hoops to reconstruct the same information.
+Bite the bullet and submit the patch to PostgreSQL, to add the t_cid to the WAL records. It makes the WAL records larger, which could make this unpopular in the PostgreSQL community. However, it might simplify some logical decoding code; Andres Freund briefly mentioned in PGCon 2022 discussion on Heikki's SerenDB presentation that logical decoding currently needs to jump through some hoops to reconstruct the same information.
 
 Update from Heikki (2024-04-17): I tried to write an upstream patch for that, to use the t_cid field for logical decoding, but it was not as straightforward as it first sounded.
 
@@ -69,8 +69,8 @@ pgvector 0.6.0 also needs a similar change, which would be very nice to get rid 
 
 When a GIN index is built, for example, it is built by inserting the entries into the index more or
 less normally, but without WAL-logging anything. After the index has been built, we iterate through
-all pages and write them to the WAL. That doesn't work for Neon, because if a page is not WAL-logged
-and is evicted from the buffer cache, it is lost. We have an check to catch that in the Neon
+all pages and write them to the WAL. That doesn't work for SerenDB, because if a page is not WAL-logged
+and is evicted from the buffer cache, it is lost. We have an check to catch that in the SerenDB
 extension. To fix that, we've added a few functions to track explicitly when we're performing such
 an operation: `smgr_start_unlogged_build`, `smgr_finish_unlogged_build_phase_1` and
 `smgr_end_unlogged_build`.
@@ -101,7 +101,7 @@ then the page server would need to wait for the recent WAL to be streamed and pr
 responding to any GetPage@LSN request.
 
 The last-written page LSN is mostly tracked in the smgrwrite() function, without core code changes,
-but there are a few exceptions where we've had to add explicit calls to the Neon-specific
+but there are a few exceptions where we've had to add explicit calls to the SerenDB-specific
 SetLastWrittenPageLSN() function.
 
 There's an open PR to track the LSN in a more-fine grained fashion:
@@ -118,7 +118,7 @@ Wait until v15?
 
 ## Allow startup without reading checkpoint record
 
-In Neon, the compute node is stateless. So when we are launching compute node, we need to provide
+In SerenDB, the compute node is stateless. So when we are launching compute node, we need to provide
 some dummy PG_DATADIR. Relation pages can be requested on demand from page server. But Postgres
 still need some non-relational data: control and configuration files, SLRUs,...  It is currently
 implemented using basebackup (do not mix with pg_basebackup) which is created by pageserver. It
@@ -129,8 +129,8 @@ segment to bootstrap the WAL writing, but it doesn't contain the checkpoint reco
 changes in xlog.c, to allow starting the compute node without reading the last checkpoint record
 from WAL.
 
-This includes code to read the `neon.signal` (also `zenith.signal`) file, which tells the startup 
-code the LSN to start at. When the `neon.signal` file is present, the startup uses that LSN
+This includes code to read the `serendb.signal` (also `zenith.signal`) file, which tells the startup 
+code the LSN to start at. When the `serendb.signal` file is present, the startup uses that LSN
 instead of the last checkpoint's LSN. The system is known to be consistent at that LSN, without 
 any WAL redo.
 
@@ -157,23 +157,23 @@ index 0415df9ccb..9f9db3c8bc 100644
   * crash we can lose (skip over) as many values as we pre-logged.
   */
 -#define SEQ_LOG_VALS   32
-+/* Neon XXX: to ensure sequence order of sequence in Zenith we need to WAL log each sequence update. */
++/* SerenDB XXX: to ensure sequence order of sequence in Zenith we need to WAL log each sequence update. */
 +/* #define SEQ_LOG_VALS        32 */
 +#define SEQ_LOG_VALS   0
 ```
 
 Due to performance reasons Postgres don't want to log each fetching of a value from a sequence, so
 it pre-logs a few fetches in advance. In the event of crash we can lose (skip over) as many values
-as we pre-logged. But with Neon, because page with sequence value can be evicted from buffer cache,
+as we pre-logged. But with SerenDB, because page with sequence value can be evicted from buffer cache,
 we can get a gap in sequence values even without crash.
 
 ### How to get rid of the patch
 
 Maybe we can just remove it, and accept the gaps. Or add some special handling for sequence
-relations in the Neon extension, to WAL log the sequence page when it's about to be evicted. It
+relations in the SerenDB extension, to WAL log the sequence page when it's about to be evicted. It
 would be weird if the sequence moved backwards though, think of PITR.
 
-Or add a GUC for the amount to prefix to PostgreSQL, and force it to 1 in Neon.
+Or add a GUC for the amount to prefix to PostgreSQL, and force it to 1 in SerenDB.
 
 
 ## Make smgr interface available to extensions
@@ -200,19 +200,19 @@ https://commitfest.postgresql.org/47/4428/
  src/include/utils/rel.h                                     |    3 +-
 ```
 
-Neon needs to treat unlogged relations differently from others, so the smgrread(), smgrwrite() etc.
+SerenDB needs to treat unlogged relations differently from others, so the smgrread(), smgrwrite() etc.
 implementations need to know the 'relpersistence' of the relation. To get that information where
 it's needed, we added the 'relpersistence' field to smgropen().
 
 ### How to get rid of the patch
 
 Maybe 'relpersistence' would be useful in PostgreSQL for debugging purposes? Or simply for the
-benefit of extensions like Neon. Should consider this in the patch to make smgr API usable to
+benefit of extensions like SerenDB. Should consider this in the patch to make smgr API usable to
 extensions.
 
 ## Alternatives
 
-Currently in Neon, unlogged tables live on local disk in the compute node, and are wiped away on
+Currently in SerenDB, unlogged tables live on local disk in the compute node, and are wiped away on
 compute node restart. One alternative would be to instead WAL-log even unlogged tables, essentially
 ignoring the UNLOGGED option. Or prohibit UNLOGGED tables completely. But would we still need the
 relpersistence argument to handle index builds? See item on "Mark index builds that use buffer
@@ -224,7 +224,7 @@ manager without logging explicitly".
  src/backend/utils/adt/dbsize.c                              |   61 +-
 ```
 
-In PostgreSQL, the rel and db-size functions scan the data directory directly. That won't work in Neon.
+In PostgreSQL, the rel and db-size functions scan the data directory directly. That won't work in SerenDB.
 
 ### How to get rid of the patch
 
@@ -273,7 +273,7 @@ Example:
 ### Problem we're trying to solve
 
 In PostgreSQL, if a WAL redo function calls XLogReadBufferForRead() for a page that has a full-page
-image, it always succeeds. However, Neon WAL redo process is only concerned about replaying changes
+image, it always succeeds. However, SerenDB WAL redo process is only concerned about replaying changes
 to a singe page, so replaying any changes for other pages is a waste of cycles. We have modified
 XLogReadBufferForRead() to return BLK_DONE for all other pages, to avoid the overhead. That is
 unexpected by code like the above.
@@ -314,7 +314,7 @@ patches, we can just keep it around as a patch or as separate branch in a repo.
 
 ## pg_waldump flags to ignore errors
 
-After creating a new project or branch in Neon, the first timeline can begin in the middle of a WAL segment. pg_waldump chokes on that, so we added some flags to make it possible to ignore errors.
+After creating a new project or branch in SerenDB, the first timeline can begin in the middle of a WAL segment. pg_waldump chokes on that, so we added some flags to make it possible to ignore errors.
 
 ### How to get rid of the patch
 
@@ -378,7 +378,7 @@ FUSE hook or LD_PRELOAD trick to intercept the reads on SLRU files
 ### Problem we're trying to solve
 
 This change was made in v16. Starting with v16, when PostgreSQL extends a relation, it first extends
-it with zeros, and it can extend the relation more than one block at a time. The all-zeros page is WAL-ogged, but it's very wasteful to include 8 kB of zeros in the WAL for that. This hack was made so that we WAL logged a compact record with a whole-page "hole". However, PostgreSQL has assertions that prevent that such WAL records from being replayed, so this breaks compatibility such that unmodified PostreSQL cannot process Neon-generated WAL.
+it with zeros, and it can extend the relation more than one block at a time. The all-zeros page is WAL-ogged, but it's very wasteful to include 8 kB of zeros in the WAL for that. This hack was made so that we WAL logged a compact record with a whole-page "hole". However, PostgreSQL has assertions that prevent that such WAL records from being replayed, so this breaks compatibility such that unmodified PostreSQL cannot process SerenDB-generated WAL.
 
 ### How to get rid of the patch
 
@@ -388,7 +388,7 @@ Find another compact representation for a full-page image of an all-zeros page. 
 ## Shut down walproposer after checkpointer
 
 ```
-+                       /* Neon: Also allow walproposer background worker to be treated like a WAL sender, so that it's shut down last */
++                       /* SerenDB: Also allow walproposer background worker to be treated like a WAL sender, so that it's shut down last */
 +                       if ((bp->bkend_type == BACKEND_TYPE_NORMAL || bp->bkend_type == BACKEND_TYPE_BGWORKER) &&
 ```
 
@@ -417,7 +417,7 @@ FUSE or LD_PRELOAD trickery to intercept reads?
 
 ## Publication superuser checks
 
-We have hacked CreatePublication so that also neon_superuser can create them.
+We have hacked CreatePublication so that also serendb_superuser can create them.
 
 ### How to get rid of the patch
 
@@ -428,7 +428,7 @@ Create an upstream patch with more fine-grained privileges for publications CREA
 
 ### How to get rid of the patch
 
-Utilize the upcoming v17 "slot sync worker", or a similar neon-specific background worker process, to periodically WAL-log the slots, or to export them somewhere else.
+Utilize the upcoming v17 "slot sync worker", or a similar serendb-specific background worker process, to periodically WAL-log the slots, or to export them somewhere else.
 
 
 ## WAL-log replication snapshots
@@ -462,7 +462,7 @@ WAL-log them periodically, from a backgound worker.
 
 Postgres tries to avoid cache flushing by bulk operations (copy, seqscan, vacuum,...).
 Even if there are free space in buffer cache, pages may be evicted.
-Negative effect of it can be somehow compensated by file system cache, but in Neon,
+Negative effect of it can be somehow compensated by file system cache, but in SerenDB,
 cost of requesting page from page server is much higher.
 
 ### Alternatives?
@@ -486,6 +486,6 @@ Add special WAL record for setting page hints.
 
 ### Why?
 
-Short downtime (or, in other words, fast compute node restart time) is one of the key feature of Neon.
+Short downtime (or, in other words, fast compute node restart time) is one of the key feature of SerenDB.
 But overhead of request-response round-trip for loading pages on demand can make started node warm-up quite slow.
 We can capture state of compute node buffer cache and send bulk request for this pages at startup.

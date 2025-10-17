@@ -2,7 +2,7 @@
  *
  * walsender_hooks.c
  *
- * Implements XLogReaderRoutine in terms of NeonWALReader. Allows for
+ * Implements XLogReaderRoutine in terms of SerenDBWALReader. Allows for
  * fetching WAL from safekeepers, which normal xlogreader can't do.
  *
  *-------------------------------------------------------------------------
@@ -20,11 +20,11 @@
 #include "utils/guc.h"
 #include "postmaster/interrupt.h"
 
-#include "neon.h"
-#include "neon_walreader.h"
+#include "serendb.h"
+#include "serendb_walreader.h"
 #include "walproposer.h"
 
-static NeonWALReader *wal_reader = NULL;
+static SerenDBWALReader *wal_reader = NULL;
 
 struct WalSnd;
 extern struct WalSnd *MyWalSnd;
@@ -35,9 +35,9 @@ extern XLogRecPtr GetXLogReplayRecPtr(TimeLineID *replayTLI);
 bool disable_wal_prev_lsn_checks = false;
 
 static XLogRecPtr
-NeonWALReadWaitForWAL(XLogRecPtr loc)
+SerenDBWALReadWaitForWAL(XLogRecPtr loc)
 {
-	while (!NeonWALReaderUpdateDonor(wal_reader))
+	while (!SerenDBWALReaderUpdateDonor(wal_reader))
 	{
 		pg_usleep(1000);
 		CHECK_FOR_INTERRUPTS();
@@ -68,7 +68,7 @@ NeonWALReadWaitForWAL(XLogRecPtr loc)
 }
 
 static int
-NeonWALPageRead(
+SerenDBWALPageRead(
 				XLogReaderState *xlogreader,
 				XLogRecPtr targetPagePtr,
 				int reqLen,
@@ -78,7 +78,7 @@ NeonWALPageRead(
 	XLogRecPtr	rem_lsn;
 
 	/* Wait for flush pointer to advance past our request */
-	XLogRecPtr	flushptr = NeonWALReadWaitForWAL(targetPagePtr + reqLen);
+	XLogRecPtr	flushptr = SerenDBWALReadWaitForWAL(targetPagePtr + reqLen);
 	int			count;
 
 	if (flushptr < targetPagePtr + reqLen)
@@ -98,22 +98,22 @@ NeonWALPageRead(
 	 * position. For example, walsender may try to verify the segment header
 	 * when trying to read in the middle of it.
 	 */
-	rem_lsn = NeonWALReaderGetRemLsn(wal_reader);
+	rem_lsn = SerenDBWALReaderGetRemLsn(wal_reader);
 	if (rem_lsn != InvalidXLogRecPtr && targetPagePtr != rem_lsn)
 	{
-		NeonWALReaderResetRemote(wal_reader);
+		SerenDBWALReaderResetRemote(wal_reader);
 	}
 
 	for (;;)
 	{
-		NeonWALReadResult res = NeonWALRead(
+		SerenDBWALReadResult res = SerenDBWALRead(
 											wal_reader,
 											readBuf,
 											targetPagePtr,
 											count,
-											NeonWALReaderLocalActiveTimeLineID(wal_reader));
+											SerenDBWALReaderLocalActiveTimeLineID(wal_reader));
 
-		if (res == NEON_WALREAD_SUCCESS)
+		if (res == SERENDB_WALREAD_SUCCESS)
 		{
 			/*
 			 * Setting ws_tli is required by the XLogReaderRoutine, it is used
@@ -123,8 +123,8 @@ NeonWALPageRead(
 			 * and XLogReaderRoutine description doesn't require it, but
 			 * WALRead sets, let's follow it.
 			 */
-			xlogreader->seg.ws_tli = NeonWALReaderGetSegment(wal_reader)->ws_tli;
-			xlogreader->seg.ws_segno = NeonWALReaderGetSegment(wal_reader)->ws_segno;
+			xlogreader->seg.ws_tli = SerenDBWALReaderGetSegment(wal_reader)->ws_tli;
+			xlogreader->seg.ws_segno = SerenDBWALReaderGetSegment(wal_reader)->ws_segno;
 
 			/*
 			 * ws_file doesn't exist in case of remote read, and isn't used by
@@ -132,12 +132,12 @@ NeonWALPageRead(
 			 */
 			return count;
 		}
-		if (res == NEON_WALREAD_ERROR)
+		if (res == SERENDB_WALREAD_ERROR)
 		{
 			elog(ERROR, "[walsender] Failed to read WAL (req_lsn=%X/%X, len=%d): %s",
 				 LSN_FORMAT_ARGS(targetPagePtr),
 				 reqLen,
-				 NeonWALReaderErrMsg(wal_reader));
+				 SerenDBWALReaderErrMsg(wal_reader));
 			return -1;
 		}
 
@@ -147,8 +147,8 @@ NeonWALPageRead(
 		 */
 		{
 
-			pgsocket	sock = NeonWALReaderSocket(wal_reader);
-			uint32_t	reader_events = NeonWALReaderEvents(wal_reader);
+			pgsocket	sock = SerenDBWALReaderSocket(wal_reader);
+			uint32_t	reader_events = SerenDBWALReaderEvents(wal_reader);
 			long		timeout_ms = 1000;
 
 			ResetLatch(MyLatch);
@@ -164,31 +164,31 @@ NeonWALPageRead(
 							  WL_LATCH_SET | WL_EXIT_ON_PM_DEATH | reader_events,
 							  sock,
 							  timeout_ms,
-							  WAIT_EVENT_NEON_WAL_DL);
+							  WAIT_EVENT_SERENDB_WAL_DL);
 		}
 	}
 }
 
 static void
-NeonWALReadSegmentOpen(XLogReaderState *xlogreader, XLogSegNo nextSegNo, TimeLineID *tli_p)
+SerenDBWALReadSegmentOpen(XLogReaderState *xlogreader, XLogSegNo nextSegNo, TimeLineID *tli_p)
 {
-	neon_wal_segment_open(wal_reader, nextSegNo, tli_p);
-	xlogreader->seg.ws_file = NeonWALReaderGetSegment(wal_reader)->ws_file;
+	serendb_wal_segment_open(wal_reader, nextSegNo, tli_p);
+	xlogreader->seg.ws_file = SerenDBWALReaderGetSegment(wal_reader)->ws_file;
 }
 
 static void
-NeonWALReadSegmentClose(XLogReaderState *xlogreader)
+SerenDBWALReadSegmentClose(XLogReaderState *xlogreader)
 {
-	neon_wal_segment_close(wal_reader);
-	xlogreader->seg.ws_file = NeonWALReaderGetSegment(wal_reader)->ws_file;
+	serendb_wal_segment_close(wal_reader);
+	xlogreader->seg.ws_file = SerenDBWALReaderGetSegment(wal_reader)->ws_file;
 }
 
 void
-NeonOnDemandXLogReaderRoutines(XLogReaderRoutine *xlr)
+SerenDBOnDemandXLogReaderRoutines(XLogReaderRoutine *xlr)
 {
 	/*
-	 * If safekeepers are not configured, assume we don't need neon_walreader,
-	 * i.e. running neon fork locally.
+	 * If safekeepers are not configured, assume we don't need serendb_walreader,
+	 * i.e. running SerenDB fork locally.
 	 */
 	if (wal_acceptors_list[0] == '\0')
 		return;
@@ -202,9 +202,9 @@ NeonOnDemandXLogReaderRoutines(XLogReaderRoutine *xlr)
 		{
 			elog(ERROR, "unable to start walsender when basebackupLsn is 0");
 		}
-		wal_reader = NeonWALReaderAllocate(wal_segment_size, basebackupLsn, "[walsender] ", 1);
+		wal_reader = SerenDBWALReaderAllocate(wal_segment_size, basebackupLsn, "[walsender] ", 1);
 	}
-	xlr->page_read = NeonWALPageRead;
-	xlr->segment_open = NeonWALReadSegmentOpen;
-	xlr->segment_close = NeonWALReadSegmentClose;
+	xlr->page_read = SerenDBWALPageRead;
+	xlr->segment_open = SerenDBWALReadSegmentOpen;
+	xlr->segment_close = SerenDBWALReadSegmentClose;
 }

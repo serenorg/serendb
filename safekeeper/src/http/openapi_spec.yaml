@@ -1,7 +1,7 @@
 openapi: "3.0.2"
 info:
   title: Safekeeper control API
-  description: Neon Safekeeper API
+  description: SerenDB Safekeeper API
   version: "1.0"
   license:
     name: "Apache"

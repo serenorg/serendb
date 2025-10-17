@@ -4,27 +4,27 @@ How it works now
 1. Create repository, start page server on it
 
 ```
-$ neon init
+$ serendb init
 ...
 created main branch
-new neon repository was created in .neon
+new SerenDB repository was created in .serendb
 
-$ neon pageserver start
-Starting pageserver at '127.0.0.1:64000' in .neon
+$ serendb pageserver start
+Starting pageserver at '127.0.0.1:64000' in .serendb
 Page server started
 ```
 
 2. Create a branch, and start a Postgres instance on it
 
 ```
-$ neon branch heikki main
+$ serendb branch heikki main
 branching at end of WAL: 0/15ECF68
 
-$ neon pg create heikki
+$ serendb pg create heikki
 Initializing Postgres on timeline 76cf9279915be7797095241638e64644...
-Extracting base backup to create postgres instance: path=.neon/pgdatadirs/pg1 port=55432
+Extracting base backup to create postgres instance: path=.serendb/pgdatadirs/pg1 port=55432
 
-$ neon pg start pg1
+$ serendb pg start pg1
 Starting postgres node at 'host=127.0.0.1 port=55432 user=heikki'
 waiting for server to start.... done
 server started
@@ -52,20 +52,20 @@ serverless on your laptop, so that the workflow becomes just:
 1. Create repository, start page server on it (same as before)
 
 ```
-$ neon init
+$ serendb init
 ...
 created main branch
-new neon repository was created in .neon
+new SerenDB repository was created in .serendb
 
-$ neon pageserver start
-Starting pageserver at '127.0.0.1:64000' in .neon
+$ serendb pageserver start
+Starting pageserver at '127.0.0.1:64000' in .serendb
 Page server started
 ```
 
 2. Create branch
 
 ```
-$ neon branch heikki main
+$ serendb branch heikki main
 branching at end of WAL: 0/15ECF68
 ```
 

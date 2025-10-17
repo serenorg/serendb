@@ -7,7 +7,7 @@ on:
       - synchronize
       - reopened
     paths:
-      - pgxn/neon/**.c
+      - pgxn/serendb/**.c
       - vendor/postgres-v*
       - vendor/revisions.json
 
@@ -34,11 +34,11 @@ jobs:
           comment-tag: ${{ github.job }}
           pr-number: ${{ github.event.number }}
           message: |
-            If this PR added a GUC in the Postgres fork or `neon` extension,
+            If this PR added a GUC in the Postgres fork or `serendb` extension,
             please regenerate the Postgres settings in the `cloud` repo:
 
             ```
-            make NEON_WORKDIR=path/to/neon/checkout \
+            make SERENDB_WORKDIR=path/to/serendb/checkout \
               -C goapp/internal/shareddomain/postgres generate
             ```
 

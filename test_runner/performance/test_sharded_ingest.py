@@ -3,11 +3,11 @@ from __future__ import annotations
 from contextlib import closing
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.common_types import Lsn, TenantShardId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     tenant_get_shards,
     wait_for_last_flush_lsn,
 )
@@ -16,8 +16,8 @@ from fixtures.neon_fixtures import (
 @pytest.mark.timeout(1200)
 @pytest.mark.parametrize("shard_count", [1, 8, 32])
 def test_sharded_ingest(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     shard_count: int,
 ):
     """
@@ -27,8 +27,8 @@ def test_sharded_ingest(
     """
     ROW_COUNT = 100_000_000  # about 7 GB of WAL
 
-    neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_configs()
 
     env.start()
 

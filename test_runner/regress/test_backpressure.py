@@ -10,9 +10,9 @@ import pytest
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import Endpoint, NeonEnvBuilder
+    from fixtures.serendb_fixtures import Endpoint, SerenDBEnvBuilder
 
-pytest_plugins = "fixtures.neon_fixtures"
+pytest_plugins = "fixtures.serendb_fixtures"
 
 
 @contextmanager
@@ -100,15 +100,15 @@ def check_backpressure(endpoint: Endpoint, stop_event: threading.Event, polling_
 
 
 @pytest.mark.skip("See https://github.com/neondatabase/neon/issues/1587")
-def test_backpressure_received_lsn_lag(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_backpressure_received_lsn_lag(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     # Create a branch for us
     env.create_branch("test_backpressure")
 
     endpoint = env.endpoints.create(
         "test_backpressure", config_lines=["max_replication_write_lag=30MB"]
     )
-    # don't skip pg_catalog updates - it runs CREATE EXTENSION neon
+    # don't skip pg_catalog updates - it runs CREATE EXTENSION serendb
     # which is needed for backpressure_lsns() to work
     endpoint.respec(skip_pg_catalog_updates=False)
     endpoint.start()

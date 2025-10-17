@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from typing import Any
 
     from fixtures.httpserver import ListenAddress
-    from fixtures.neon_fixtures import (
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnvBuilder,
     )
     from fixtures.pg_config import PgConfig
     from fixtures.pg_version import PgVersion
@@ -119,7 +119,7 @@ class RemoteExtension(StrEnum):
 )
 def test_remote_extensions(
     httpserver: HTTPServer,
-    neon_env_builder_local: NeonEnvBuilder,
+    serendb_env_builder_local: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
     test_output_dir: Path,
     pg_version: PgVersion,
@@ -131,7 +131,7 @@ def test_remote_extensions(
             """
             For this test to work with sanitizers enabled, we would need to
             compile the dummy Postgres extension with the same CFLAGS that we
-            compile Postgres and the neon extension with to link the sanitizers.
+            compile Postgres and the SerenDB extension with to link the sanitizers.
             """
         )
 
@@ -177,7 +177,7 @@ def test_remote_extensions(
 
     # Start a compute node with remote_extension spec
     # and check that it can download the extensions and use them to CREATE EXTENSION.
-    env = neon_env_builder_local.init_start()
+    env = serendb_env_builder_local.init_start()
     env.create_branch("test_remote_extensions")
     endpoint = env.endpoints.create("test_remote_extensions")
 

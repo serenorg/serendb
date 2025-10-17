@@ -208,7 +208,7 @@ Direct IO puts requirements on
 
 The requirements are specific to a combination of filesystem/block-device/architecture(hardware page size!).
 
-In Neon production environments we currently use ext4 with Linux 6.1.X on AWS and Azure storage-optimized instances (locally attached NVMe).
+In SerenDB production environments we currently use ext4 with Linux 6.1.X on AWS and Azure storage-optimized instances (locally attached NVMe).
 Instead of dynamic discovery using `statx`, we statically hard-code 512 bytes as the buffer/offset alignment and size-multiple.
 We made this decision because:
 - a) it is compatible with all the environments we need to run in
@@ -216,7 +216,7 @@ We made this decision because:
 - c) 512-byte tail latency on the production instance types is much better than 4k (p99.9: 3x lower, p99.99 5x lower).
 - d) hard-coding at compile-time allows us to use the Rust type system to enforce the use of only aligned IO buffers, eliminating a source of runtime errors typically associated with direct IO.
 
-This was [discussed here](https://neondb.slack.com/archives/C07BZ38E6SD/p1725036790965549?thread_ts=1725026845.455259&cid=C07BZ38E6SD).
+This was [discussed here](https://serendb.slack.com/archives/C07BZ38E6SD/p1725036790965549?thread_ts=1725026845.455259&cid=C07BZ38E6SD).
 
 The new `IoBufAligned` / `IoBufAlignedMut` marker traits indicate that a given buffer meets memory alignment requirements.
 All `VirtualFile` APIs and several software layers built on top of them only accept buffers that implement those traits.

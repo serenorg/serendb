@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import TenantId, TenantShardId, TimelineArchivalState, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     DEFAULT_BRANCH_NAME,
-    NeonEnvBuilder,
-    NeonPageserver,
+    SerenDBEnvBuilder,
+    SerenDBPageserver,
     StorageControllerMigrationConfig,
     flush_ep_to_pageserver,
 )
@@ -51,7 +51,7 @@ TENANT_CONF = {
 
 
 def evict_random_layers(
-    rng: random.Random, pageserver: NeonPageserver, tenant_id: TenantId, timeline_id: TimelineId
+    rng: random.Random, pageserver: SerenDBPageserver, tenant_id: TenantId, timeline_id: TimelineId
 ):
     """
     Evict 50% of the layers on a pageserver
@@ -75,7 +75,7 @@ def evict_random_layers(
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
-def test_location_conf_churn(neon_env_builder: NeonEnvBuilder, make_httpserver, seed: int):
+def test_location_conf_churn(serendb_env_builder: SerenDBEnvBuilder, make_httpserver, seed: int):
     """
     Issue many location configuration changes, ensure that tenants
     remain readable & we don't get any unexpected errors.  We should
@@ -85,15 +85,15 @@ def test_location_conf_churn(neon_env_builder: NeonEnvBuilder, make_httpserver, 
     states are valid, so that we may test it in this way: the API should always
     work as long as the tenant exists.
     """
-    neon_env_builder.num_pageservers = 3
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.num_pageservers = 3
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=s3_storage(),
     )
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{make_httpserver.host}:{make_httpserver.port}/"
     )
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
     def ignore_notify(request: Request):
         # This test does all its own compute configuration (by passing explicit pageserver ID to Workload functions),
@@ -105,7 +105,7 @@ def test_location_conf_churn(neon_env_builder: NeonEnvBuilder, make_httpserver, 
         ignore_notify
     )
 
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     pageservers = env.pageservers
     list([p.http_client() for p in pageservers])
@@ -162,7 +162,7 @@ def test_location_conf_churn(neon_env_builder: NeonEnvBuilder, make_httpserver, 
     # Track all the attached locations with mode and generation
     history: list[tuple[int, str, int | None]] = []
 
-    def may_read(pageserver: NeonPageserver, mode: str, generation: int | None) -> bool:
+    def may_read(pageserver: SerenDBPageserver, mode: str, generation: int | None) -> bool:
         # Rules for when a pageserver may read:
         # - our generation is higher than any previous
         # - our generation is equal to previous, but no other pageserver
@@ -332,14 +332,14 @@ def test_location_conf_churn(neon_env_builder: NeonEnvBuilder, make_httpserver, 
         assert ps.list_layers(tenant_id, timeline_id) == []
 
 
-def test_live_migration(neon_env_builder: NeonEnvBuilder):
+def test_live_migration(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test the sequence of location states that are used in a live migration.
     """
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     remote_storage_kind = RemoteStorageKind.MOCK_S3
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind=remote_storage_kind)
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind=remote_storage_kind)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -485,14 +485,14 @@ def test_live_migration(neon_env_builder: NeonEnvBuilder):
     pageserver_b.http_client().tenant_delete(tenant_id)
 
     # We deleted our only tenant, and the scrubber fails if it detects nothing
-    neon_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.disable_scrub_on_exit()
 
 
-def test_heatmap_uploads(neon_env_builder: NeonEnvBuilder):
+def test_heatmap_uploads(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test the sequence of location states that are used in a live migration.
     """
-    env = neon_env_builder.init_start()  # initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start()  # initial_tenant_conf=TENANT_CONF)
     assert isinstance(env.pageserver_remote_storage, LocalFsStorage)
 
     tenant_id = env.initial_tenant
@@ -564,7 +564,7 @@ def list_elegible_layers(
     return list(c for c in candidates if is_visible(c))
 
 
-def test_secondary_downloads(neon_env_builder: NeonEnvBuilder):
+def test_secondary_downloads(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test the overall data flow in secondary mode:
      - Heatmap uploads from the attached location
@@ -574,13 +574,13 @@ def test_secondary_downloads(neon_env_builder: NeonEnvBuilder):
     """
 
     # For debug of https://github.com/neondatabase/neon/issues/6966
-    neon_env_builder.rust_log_override = "DEBUG"
+    serendb_env_builder.rust_log_override = "DEBUG"
 
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
     assert env.storage_controller is not None
     assert isinstance(env.pageserver_remote_storage, S3Storage)  # Satisfy linter
 
@@ -710,7 +710,7 @@ def test_secondary_downloads(neon_env_builder: NeonEnvBuilder):
     ps_attached.http_client().tenant_delete(tenant_id)
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -721,16 +721,16 @@ def test_secondary_downloads(neon_env_builder: NeonEnvBuilder):
     workload.stop()
 
     # We deleted our only tenant, and the scrubber fails if it detects nothing
-    neon_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.disable_scrub_on_exit()
 
 
-def test_secondary_background_downloads(neon_env_builder: NeonEnvBuilder):
+def test_secondary_background_downloads(serendb_env_builder: SerenDBEnvBuilder):
     """
     Slow test that runs in realtime, checks that the background scheduling of secondary
     downloads happens as expected.
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # Create this many tenants, each with two timelines
@@ -858,7 +858,7 @@ def test_secondary_background_downloads(neon_env_builder: NeonEnvBuilder):
 
 @skip_in_debug_build("only run with release build")
 @pytest.mark.parametrize("via_controller", [True, False])
-def test_slow_secondary_downloads(neon_env_builder: NeonEnvBuilder, via_controller: bool):
+def test_slow_secondary_downloads(serendb_env_builder: SerenDBEnvBuilder, via_controller: bool):
     """
     Test use of secondary download API for slow downloads, where slow means either a healthy
     system with a large capacity shard, or some unhealthy remote storage.
@@ -866,11 +866,11 @@ def test_slow_secondary_downloads(neon_env_builder: NeonEnvBuilder, via_controll
     The download API is meant to respect a client-supplied time limit, and return 200 or 202
     selectively based on whether the download completed.
     """
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=RemoteStorageKind.MOCK_S3,
     )
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
 
     tenant_id = TenantId.generate()
     timeline_id = TimelineId.generate()
@@ -956,16 +956,16 @@ def test_slow_secondary_downloads(neon_env_builder: NeonEnvBuilder, via_controll
 
 @skip_in_debug_build("only run with release build")
 @run_only_on_default_postgres("PG version is not interesting here")
-def test_migration_to_cold_secondary(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(
+def test_migration_to_cold_secondary(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(
         remote_storage_kind=RemoteStorageKind.MOCK_S3,
     )
 
     tenant_conf = TENANT_CONF.copy()
     tenant_conf["heatmap_period"] = "0s"
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     assert isinstance(env.pageserver_remote_storage, S3Storage)  # Satisfy linter
@@ -1160,14 +1160,14 @@ def test_migration_to_cold_secondary(neon_env_builder: NeonEnvBuilder):
 @run_only_on_default_postgres("PG version is not interesting here")
 @pytest.mark.parametrize("action", ["delete_timeline", "detach"])
 def test_io_metrics_match_secondary_timeline_lifecycle(
-    neon_env_builder: NeonEnvBuilder, action: str
+    serendb_env_builder: SerenDBEnvBuilder, action: str
 ):
     """
     Check that IO metrics for secondary timelines are de-registered when the timeline
     is removed
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()

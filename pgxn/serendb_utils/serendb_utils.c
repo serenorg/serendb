@@ -1,10 +1,10 @@
 /*-------------------------------------------------------------------------
  *
- * neon_utils.c
- *	  neon_utils - small useful functions
+ * serendb_utils.c
+ *	  serendb_utils - small useful functions
  *
  * IDENTIFICATION
- *	 contrib/neon_utils/neon_utils.c
+ *	 contrib/serendb_utils/serendb_utils.c
  *
  *-------------------------------------------------------------------------
  */

@@ -15,7 +15,7 @@ pub(crate) struct MigrationRunner<'m> {
 impl<'m> MigrationRunner<'m> {
     /// Create a new migration runner
     pub fn new(client: &'m mut Client, migrations: &'m [&'m str], lakebase_mode: bool) -> Self {
-        // The neon_migration.migration_id::id column is a bigint, which is equivalent to an i64
+        // The serendb_migration.migration_id::id column is a bigint, which is equivalent to an i64
         assert!(migrations.len() + 1 < i64::MAX as usize);
 
         Self {
@@ -25,17 +25,17 @@ impl<'m> MigrationRunner<'m> {
         }
     }
 
-    /// Get the current value neon_migration.migration_id
+    /// Get the current value serendb_migration.migration_id
     async fn get_migration_id(&mut self) -> Result<i64> {
         let row = self
             .client
-            .query_one("SELECT id FROM neon_migration.migration_id", &[])
+            .query_one("SELECT id FROM serendb_migration.migration_id", &[])
             .await?;
 
         Ok(row.get::<&str, i64>("id"))
     }
 
-    /// Update the neon_migration.migration_id value
+    /// Update the serendb_migration.migration_id value
     ///
     /// This function has a fail point called compute-migration, which can be
     /// used if you would like to fail the application of a series of migrations
@@ -62,11 +62,11 @@ impl<'m> MigrationRunner<'m> {
         }
 
         txn.query(
-            "UPDATE neon_migration.migration_id SET id = $1",
+            "UPDATE serendb_migration.migration_id SET id = $1",
             &[&migration_id],
         )
         .await
-        .with_context(|| format!("update neon_migration.migration_id to {migration_id}"))?;
+        .with_context(|| format!("update serendb_migration.migration_id to {migration_id}"))?;
 
         Ok(())
     }
@@ -74,19 +74,19 @@ impl<'m> MigrationRunner<'m> {
     /// Prepare the migrations the target database for handling migrations
     async fn prepare_database(&mut self) -> Result<()> {
         self.client
-            .simple_query("CREATE SCHEMA IF NOT EXISTS neon_migration")
+            .simple_query("CREATE SCHEMA IF NOT EXISTS serendb_migration")
             .await?;
-        self.client.simple_query("CREATE TABLE IF NOT EXISTS neon_migration.migration_id (key pg_catalog.int4 NOT NULL PRIMARY KEY, id pg_catalog.int8 NOT NULL DEFAULT 0)").await?;
+        self.client.simple_query("CREATE TABLE IF NOT EXISTS serendb_migration.migration_id (key pg_catalog.int4 NOT NULL PRIMARY KEY, id pg_catalog.int8 NOT NULL DEFAULT 0)").await?;
         self.client
             .simple_query(
-                "INSERT INTO neon_migration.migration_id VALUES (0, 0) ON CONFLICT DO NOTHING",
+                "INSERT INTO serendb_migration.migration_id VALUES (0, 0) ON CONFLICT DO NOTHING",
             )
             .await?;
         self.client
-            .simple_query("ALTER SCHEMA neon_migration OWNER TO cloud_admin")
+            .simple_query("ALTER SCHEMA serendb_migration OWNER TO cloud_admin")
             .await?;
         self.client
-            .simple_query("REVOKE ALL ON SCHEMA neon_migration FROM PUBLIC")
+            .simple_query("REVOKE ALL ON SCHEMA serendb_migration FROM PUBLIC")
             .await?;
 
         Ok(())
@@ -136,7 +136,7 @@ impl<'m> MigrationRunner<'m> {
             let migration_id = (current_migration + 1) as i64;
             let migration = self.migrations[current_migration];
             let migration = if self.lakebase_mode {
-                migration.replace("neon_superuser", "databricks_superuser")
+                migration.replace("serendb_superuser", "databricks_superuser")
             } else {
                 migration.to_string()
             };

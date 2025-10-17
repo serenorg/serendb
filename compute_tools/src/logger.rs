@@ -87,7 +87,7 @@ pub fn startup_context_from_env() -> Option<opentelemetry::Context> {
     // tracing context.
     //
     // This is used to propagate the context for the 'start_compute' operation
-    // from the neon control plane. This allows linking together the wider
+    // from the SerenDB control plane. This allows linking together the wider
     // 'start_compute' operation that creates the compute container, with the
     // startup actions here within the container.
     //

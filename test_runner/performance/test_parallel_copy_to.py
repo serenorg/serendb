@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fixtures.compare_fixtures import PgCompare
-    from fixtures.neon_fixtures import PgProtocol
+    from fixtures.serendb_fixtures import PgProtocol
 
 
 async def repeat_bytes(buf, repetitions: int):
@@ -39,8 +39,8 @@ async def parallel_load_different_tables(pg: PgProtocol, n_parallel: int):
 
 
 # Load 5 different tables in parallel with COPY TO
-def test_parallel_copy_different_tables(neon_with_baseline: PgCompare, n_parallel=5):
-    env = neon_with_baseline
+def test_parallel_copy_different_tables(serendb_with_baseline: PgCompare, n_parallel=5):
+    env = serendb_with_baseline
     conn = env.pg.connect()
     cur = conn.cursor()
 
@@ -67,8 +67,8 @@ async def parallel_load_same_table(pg: PgProtocol, n_parallel: int):
 
 
 # Load data into one table with COPY TO from 5 parallel connections
-def test_parallel_copy_same_table(neon_with_baseline: PgCompare, n_parallel=5):
-    env = neon_with_baseline
+def test_parallel_copy_same_table(serendb_with_baseline: PgCompare, n_parallel=5):
+    env = serendb_with_baseline
     conn = env.pg.connect()
     cur = conn.cursor()
 

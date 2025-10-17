@@ -1,22 +1,22 @@
-name: 'Delete Neon Project'
-description: 'Delete Neon Project using API'
+name: 'Delete SerenDB Project'
+description: 'Delete SerenDB Project using API'
 
 inputs:
   api_key:
-    description: 'Neon API key'
+    description: 'SerenDB API key'
     required: true
   project_id:
     description: 'ID of the Project to delete'
     required: true
   api_host:
-    description: 'Neon API host'
-    default: console-stage.neon.build
+    description: 'SerenDB API host'
+    default: console-stage.serendb.build
 
 runs:
   using: "composite"
   steps:
-    - name: Delete Neon Project
-      # Do not try to delete a project if .github/actions/neon-project-create failed before
+    - name: Delete SerenDB Project
+      # Do not try to delete a project if .github/actions/serendb-project-create failed before
       if: ${{ inputs.project_id != '' }}
       shell: bash -euxo pipefail {0}
       run: |

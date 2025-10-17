@@ -11,14 +11,14 @@ fn get_env(key: &str) -> String {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), tokio_postgres::Error> {
-    let host = get_env("NEON_HOST");
-    let database = get_env("NEON_DATABASE");
-    let user = get_env("NEON_USER");
-    let password = get_env("NEON_PASSWORD");
+    let host = get_env("SERENDB_HOST");
+    let database = get_env("SERENDB_DATABASE");
+    let user = get_env("SERENDB_USER");
+    let password = get_env("SERENDB_PASSWORD");
 
     let url = format!("postgresql://{user}:{password}@{host}/{database}");
 
-    // Use the native TLS implementation (Neon requires TLS)
+    // Use the native TLS implementation (SerenDB requires TLS)
     let tls_connector =
         postgres_native_tls::MakeTlsConnector::new(native_tls::TlsConnector::new().unwrap());
 

@@ -4,10 +4,10 @@ Implemented on N/A
 
 ## Summary
 A design for a storage system that allows storage of files required to make
-Neon's Endpoints have a better experience at or after a reboot.
+SerenDB's Endpoints have a better experience at or after a reboot.
 
 ## Motivation
-Several systems inside PostgreSQL (and Neon) need some persistent storage for
+Several systems inside PostgreSQL (and SerenDB) need some persistent storage for
 optimal workings across reboots and restarts, but still work without.
 Examples are the query-level statistics files of `pg_stat_statements` in
 `pg_stat/pg_stat_statements.stat`, and `pg_prewarm`'s `autoprewarm.blocks`.
@@ -72,7 +72,7 @@ The path of this endpoint data in S3 is initially as follows:
 For other blob storages an equivalent or similar path can be constructed.
 
 ### Reliability, failure modes and corner cases (if relevant)
-Reliability is important, but not critical to the workings of Neon.  The data
+Reliability is important, but not critical to the workings of SerenDB.  The data
 stored in this service will, when lost, reduce performance, but won't be a
 cause of permanent data loss - only operational metadata is stored.
 
@@ -93,7 +93,7 @@ Write data:
 
 ```http
 POST /tenants/<tenant-id>/timelines/<tl-id>/endpoints/<endpoint-id>/pgdata/<the-pgdata-path>
-Host: epufs.svc.neon.local
+Host: epufs.svc.serendb.local
 
 <<<
 
@@ -123,7 +123,7 @@ sequenceDiagram
 Read data: (optional with cache-relevant request parameters, e.g. If-Modified-Since)
 ```http
 GET /tenants/<tenant-id>/timelines/<tl-id>/endpoints/<endpoint-id>/pgdata/<the-pgdata-path>
-Host: epufs.svc.neon.local
+Host: epufs.svc.serendb.local
 
 <<<
 
@@ -177,7 +177,7 @@ sequenceDiagram
 CPlane ops:
 ```http
 DELETE /tenants/<tenant-id>/timelines/<timeline-id>/endpoints/<endpoint-id>
-Host: epufs.svc.neon.local
+Host: epufs.svc.serendb.local
 
 <<<
 
@@ -195,7 +195,7 @@ Host: epufs.svc.neon.local
 
 ```http
 DELETE /tenants/<tenant-id>/timelines/<timeline-id>
-Host: epufs.svc.neon.local
+Host: epufs.svc.serendb.local
 
 <<<
 
@@ -212,7 +212,7 @@ Host: epufs.svc.neon.local
 
 ```http
 DELETE /tenants/<tenant-id>
-Host: epufs.svc.neon.local
+Host: epufs.svc.serendb.local
 
 <<<
 

@@ -39,9 +39,9 @@ class ComputeReconfigure:
 def compute_reconfigure_listener(make_httpserver: HTTPServer):
     """
     This fixture exposes an HTTP listener for the storage controller to submit
-    compute notifications to us, instead of updating neon_local endpoints itself.
+    compute notifications to us, instead of updating serendb_local endpoints itself.
 
-    Although storage controller can use neon_local directly, this causes problems when
+    Although storage controller can use serendb_local directly, this causes problems when
     the test is also concurrently modifying endpoints.  Instead, configure storage controller
     to send notifications up to this test code, which will route all endpoint updates
     through Workload, which has a mutex to make concurrent updates safe.
@@ -50,7 +50,7 @@ def compute_reconfigure_listener(make_httpserver: HTTPServer):
 
     self = ComputeReconfigure(server)
 
-    # Do neon_local endpoint reconfiguration in the background so that we can
+    # Do serendb_local endpoint reconfiguration in the background so that we can
     # accept a healthy rate of calls into notify-attach.
     reconfigure_threads = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
@@ -69,7 +69,7 @@ def compute_reconfigure_listener(make_httpserver: HTTPServer):
         else:
             # This causes the endpoint to query storage controller for its location, which
             # is redundant since we already have it here, but this avoids extending the
-            # neon_local CLI to take full lists of locations
+            # serendb_local CLI to take full lists of locations
             fut = reconfigure_threads.submit(lambda workload=workload: workload.reconfigure())  # type: ignore[misc]
 
             # To satisfy semantics of notify-attach API, we must wait for the change to be applied before returning 200

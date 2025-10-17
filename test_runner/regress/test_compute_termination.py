@@ -17,12 +17,12 @@ if TYPE_CHECKING:
     from typing import Any
 
     from fixtures.common_types import TenantId, TimelineId
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
     from fixtures.port_distributor import PortDistributor
 
 
 def launch_compute_ctl(
-    env: NeonEnv,
+    env: SerenDBEnv,
     endpoint_name: str,
     external_http_port: int,
     internal_http_port: int,
@@ -50,7 +50,7 @@ def launch_compute_ctl(
     log_handle = open(log_file, "w")
 
     # Start compute_ctl pointing to our control plane
-    compute_ctl_path = env.neon_binpath / "compute_ctl"
+    compute_ctl_path = env.serendb_binpath / "compute_ctl"
     connstr = f"postgresql://cloud_admin@localhost:{pg_port}/postgres"
 
     # Find postgres binary path
@@ -159,14 +159,14 @@ class EmptySpecHandler(BaseHTTPRequestHandler):
         pass
 
 
-def test_compute_terminate_empty(neon_simple_env: NeonEnv, port_distributor: PortDistributor):
+def test_compute_terminate_empty(serendb_simple_env: SerenDBEnv, port_distributor: PortDistributor):
     """
     Test that terminating a compute in Empty status works correctly.
 
     This tests the bug fix where terminating an Empty compute would hang
     waiting for a non-existent postgres process to terminate.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     # Get ports for our test
     control_plane_port = port_distributor.get_port()
@@ -244,7 +244,7 @@ class SwitchableConfigHandler(BaseHTTPRequestHandler):
                         "cluster": {
                             "roles": [],
                             "databases": [],
-                            "postgresql_conf": "shared_preload_libraries='neon'",
+                            "postgresql_conf": "shared_preload_libraries='serendb'",
                         },
                         "tenant_id": str(self.tenant_id) if self.tenant_id else "",
                         "timeline_id": str(self.timeline_id) if self.timeline_id else "",
@@ -275,7 +275,7 @@ class SwitchableConfigHandler(BaseHTTPRequestHandler):
 
 
 def test_compute_empty_spec_during_refresh_configuration(
-    neon_simple_env: NeonEnv, port_distributor: PortDistributor
+    serendb_simple_env: SerenDBEnv, port_distributor: PortDistributor
 ):
     """
     Test that compute exits when it receives an empty spec during refresh configuration state.
@@ -286,7 +286,7 @@ def test_compute_empty_spec_during_refresh_configuration(
     3. Trigger some condition to force compute to refresh configuration
     4. Verify that compute_ctl exits
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     # Get ports for our test
     control_plane_port = port_distributor.get_port()

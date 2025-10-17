@@ -5,9 +5,9 @@ import pdb
 
 import fixtures.pageserver.many_tenants as many_tenants
 import pytest
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     last_flush_lsn_upload,
 )
@@ -16,7 +16,7 @@ from performance.pageserver.util import ensure_pageserver_ready_for_benchmarking
 
 """
 Usage:
-DEFAULT_PG_VERSION=17 BUILD_TYPE=debug NEON_ENV_BUILDER_USE_OVERLAYFS_FOR_SNAPSHOTS=1 INTERACTIVE=true \
+DEFAULT_PG_VERSION=17 BUILD_TYPE=debug SERENDB_ENV_BUILDER_USE_OVERLAYFS_FOR_SNAPSHOTS=1 INTERACTIVE=true \
     ./scripts/pytest --timeout 0 test_runner/performance/pageserver/interactive/test_many_small_tenants.py
 """
 
@@ -26,10 +26,10 @@ DEFAULT_PG_VERSION=17 BUILD_TYPE=debug NEON_ENV_BUILDER_USE_OVERLAYFS_FOR_SNAPSH
     reason="test is for interactive use only",
 )
 def test_many_small_tenants(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
-    _env = setup_env(neon_env_builder, 2)  # vary this to the desired number of tenants
+    _env = setup_env(serendb_env_builder, 2)  # vary this to the desired number of tenants
     _pg_bin = pg_bin
 
     # drop into pdb so that we can debug pageserver interactively, use pdb here
@@ -41,10 +41,10 @@ def test_many_small_tenants(
 
 
 def setup_env(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     n_tenants: int,
-) -> NeonEnv:
-    def setup_template(env: NeonEnv):
+) -> SerenDBEnv:
+    def setup_template(env: SerenDBEnv):
         # create our template tenant
         config = {
             "gc_period": "0s",
@@ -66,10 +66,10 @@ def setup_env(
         ep.stop_and_destroy()
         return (template_tenant, template_timeline, config)
 
-    def doit(neon_env_builder: NeonEnvBuilder) -> NeonEnv:
-        return many_tenants.single_timeline(neon_env_builder, setup_template, n_tenants)
+    def doit(serendb_env_builder: SerenDBEnvBuilder) -> SerenDBEnv:
+        return many_tenants.single_timeline(serendb_env_builder, setup_template, n_tenants)
 
-    env = neon_env_builder.build_and_use_snapshot(f"many-small-tenants-{n_tenants}", doit)
+    env = serendb_env_builder.build_and_use_snapshot(f"many-small-tenants-{n_tenants}", doit)
 
     env.start()
     ensure_pageserver_ready_for_benchmarking(env, n_tenants)

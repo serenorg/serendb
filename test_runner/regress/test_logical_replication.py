@@ -8,17 +8,17 @@ from typing import TYPE_CHECKING, cast
 
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     logical_replication_sync,
     wait_for_last_flush_lsn,
 )
 from fixtures.utils import USE_LFC, wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         Endpoint,
-        NeonEnv,
-        NeonEnvBuilder,
+        SerenDBEnv,
+        SerenDBEnvBuilder,
         PgProtocol,
         VanillaPostgres,
     )
@@ -28,8 +28,8 @@ def random_string(n: int):
     return "".join([choice(ascii_lowercase) for _ in range(n)])
 
 
-def test_logical_replication(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
-    env = neon_simple_env
+def test_logical_replication(serendb_simple_env: SerenDBEnv, vanilla_pg: VanillaPostgres):
+    env = serendb_simple_env
 
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
@@ -166,8 +166,8 @@ COMMIT;
     assert endpoint.safe_psql("select count(*) from pg_replication_slots")[0][0] == 1
 
 
-# Test that neon.logical_replication_max_snap_files works
-def test_obsolete_slot_drop(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
+# Test that serendb.logical_replication_max_snap_files works
+def test_obsolete_slot_drop(serendb_simple_env: SerenDBEnv, vanilla_pg: VanillaPostgres):
     def slot_removed(ep: Endpoint):
         assert (
             ep.safe_psql(
@@ -176,12 +176,12 @@ def test_obsolete_slot_drop(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgre
             == 0
         )
 
-    env = neon_simple_env
+    env = serendb_simple_env
 
-    # set low neon.logical_replication_max_snap_files
+    # set low serendb.logical_replication_max_snap_files
     endpoint = env.endpoints.create_start(
         "main",
-        config_lines=["log_statement=all", "neon.logical_replication_max_snap_files=1"],
+        config_lines=["log_statement=all", "serendb.logical_replication_max_snap_files=1"],
     )
 
     pg_conn = endpoint.connect()
@@ -210,9 +210,9 @@ def test_obsolete_slot_drop(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgre
     wait_until(partial(slot_removed, endpoint))
 
 
-def test_ondemand_wal_download_in_replication_slot_funcs(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_ondemand_wal_download_in_replication_slot_funcs(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("init")
     endpoint = env.endpoints.create_start("init")
@@ -238,7 +238,7 @@ FROM generate_series(1, 16384) AS seq; -- Inserts enough rows to exceed 16MB of 
             "SELECT * FROM pg_logical_slot_peek_binary_changes('slotty_mcslotface', NULL, NULL, 'include-xids', '0')"
         )
         # do the peek second time: we've had a bug using wrong memory context
-        # for NeonWALReader leading to the crash in this case.
+        # for SerenDBWALReader leading to the crash in this case.
         log.info("peek_changes again")
         cur.execute(
             "SELECT * FROM pg_logical_slot_peek_binary_changes('slotty_mcslotface', NULL, NULL, 'include-xids', '0')"
@@ -261,9 +261,9 @@ FROM generate_series(1, 16384) AS seq; -- Inserts enough rows to exceed 16MB of 
 
 
 # Tests that walsender correctly blocks until WAL is downloaded from safekeepers
-def test_lr_with_slow_safekeeper(neon_env_builder: NeonEnvBuilder, vanilla_pg: VanillaPostgres):
-    neon_env_builder.num_safekeepers = 3
-    env = neon_env_builder.init_start()
+def test_lr_with_slow_safekeeper(serendb_env_builder: SerenDBEnvBuilder, vanilla_pg: VanillaPostgres):
+    serendb_env_builder.num_safekeepers = 3
+    env = serendb_env_builder.init_start()
 
     env.create_branch("init")
     endpoint = env.endpoints.create_start("init")
@@ -343,13 +343,13 @@ FROM generate_series(1, 16384) AS seq; -- Inserts enough rows to exceed 16MB of 
 #
 # Most pages start with a contrecord, so we don't do anything special
 # to ensure that.
-def test_restart_endpoint(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
-    env = neon_simple_env
+def test_restart_endpoint(serendb_simple_env: SerenDBEnv, vanilla_pg: VanillaPostgres):
+    env = serendb_simple_env
 
     env.create_branch("init")
     endpoint = env.endpoints.create_start("init")
-    tenant_id = TenantId(cast("str", endpoint.safe_psql("show neon.tenant_id")[0][0]))
-    timeline_id = TimelineId(cast("str", endpoint.safe_psql("show neon.timeline_id")[0][0]))
+    tenant_id = TenantId(cast("str", endpoint.safe_psql("show serendb.tenant_id")[0][0]))
+    timeline_id = TimelineId(cast("str", endpoint.safe_psql("show serendb.timeline_id")[0][0]))
 
     cur = endpoint.connect().cursor()
     cur.execute("create table t(key int, value text)")
@@ -387,8 +387,8 @@ def test_restart_endpoint(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres)
 # logical replication bug as such, but without logical replication,
 # records passed ot the WAL redo process are never large enough to hit
 # the bug.
-def test_large_records(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
-    env = neon_simple_env
+def test_large_records(serendb_simple_env: SerenDBEnv, vanilla_pg: VanillaPostgres):
+    env = serendb_simple_env
 
     env.create_branch("init")
     endpoint = env.endpoints.create_start("init")
@@ -435,8 +435,8 @@ def test_large_records(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
 #
 # Check that slots are not inherited in brnach
 #
-def test_slots_and_branching(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_slots_and_branching(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     tenant, timeline = env.create_tenant()
     env.pageserver.http_client()
@@ -458,9 +458,9 @@ def test_slots_and_branching(neon_simple_env: NeonEnv):
     ws_cur.execute("select pg_create_logical_replication_slot('my_slot', 'pgoutput')")
 
 
-def test_replication_shutdown(neon_simple_env: NeonEnv):
-    # Ensure Postgres can exit without stuck when a replication job is active + neon extension installed
-    env = neon_simple_env
+def test_replication_shutdown(serendb_simple_env: SerenDBEnv):
+    # Ensure Postgres can exit without stuck when a replication job is active + SerenDB extension installed
+    env = serendb_simple_env
     env.create_branch("test_replication_shutdown_publisher", ancestor_branch_name="main")
     pub = env.endpoints.create("test_replication_shutdown_publisher")
 
@@ -478,22 +478,22 @@ def test_replication_shutdown(neon_simple_env: NeonEnv):
 
     with pub.cursor() as cur:
         cur.execute(
-            "CREATE ROLE mr_whiskers WITH PASSWORD 'cat' LOGIN INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE neon_superuser"
+            "CREATE ROLE mr_whiskers WITH PASSWORD 'cat' LOGIN INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE serendb_superuser"
         )
-        cur.execute("CREATE DATABASE neondb WITH OWNER mr_whiskers")
-        cur.execute("GRANT ALL PRIVILEGES ON DATABASE neondb TO neon_superuser")
+        cur.execute("CREATE DATABASE serendb WITH OWNER mr_whiskers")
+        cur.execute("GRANT ALL PRIVILEGES ON DATABASE serendb TO serendb_superuser")
 
         # If we don't do this, creating the subscription will fail later on PG16
         pub.edit_hba(["host all mr_whiskers 0.0.0.0/0 md5"])
 
     with sub.cursor() as cur:
         cur.execute(
-            "CREATE ROLE mr_whiskers WITH PASSWORD 'cat' LOGIN INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE neon_superuser"
+            "CREATE ROLE mr_whiskers WITH PASSWORD 'cat' LOGIN INHERIT CREATEROLE CREATEDB BYPASSRLS REPLICATION IN ROLE serendb_superuser"
         )
-        cur.execute("CREATE DATABASE neondb WITH OWNER mr_whiskers")
-        cur.execute("GRANT ALL PRIVILEGES ON DATABASE neondb TO neon_superuser")
+        cur.execute("CREATE DATABASE serendb WITH OWNER mr_whiskers")
+        cur.execute("GRANT ALL PRIVILEGES ON DATABASE serendb TO serendb_superuser")
 
-    with pub.cursor(dbname="neondb", user="mr_whiskers", password="cat") as cur:
+    with pub.cursor(dbname="serendb", user="mr_whiskers", password="cat") as cur:
         cur.execute("CREATE PUBLICATION pub FOR ALL TABLES")
         cur.execute("CREATE TABLE t (a int)")
         cur.execute("INSERT INTO t VALUES (10), (20)")
@@ -501,15 +501,15 @@ def test_replication_shutdown(neon_simple_env: NeonEnv):
         res = cur.fetchall()
         assert [r[0] for r in res] == [10, 20]
 
-    with sub.cursor(dbname="neondb", user="mr_whiskers", password="cat") as cur:
+    with sub.cursor(dbname="serendb", user="mr_whiskers", password="cat") as cur:
         cur.execute("CREATE TABLE t (a int)")
 
-        pub_conn = f"host=localhost port={pub.pg_port} dbname=neondb user=mr_whiskers password=cat"
+        pub_conn = f"host=localhost port={pub.pg_port} dbname=serendb user=mr_whiskers password=cat"
         query = f"CREATE SUBSCRIPTION sub CONNECTION '{pub_conn}' PUBLICATION pub"
         log.info(f"Creating subscription: {query}")
         cur.execute(query)
 
-        with pub.cursor(dbname="neondb", user="mr_whiskers", password="cat") as pcur:
+        with pub.cursor(dbname="serendb", user="mr_whiskers", password="cat") as pcur:
             pcur.execute("INSERT INTO t VALUES (30), (40)")
 
         def check_that_changes_propagated():
@@ -553,31 +553,31 @@ select sent_lsn, flush_lsn, pg_current_wal_flush_lsn() from pg_stat_replication 
     return publisher_flush_lsn
 
 
-# Test that neon subscriber takes into account quorum committed flush_lsn in
+# Test that SerenDB subscriber takes into account quorum committed flush_lsn in
 # flush_lsn reporting to publisher. Without this, subscriber may ack too far,
 # losing data on restart because publisher implicitly advances positition given
 # in START_REPLICATION to the confirmed_flush_lsn of the slot.
-def test_subscriber_synchronous_commit(neon_simple_env: NeonEnv, vanilla_pg: VanillaPostgres):
-    env = neon_simple_env
+def test_subscriber_synchronous_commit(serendb_simple_env: SerenDBEnv, vanilla_pg: VanillaPostgres):
+    env = serendb_simple_env
     # use vanilla as publisher to allow writes on it when safekeeper is down
     vanilla_pg.configure(
         [
             "wal_level = 'logical'",
-            # neon fork uses custom WAL records which won't work without extension installed with obscure
+            # SerenDB fork uses custom WAL records which won't work without extension installed with obscure
             # ERROR:  resource manager with ID 134 not registered
             # error.
-            "shared_preload_libraries = 'neon'",
+            "shared_preload_libraries = 'serendb'",
         ]
     )
     vanilla_pg.start()
-    vanilla_pg.safe_psql("create extension neon;")
+    vanilla_pg.safe_psql("create extension serendb;")
 
     env.create_branch("subscriber")
     # We want all data to fit into shared_buffers or LFC cache because later we
     # stop safekeeper and insert more; this shouldn't cause page requests as
     # they will be stuck.
     if USE_LFC:
-        config_lines = ["neon.max_file_cache_size = 32MB", "neon.file_cache_size_limit = 32MB"]
+        config_lines = ["serendb.max_file_cache_size = 32MB", "serendb.file_cache_size_limit = 32MB"]
     else:
         config_lines = [
             "shared_buffers = 32MB",

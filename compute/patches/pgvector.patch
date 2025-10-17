@@ -22,14 +22,14 @@ index b667478..1298aa1 100644
  
  	hnswarea = shm_toc_lookup(toc, PARALLEL_KEY_HNSW_AREA, false);
  
-+#ifdef NEON_SMGR
++#ifdef SERENDB_SMGR
 +	smgr_start_unlogged_build(RelationGetSmgr(indexRel));
 +#endif
 +
  	/* Perform inserts */
  	HnswParallelScanAndInsert(heapRel, indexRel, hnswshared, hnswarea, false);
  
-+#ifdef NEON_SMGR
++#ifdef SERENDB_SMGR
 +	smgr_finish_unlogged_build_phase_1(RelationGetSmgr(indexRel));
 +#endif
 +
@@ -39,23 +39,23 @@ index b667478..1298aa1 100644
 @@ -1100,13 +1108,25 @@ BuildIndex(Relation heap, Relation index, IndexInfo *indexInfo,
  	SeedRandom(42);
  #endif
- 
-+#ifdef NEON_SMGR
+
++#ifdef SERENDB_SMGR
 +	smgr_start_unlogged_build(RelationGetSmgr(index));
 +#endif
 +
  	InitBuildState(buildstate, heap, index, indexInfo, forkNum);
  
  	BuildGraph(buildstate, forkNum);
- 
-+#ifdef NEON_SMGR
+
++#ifdef SERENDB_SMGR
 +	smgr_finish_unlogged_build_phase_1(RelationGetSmgr(index));
 +#endif
 +
  	if (RelationNeedsWAL(index) || forkNum == INIT_FORKNUM)
  		log_newpage_range(index, forkNum, 0, RelationGetNumberOfBlocksInFork(index, forkNum), true);
- 
-+#ifdef NEON_SMGR
+
++#ifdef SERENDB_SMGR
 +	smgr_end_unlogged_build(RelationGetSmgr(index));
 +#endif
 +

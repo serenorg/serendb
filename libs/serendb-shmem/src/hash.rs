@@ -233,7 +233,7 @@ where
         use std::sync::atomic::{AtomicUsize, Ordering};
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
         let val = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let name = format!("neon_shmem_hmap{val}");
+        let name = format!("serendb_shmem_hmap{val}");
         Self::new_resizeable_named(num_buckets, max_buckets, &name)
     }
 }

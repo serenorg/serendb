@@ -1,7 +1,7 @@
 #include "postgres.h"
 #if PG_MAJORVERSION_NUM >= 16
 #include "access/heapam_xlog.h"
-#include "access/neon_xlog.h"
+#include "access/serendb_xlog.h"
 #include "access/rmgr.h"
 #include "access/rmgrdesc_utils.h"
 #include "access/xlog_internal.h"
@@ -9,7 +9,7 @@
 #include "storage/buf.h"
 #include "storage/bufpage.h"
 
-#include "neon_rmgr.h"
+#include "serendb_rmgr.h"
 
 /*
  * NOTE: "keyname" argument cannot have trailing spaces or punctuation
@@ -45,33 +45,33 @@ infobits_desc(StringInfo buf, uint8 infobits, const char *keyname)
 }
 
 void
-neon_rm_desc(StringInfo buf, XLogReaderState *record)
+serendb_rm_desc(StringInfo buf, XLogReaderState *record)
 {
 	char	   *rec = XLogRecGetData(record);
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	info &= XLOG_NEON_OPMASK;
+	info &= XLOG_SERENDB_OPMASK;
 
-	if (info == XLOG_NEON_HEAP_INSERT)
+	if (info == XLOG_SERENDB_HEAP_INSERT)
 	{
-		xl_neon_heap_insert *xlrec = (xl_neon_heap_insert *) rec;
+		xl_serendb_heap_insert *xlrec = (xl_serendb_heap_insert *) rec;
 
 		appendStringInfo(buf, "off: %u, flags: 0x%02X",
 						 xlrec->offnum,
 						 xlrec->flags);
 	}
-	else if (info == XLOG_NEON_HEAP_DELETE)
+	else if (info == XLOG_SERENDB_HEAP_DELETE)
 	{
-		xl_neon_heap_delete *xlrec = (xl_neon_heap_delete *) rec;
+		xl_serendb_heap_delete *xlrec = (xl_serendb_heap_delete *) rec;
 
 		appendStringInfo(buf, "xmax: %u, off: %u, ",
 						 xlrec->xmax, xlrec->offnum);
 		infobits_desc(buf, xlrec->infobits_set, "infobits");
 		appendStringInfo(buf, ", flags: 0x%02X", xlrec->flags);
 	}
-	else if (info == XLOG_NEON_HEAP_UPDATE)
+	else if (info == XLOG_SERENDB_HEAP_UPDATE)
 	{
-		xl_neon_heap_update *xlrec = (xl_neon_heap_update *) rec;
+		xl_serendb_heap_update *xlrec = (xl_serendb_heap_update *) rec;
 
 		appendStringInfo(buf, "old_xmax: %u, old_off: %u, ",
 						 xlrec->old_xmax, xlrec->old_offnum);
@@ -79,9 +79,9 @@ neon_rm_desc(StringInfo buf, XLogReaderState *record)
 		appendStringInfo(buf, ", flags: 0x%02X, new_xmax: %u, new_off: %u",
 						 xlrec->flags, xlrec->new_xmax, xlrec->new_offnum);
 	}
-	else if (info == XLOG_NEON_HEAP_HOT_UPDATE)
+	else if (info == XLOG_SERENDB_HEAP_HOT_UPDATE)
 	{
-		xl_neon_heap_update *xlrec = (xl_neon_heap_update *) rec;
+		xl_serendb_heap_update *xlrec = (xl_serendb_heap_update *) rec;
 
 		appendStringInfo(buf, "old_xmax: %u, old_off: %u, ",
 						 xlrec->old_xmax, xlrec->old_offnum);
@@ -89,19 +89,19 @@ neon_rm_desc(StringInfo buf, XLogReaderState *record)
 		appendStringInfo(buf, ", flags: 0x%02X, new_xmax: %u, new_off: %u",
 						 xlrec->flags, xlrec->new_xmax, xlrec->new_offnum);
 	}
-	else if (info == XLOG_NEON_HEAP_LOCK)
+	else if (info == XLOG_SERENDB_HEAP_LOCK)
 	{
-		xl_neon_heap_lock *xlrec = (xl_neon_heap_lock *) rec;
+		xl_serendb_heap_lock *xlrec = (xl_serendb_heap_lock *) rec;
 
 		appendStringInfo(buf, "xmax: %u, off: %u, ",
 						 xlrec->xmax, xlrec->offnum);
 		infobits_desc(buf, xlrec->infobits_set, "infobits");
 		appendStringInfo(buf, ", flags: 0x%02X", xlrec->flags);
 	}
-	else if (info == XLOG_NEON_HEAP_MULTI_INSERT)
+	else if (info == XLOG_SERENDB_HEAP_MULTI_INSERT)
 	{
-		xl_neon_heap_multi_insert *xlrec = (xl_neon_heap_multi_insert *) rec;
-		bool		isinit = (XLogRecGetInfo(record) & XLOG_NEON_INIT_PAGE) != 0;
+		xl_serendb_heap_multi_insert *xlrec = (xl_serendb_heap_multi_insert *) rec;
+		bool		isinit = (XLogRecGetInfo(record) & XLOG_SERENDB_INIT_PAGE) != 0;
 
 		appendStringInfo(buf, "ntuples: %d, flags: 0x%02X", xlrec->ntuples,
 						 xlrec->flags);
@@ -116,40 +116,40 @@ neon_rm_desc(StringInfo buf, XLogReaderState *record)
 }
 
 const char *
-neon_rm_identify(uint8 info)
+serendb_rm_identify(uint8 info)
 {
 	const char *id = NULL;
 
 	switch (info & ~XLR_INFO_MASK)
 	{
-		case XLOG_NEON_HEAP_INSERT:
+		case XLOG_SERENDB_HEAP_INSERT:
 			id = "INSERT";
 			break;
-		case XLOG_NEON_HEAP_INSERT | XLOG_NEON_INIT_PAGE:
+		case XLOG_SERENDB_HEAP_INSERT | XLOG_SERENDB_INIT_PAGE:
 			id = "INSERT+INIT";
 			break;
-		case XLOG_NEON_HEAP_DELETE:
+		case XLOG_SERENDB_HEAP_DELETE:
 			id = "DELETE";
 			break;
-		case XLOG_NEON_HEAP_UPDATE:
+		case XLOG_SERENDB_HEAP_UPDATE:
 			id = "UPDATE";
 			break;
-		case XLOG_NEON_HEAP_UPDATE | XLOG_NEON_INIT_PAGE:
+		case XLOG_SERENDB_HEAP_UPDATE | XLOG_SERENDB_INIT_PAGE:
 			id = "UPDATE+INIT";
 			break;
-		case XLOG_NEON_HEAP_HOT_UPDATE:
+		case XLOG_SERENDB_HEAP_HOT_UPDATE:
 			id = "HOT_UPDATE";
 			break;
-		case XLOG_NEON_HEAP_HOT_UPDATE | XLOG_HEAP_INIT_PAGE:
+		case XLOG_SERENDB_HEAP_HOT_UPDATE | XLOG_HEAP_INIT_PAGE:
 			id = "HOT_UPDATE+INIT";
 			break;
-		case XLOG_NEON_HEAP_LOCK:
+		case XLOG_SERENDB_HEAP_LOCK:
 			id = "LOCK";
 			break;
-		case XLOG_NEON_HEAP_MULTI_INSERT:
+		case XLOG_SERENDB_HEAP_MULTI_INSERT:
 			id = "MULTI_INSERT";
 			break;
-		case XLOG_NEON_HEAP_MULTI_INSERT | XLOG_NEON_INIT_PAGE:
+		case XLOG_SERENDB_HEAP_MULTI_INSERT | XLOG_SERENDB_INIT_PAGE:
 			id = "MULTI_INSERT+INIT";
 			break;
 	}

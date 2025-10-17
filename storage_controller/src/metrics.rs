@@ -13,7 +13,7 @@ use bytes::Bytes;
 use measured::label::LabelValue;
 use measured::metric::histogram;
 use measured::{FixedCardinalityLabel, MetricGroup};
-use metrics::NeonMetrics;
+use metrics::SerenDBMetrics;
 use once_cell::sync::Lazy;
 use strum::IntoEnumIterator;
 
@@ -177,9 +177,9 @@ pub(crate) struct StorageControllerMetricGroup {
 }
 
 impl StorageControllerMetrics {
-    pub(crate) fn encode(&self, neon_metrics: &NeonMetrics) -> Bytes {
+    pub(crate) fn encode(&self, serendb_metrics: &SerenDBMetrics) -> Bytes {
         let mut encoder = self.encoder.lock().unwrap();
-        neon_metrics
+        serendb_metrics
             .collect_group_into(&mut *encoder)
             .unwrap_or_else(|infallible| match infallible {});
         self.metrics_group

@@ -275,7 +275,7 @@ mod tests {
         // Simulate 'a' finishing while there's still data for 'b'
         client_client.write_all(b"hello").await.unwrap();
         client_client.shutdown().await.unwrap();
-        compute_client.write_all(b"Neon").await.unwrap();
+        compute_client.write_all(b"SerenDB").await.unwrap();
         compute_client.shutdown().await.unwrap();
 
         let result = copy_bidirectional_client_compute(&mut client_proxy, &mut compute_proxy)
@@ -297,7 +297,7 @@ mod tests {
         compute_client.write_all(b"hello").await.unwrap();
         compute_client.shutdown().await.unwrap();
         client_client
-            .write_all(b"Neon Serverless Postgres")
+            .write_all(b"SerenDB Serverless Postgres")
             .await
             .unwrap();
 

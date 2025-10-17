@@ -72,11 +72,11 @@ fn do_control_plane_request(
 }
 
 /// Request config from the control-plane by compute_id. If
-/// `NEON_CONTROL_PLANE_TOKEN` env variable is set, it will be used for
+/// `SERENDB_CONTROL_PLANE_TOKEN` env variable is set, it will be used for
 /// authorization.
 pub fn get_config_from_control_plane(base_uri: &str, compute_id: &str) -> Result<ComputeConfig> {
     let cp_uri = format!("{base_uri}/compute/api/v2/computes/{compute_id}/spec");
-    let jwt: String = std::env::var("NEON_CONTROL_PLANE_TOKEN").unwrap_or_default();
+    let jwt: String = std::env::var("SERENDB_CONTROL_PLANE_TOKEN").unwrap_or_default();
     let mut attempt = 1;
 
     info!("getting config from control plane: {}", cp_uri);
@@ -139,9 +139,9 @@ pub fn update_pg_hba(pgdata_path: &Path, databricks_pg_hba: Option<&String>) -> 
     // XXX: consider making it a part of config.json
     let pghba_path = pgdata_path.join("pg_hba.conf");
 
-    // Update pg_hba to contains databricks specfic settings before adding neon settings
+    // Update pg_hba to contains databricks specfic settings before adding SerenDB settings
     // PG uses the first record that matches to perform authentication, so we need to have
-    // our rules before the default ones from neon.
+    // our rules before the default ones from SerenDB.
     // See https://www.postgresql.org/docs/current/auth-pg-hba-conf.html
     if let Some(databricks_pg_hba) = databricks_pg_hba {
         if config::line_in_file(
@@ -231,9 +231,9 @@ pub fn add_standby_signal(pgdata_path: &Path) -> Result<()> {
 }
 
 #[instrument(skip_all)]
-pub async fn handle_neon_extension_upgrade(client: &mut Client) -> Result<()> {
-    let query = "ALTER EXTENSION neon UPDATE";
-    info!("update neon extension version with query: {}", query);
+pub async fn handle_serendb_extension_upgrade(client: &mut Client) -> Result<()> {
+    let query = "ALTER EXTENSION serendb UPDATE";
+    info!("update SerenDB extension version with query: {}", query);
     client.simple_query(query).await?;
 
     Ok(())

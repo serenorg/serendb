@@ -1,11 +1,11 @@
 import psycopg2
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 
 
-def test_role_grants(neon_simple_env: NeonEnv):
+def test_role_grants(serendb_simple_env: SerenDBEnv):
     """basic test for the endpoint that grants permissions for a role against a schema"""
 
-    env = neon_simple_env
+    env = serendb_simple_env
 
     env.create_branch("test_role_grants")
 

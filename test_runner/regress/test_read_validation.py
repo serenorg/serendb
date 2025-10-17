@@ -8,18 +8,18 @@ from fixtures.utils import query_scalar
 from psycopg2.errors import IoError, UndefinedTable
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
-pytest_plugins = "fixtures.neon_fixtures"
+pytest_plugins = "fixtures.serendb_fixtures"
 
-extensions = ["pageinspect", "neon_test_utils", "pg_buffercache"]
+extensions = ["pageinspect", "serendb_test_utils", "pg_buffercache"]
 
 
 #
 # Validation of reading different page versions
 #
-def test_read_validation(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_read_validation(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
     with closing(endpoint.connect()) as con:
@@ -130,8 +130,8 @@ def test_read_validation(neon_simple_env: NeonEnv):
                 log.info(f"Caught an expected failure: {e}")
 
 
-def test_read_validation_neg(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_read_validation_neg(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     env.pageserver.allowed_errors.append(".*invalid LSN\\(0\\) in request.*")
 
     endpoint = env.endpoints.create_start("main")

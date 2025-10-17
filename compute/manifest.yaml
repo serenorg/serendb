@@ -66,15 +66,15 @@ pg_settings:
     # required for backpressure.
     wal_sender_timeout: "10000"
     # We have some experimental extensions, which we don't want users to install unconsciously.
-    # To install them, users would need to set the `neon.allow_unstable_extensions` setting.
+    # To install them, users would need to set the `serendb.allow_unstable_extensions` setting.
     # There are two of them currently:
     # - `pgrag` - https://github.com/neondatabase-labs/pgrag - extension is actually called just `rag`,
     #                                                          and two dependencies:
     #                                                          - `rag_bge_small_en_v15`
     #                                                          - `rag_jina_reranker_v1_tiny_en`
     # - `pg_mooncake` - https://github.com/Mooncake-Labs/pg_mooncake/  
-    neon.unstable_extensions: "rag,rag_bge_small_en_v15,rag_jina_reranker_v1_tiny_en,pg_mooncake,anon"
-    neon.protocol_version: "3"
+    serendb.unstable_extensions: "rag,rag_bge_small_en_v15,rag_jina_reranker_v1_tiny_en,pg_mooncake,anon"
+    serendb.protocol_version: "3"
     password_encryption: "scram-sha-256"
     # This is important to prevent Postgres from trying to perform
     # a local WAL redo after backend crash. It should exit and let
@@ -102,19 +102,19 @@ pg_settings:
         io_combine_limit: "1"
       replica:
         # prefetching of blocks referenced in WAL doesn't make sense for us
-        # Neon hot standby ignores pages that are not in the shared_buffers
+        # SerenDB hot standby ignores pages that are not in the shared_buffers
         recovery_prefetch: "off"
     16:
       common: {}
       replica:
         # prefetching of blocks referenced in WAL doesn't make sense for us
-        # Neon hot standby ignores pages that are not in the shared_buffers
+        # SerenDB hot standby ignores pages that are not in the shared_buffers
         recovery_prefetch: "off"
     15:
       common: {}
       replica:
         # prefetching of blocks referenced in WAL doesn't make sense for us
-        # Neon hot standby ignores pages that are not in the shared_buffers
+        # SerenDB hot standby ignores pages that are not in the shared_buffers
         recovery_prefetch: "off"
     14:
       common: {}

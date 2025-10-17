@@ -44,8 +44,8 @@ use crate::wal_storage::WalReader;
 // See: https://www.postgresql.org/docs/13/protocol-replication.html
 const HOT_STANDBY_FEEDBACK_TAG_BYTE: u8 = b'h';
 const STANDBY_STATUS_UPDATE_TAG_BYTE: u8 = b'r';
-// neon extension of replication protocol
-const NEON_STATUS_UPDATE_TAG_BYTE: u8 = b'z';
+// SerenDB extension of replication protocol
+const SERENDB_STATUS_UPDATE_TAG_BYTE: u8 = b'z';
 
 /// WalSenders registry. Timeline holds it (wrapped in Arc).
 pub struct WalSenders {
@@ -1022,7 +1022,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> ReplyReader<IO> {
                     .walsenders
                     .record_standby_reply(self.ws_guard.id, &reply);
             }
-            Some(NEON_STATUS_UPDATE_TAG_BYTE) => {
+            Some(SERENDB_STATUS_UPDATE_TAG_BYTE) => {
                 // pageserver sends this.
                 // Note: deserializing is on m[9..] because we skip the tag byte and len bytes.
                 let buf = Bytes::copy_from_slice(&msg[9..]);

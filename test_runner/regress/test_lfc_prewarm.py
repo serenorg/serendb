@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from fixtures.endpoint.http import EndpointHttpClient
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 from fixtures.utils import USE_LFC, wait_until
 from prometheus_client.parser import text_string_to_metric_families as prom_parse_impl
 from psycopg2.extensions import cursor as Cursor
@@ -40,7 +40,7 @@ def prom_parse(client: EndpointHttpClient) -> dict[str, float]:
 
 def offload_lfc(method: PrewarmMethod, client: EndpointHttpClient, cur: Cursor) -> Any:
     if method == PrewarmMethod.POSTGRES:
-        cur.execute("select neon.get_local_cache_state()")
+        cur.execute("select serendb.get_local_cache_state()")
         return cur.fetchall()[0][0]
 
     if method == PrewarmMethod.AUTOPREWARM:
@@ -79,7 +79,7 @@ def prewarm_endpoint(
         log.info(prewarm_res)
         return prewarm_res
     elif method == PrewarmMethod.POSTGRES:
-        cur.execute("select neon.prewarm_local_cache(%s)", (lfc_state,))
+        cur.execute("select serendb.prewarm_local_cache(%s)", (lfc_state,))
 
 
 def check_prewarmed_contains(
@@ -102,19 +102,19 @@ def check_prewarmed_contains(
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
 @pytest.mark.parametrize("method", METHOD_VALUES, ids=METHOD_IDS)
-def test_lfc_prewarm(neon_simple_env: NeonEnv, method: PrewarmMethod):
+def test_lfc_prewarm(serendb_simple_env: SerenDBEnv, method: PrewarmMethod):
     """
     Test we can offload endpoint's LFC cache to endpoint storage.
     Test we can prewarm endpoint with LFC cache loaded from endpoint storage.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     n_records = 1000000
     cfg = [
         "autovacuum = off",
         "shared_buffers=1MB",
-        "neon.max_file_cache_size=1GB",
-        "neon.file_cache_size_limit=1GB",
-        "neon.file_cache_prewarm_limit=1000",
+        "serendb.max_file_cache_size=1GB",
+        "serendb.file_cache_size_limit=1GB",
+        "serendb.file_cache_prewarm_limit=1000",
     ]
 
     if method == PrewarmMethod.AUTOPREWARM:
@@ -129,7 +129,7 @@ def test_lfc_prewarm(neon_simple_env: NeonEnv, method: PrewarmMethod):
 
     pg_conn = endpoint.connect()
     pg_cur = pg_conn.cursor()
-    pg_cur.execute("create schema neon; create extension neon with schema neon")
+    pg_cur.execute("create schema serendb; create extension serendb with schema serendb")
     pg_cur.execute("create database lfc")
 
     lfc_conn = endpoint.connect(dbname="lfc")
@@ -156,11 +156,11 @@ def test_lfc_prewarm(neon_simple_env: NeonEnv, method: PrewarmMethod):
     prewarm_endpoint(method, client, pg_cur, lfc_state)
 
     pg_cur.execute(
-        "select lfc_value from neon.neon_lfc_stats where lfc_key='file_cache_used_pages'"
+        "select lfc_value from serendb.serendb_lfc_stats where lfc_key='file_cache_used_pages'"
     )
     lfc_used_pages = pg_cur.fetchall()[0][0]
     log.info(f"Used LFC size: {lfc_used_pages}")
-    pg_cur.execute("select * from neon.get_prewarm_info()")
+    pg_cur.execute("select * from serendb.get_prewarm_info()")
     total, prewarmed, skipped, _ = pg_cur.fetchall()[0]
     assert lfc_used_pages > 10000
     assert total > 0
@@ -175,24 +175,24 @@ def test_lfc_prewarm(neon_simple_env: NeonEnv, method: PrewarmMethod):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_lfc_prewarm_cancel(neon_simple_env: NeonEnv):
+def test_lfc_prewarm_cancel(serendb_simple_env: SerenDBEnv):
     """
     Test we can cancel LFC prewarm and prewarm successfully after
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     n_records = 1000000
     cfg = [
         "autovacuum = off",
         "shared_buffers=1MB",
-        "neon.max_file_cache_size=1GB",
-        "neon.file_cache_size_limit=1GB",
-        "neon.file_cache_prewarm_limit=1000",
+        "serendb.max_file_cache_size=1GB",
+        "serendb.file_cache_size_limit=1GB",
+        "serendb.file_cache_prewarm_limit=1000",
     ]
     endpoint = env.endpoints.create_start(branch_name="main", config_lines=cfg)
 
     pg_conn = endpoint.connect()
     pg_cur = pg_conn.cursor()
-    pg_cur.execute("create schema neon; create extension neon with schema neon")
+    pg_cur.execute("create schema serendb; create extension serendb with schema serendb")
     pg_cur.execute("create database lfc")
 
     lfc_conn = endpoint.connect(dbname="lfc")
@@ -222,18 +222,18 @@ def test_lfc_prewarm_cancel(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_lfc_prewarm_empty(neon_simple_env: NeonEnv):
+def test_lfc_prewarm_empty(serendb_simple_env: SerenDBEnv):
     """
     Test there are no errors when trying to offload or prewarm endpoint without cache using compute_ctl.
     Endpoint without cache is simulated by turning off LFC manually, but in cloud/ setup this is
     also reproduced on fresh endpoints
     """
-    env = neon_simple_env
-    ep = env.endpoints.create_start("main", config_lines=["neon.file_cache_size_limit=0"])
+    env = serendb_simple_env
+    ep = env.endpoints.create_start("main", config_lines=["serendb.file_cache_size_limit=0"])
     client = ep.http_client()
     conn = ep.connect()
     cur = conn.cursor()
-    cur.execute("create schema neon; create extension neon with schema neon")
+    cur.execute("create schema serendb; create extension serendb with schema serendb")
     method = PrewarmMethod.COMPUTE_CTL
     assert offload_lfc(method, client, cur)["status"] == "skipped"
     assert prewarm_endpoint(method, client, cur, None)["status"] == "skipped"
@@ -246,24 +246,24 @@ WORKLOAD_IDS = METHOD_IDS[:-1]
 
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
 @pytest.mark.parametrize("method", WORKLOAD_VALUES, ids=WORKLOAD_IDS)
-def test_lfc_prewarm_under_workload(neon_simple_env: NeonEnv, method: PrewarmMethod):
+def test_lfc_prewarm_under_workload(serendb_simple_env: SerenDBEnv, method: PrewarmMethod):
     """
     Test continiously prewarming endpoint when there is a write-heavy workload going in parallel
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     n_records = 10000
     n_threads = 4
     cfg = [
         "shared_buffers=1MB",
-        "neon.max_file_cache_size=1GB",
-        "neon.file_cache_size_limit=1GB",
-        "neon.file_cache_prewarm_limit=1000000",
+        "serendb.max_file_cache_size=1GB",
+        "serendb.file_cache_size_limit=1GB",
+        "serendb.file_cache_prewarm_limit=1000000",
     ]
     endpoint = env.endpoints.create_start(branch_name="main", config_lines=cfg)
 
     pg_conn = endpoint.connect()
     pg_cur = pg_conn.cursor()
-    pg_cur.execute("create schema neon; create extension neon with schema neon")
+    pg_cur.execute("create schema serendb; create extension serendb with schema serendb")
     pg_cur.execute("CREATE DATABASE lfc")
 
     lfc_conn = endpoint.connect(dbname="lfc")
@@ -296,9 +296,9 @@ def test_lfc_prewarm_under_workload(neon_simple_env: NeonEnv, method: PrewarmMet
         pg_conn = endpoint.connect()
         pg_cur = pg_conn.cursor()
         while running:
-            pg_cur.execute("alter system set neon.file_cache_size_limit='1MB'")
+            pg_cur.execute("alter system set serendb.file_cache_size_limit='1MB'")
             pg_cur.execute("select pg_reload_conf()")
-            pg_cur.execute("alter system set neon.file_cache_size_limit='1GB'")
+            pg_cur.execute("alter system set serendb.file_cache_size_limit='1GB'")
             pg_cur.execute("select pg_reload_conf()")
             prewarm_endpoint(method, http_client, pg_cur, lfc_state)
             nonlocal n_prewarms

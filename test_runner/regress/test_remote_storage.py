@@ -9,8 +9,8 @@ import time
 import pytest
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     wait_for_last_flush_lsn,
 )
 from fixtures.pageserver.http import PageserverApiException, PageserverHttpClient
@@ -56,24 +56,24 @@ from requests import ReadTimeout
 @pytest.mark.parametrize("remote_storage_kind", available_remote_storages())
 @pytest.mark.parametrize("generations", [True, False])
 def test_remote_storage_backup_and_restore(
-    neon_env_builder: NeonEnvBuilder, remote_storage_kind: RemoteStorageKind, generations: bool
+    serendb_env_builder: SerenDBEnvBuilder, remote_storage_kind: RemoteStorageKind, generations: bool
 ):
     # Use this test to check more realistic SK ids: some etcd key parsing bugs were related,
     # and this test needs SK to write data to pageserver, so it will be visible
-    neon_env_builder.safekeepers_id_start = 12
+    serendb_env_builder.safekeepers_id_start = 12
 
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
     # Exercise retry code path by making all uploads and downloads fail for the
     # first time. The retries print INFO-messages to the log; we will check
     # that they are present after the test.
-    neon_env_builder.pageserver_config_override = "test_remote_failures=1"
+    serendb_env_builder.pageserver_config_override = "test_remote_failures=1"
 
     data_id = 1
     data = "just some data"
 
     ##### First start, insert data and upload it to the remote storage
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(
         [
@@ -222,11 +222,11 @@ def test_remote_storage_backup_and_restore(
 # - Wait for all uploads to finish
 # - Verify that remote is consistent and up-to-date (=all retries were done and succeeded)
 def test_remote_storage_upload_queue_retries(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # create tenant with config that will determinstically allow
     # compaction and gc
@@ -384,13 +384,13 @@ def test_remote_storage_upload_queue_retries(
 
 
 def test_remote_timeline_client_calls_started_metric(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     # thinking about using a shared environment? the test assumes that global
     # metrics are for single tenant.
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # small checkpointing and compaction targets to ensure we generate many upload operations
             "checkpoint_distance": f"{128 * 1024}",
@@ -527,11 +527,11 @@ def test_remote_timeline_client_calls_started_metric(
 
 # Test that we correctly handle timeline with layers stuck in upload queue
 def test_timeline_deletion_with_files_stuck_in_upload_queue(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # small checkpointing and compaction targets to ensure we generate many operations
             "checkpoint_distance": f"{64 * 1024}",
@@ -635,7 +635,7 @@ def test_timeline_deletion_with_files_stuck_in_upload_queue(
     assert not checkpoint_thread.is_alive()
 
     # Just to be sure, unblock ongoing uploads. If the previous assert was incorrect, or the prometheus metric broken,
-    # this would likely generate some ERROR level log entries that the NeonEnvBuilder would detect
+    # this would likely generate some ERROR level log entries that the SerenDBEnvBuilder would detect
     client.configure_failpoints(("before-upload-layer", "off"))
     # XXX force retry, currently we have to wait for exponential backoff
     time.sleep(10)
@@ -643,10 +643,10 @@ def test_timeline_deletion_with_files_stuck_in_upload_queue(
 
 # Branches off a root branch, but does not write anything to the new branch, so it has a metadata file only.
 # Ensures that such branch is still persisted on the remote storage, and can be restored during tenant (re)attach.
-def test_empty_branch_remote_storage_upload(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+def test_empty_branch_remote_storage_upload(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     new_branch_name = "new_branch"
@@ -682,7 +682,7 @@ def test_empty_branch_remote_storage_upload(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_empty_branch_remote_storage_upload_on_restart(neon_env_builder: NeonEnvBuilder):
+def test_empty_branch_remote_storage_upload_on_restart(serendb_env_builder: SerenDBEnvBuilder):
     """
     Branches off a root branch, but does not write anything to the new branch, so
     it has a metadata file only.
@@ -691,9 +691,9 @@ def test_empty_branch_remote_storage_upload_on_restart(neon_env_builder: NeonEnv
     — the upload should be scheduled by load, and create_timeline should await
     for it even though it gets 409 Conflict.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     client = env.pageserver.http_client()
 
     client.configure_failpoints(("before-upload-index", "return"))

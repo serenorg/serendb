@@ -1,7 +1,7 @@
 import threading
 import time
 
-from fixtures.neon_fixtures import NeonEnv
+from fixtures.serendb_fixtures import SerenDBEnv
 
 BTREE_NUM_CYCLEID_PAGES = """
     WITH lsns AS (
@@ -31,8 +31,8 @@ BTREE_NUM_CYCLEID_PAGES = """
     """
 
 
-def test_nbtree_pagesplit_cycleid(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_nbtree_pagesplit_cycleid(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     ses1 = endpoint.connect().cursor()
@@ -40,7 +40,7 @@ def test_nbtree_pagesplit_cycleid(neon_simple_env: NeonEnv):
     ses1.execute("ALTER SYSTEM SET enable_seqscan = off;")
     ses1.execute("ALTER SYSTEM SET full_page_writes = off;")
     ses1.execute("SELECT pg_reload_conf();")
-    ses1.execute("CREATE EXTENSION neon_test_utils;")
+    ses1.execute("CREATE EXTENSION serendb_test_utils;")
     # prepare a large index
     ses1.execute("CREATE TABLE t(id integer GENERATED ALWAYS AS IDENTITY, txt text);")
     ses1.execute("CREATE UNIQUE INDEX t_uidx ON t(id);")

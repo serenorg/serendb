@@ -30,7 +30,7 @@ function wait_for_ready {
 # Creates extensions. Gets a string with space-separated extensions as a parameter
 function create_extensions() {
   for ext in ${1}; do
-    docker compose exec neon-test-extensions psql -X -v ON_ERROR_STOP=1 -d contrib_regression -c "CREATE EXTENSION IF NOT EXISTS ${ext} CASCADE"
+    docker compose exec serendb-test-extensions psql -X -v ON_ERROR_STOP=1 -d contrib_regression -c "CREATE EXTENSION IF NOT EXISTS ${ext} CASCADE"
   done
 }
 # Creates a new timeline. Gets the parent ID and an extension name as parameters.
@@ -51,7 +51,7 @@ function create_timeline() {
 }
 # Checks if the timeline ID of the compute node is expected. Gets the timeline ID as a parameter
 function check_timeline() {
-    TID=$(docker compose exec neon-test-extensions psql -Aqt -c "SHOW neon.timeline_id")
+    TID=$(docker compose exec serendb-test-extensions psql -Aqt -c "SHOW serendb.timeline_id")
     if [ "${TID}" != "${1}" ]; then
       echo Timeline mismatch
       exit 1
@@ -88,18 +88,18 @@ EXTENSIONS='[
 EXTNAMES=$(echo ${EXTENSIONS} | jq -r '.[].extname' | paste -sd ' ' -)
 COMPUTE_TAG=${NEW_COMPUTE_TAG} docker compose --profile test-extensions up --quiet-pull --build -d
 wait_for_ready
-docker compose exec neon-test-extensions psql -c "DROP DATABASE IF EXISTS contrib_regression"
-docker compose exec neon-test-extensions psql -c "CREATE DATABASE contrib_regression"
+docker compose exec serendb-test-extensions psql -c "DROP DATABASE IF EXISTS contrib_regression"
+docker compose exec serendb-test-extensions psql -c "CREATE DATABASE contrib_regression"
 create_extensions "${EXTNAMES}"
 query="select json_object_agg(extname,extversion) from pg_extension where extname in ('${EXTNAMES// /\',\'}')"
-new_vers=$(docker compose exec neon-test-extensions psql -Aqt -d contrib_regression -c "$query")
+new_vers=$(docker compose exec serendb-test-extensions psql -Aqt -d contrib_regression -c "$query")
 docker compose --profile test-extensions down
 COMPUTE_TAG=${OLD_COMPUTE_TAG} docker compose --profile test-extensions up --quiet-pull --build -d --force-recreate
 wait_for_ready
-docker compose exec neon-test-extensions psql -c "DROP DATABASE IF EXISTS contrib_regression"
-docker compose exec neon-test-extensions psql -c "CREATE DATABASE contrib_regression"
-tenant_id=$(docker compose exec neon-test-extensions psql -Aqt -c "SHOW neon.tenant_id")
-EXT_TIMELINE["main"]=$(docker compose exec neon-test-extensions psql -Aqt -c "SHOW neon.timeline_id")
+docker compose exec serendb-test-extensions psql -c "DROP DATABASE IF EXISTS contrib_regression"
+docker compose exec serendb-test-extensions psql -c "CREATE DATABASE contrib_regression"
+tenant_id=$(docker compose exec serendb-test-extensions psql -Aqt -c "SHOW serendb.tenant_id")
+EXT_TIMELINE["main"]=$(docker compose exec serendb-test-extensions psql -Aqt -c "SHOW serendb.timeline_id")
 create_timeline "${EXT_TIMELINE["main"]}" init
 restart_compute "${OLD_COMPUTE_TAG}" "${EXT_TIMELINE["init"]}"
 create_extensions "${EXTNAMES}"
@@ -107,7 +107,7 @@ if [ "${FORCE_ALL_UPGRADE_TESTS:-false}" = true ]; then
   exts="${EXTNAMES}"
 else
   query="select pge.extname from pg_extension pge join (select key as extname, value as extversion from json_each_text('${new_vers}')) x on pge.extname=x.extname and pge.extversion <> x.extversion"
-  exts=$(docker compose exec neon-test-extensions psql -Aqt -d contrib_regression -c "$query")
+  exts=$(docker compose exec serendb-test-extensions psql -Aqt -d contrib_regression -c "$query")
 fi
 if [ -z "${exts}" ]; then
   echo "No extensions were upgraded"
@@ -117,14 +117,14 @@ else
     create_timeline "${EXT_TIMELINE["main"]}" ${ext}
     EXTDIR=$(echo ${EXTENSIONS} | jq -r '.[] | select(.extname=="'${ext}'") | .extdir')
     restart_compute "${OLD_COMPUTE_TAG}" "${EXT_TIMELINE[${ext}]}"
-    docker compose exec neon-test-extensions psql -d contrib_regression -c "CREATE EXTENSION ${ext} CASCADE"
+    docker compose exec serendb-test-extensions psql -d contrib_regression -c "CREATE EXTENSION ${ext} CASCADE"
     restart_compute "${NEW_COMPUTE_TAG}" "${EXT_TIMELINE[${ext}]}"
-    docker compose exec neon-test-extensions psql -d contrib_regression -c "\dx ${ext}"
-    if ! docker compose exec neon-test-extensions sh -c /ext-src/${EXTDIR}/test-upgrade.sh; then
-      docker  compose exec neon-test-extensions  cat /ext-src/${EXTDIR}/regression.diffs
+    docker compose exec serendb-test-extensions psql -d contrib_regression -c "\dx ${ext}"
+    if ! docker compose exec serendb-test-extensions sh -c /ext-src/${EXTDIR}/test-upgrade.sh; then
+      docker  compose exec serendb-test-extensions  cat /ext-src/${EXTDIR}/regression.diffs
       exit 1
     fi
-    docker compose exec neon-test-extensions psql -d contrib_regression -c "alter extension ${ext} update"
-    docker compose exec neon-test-extensions psql -d contrib_regression -c "\dx ${ext}"
+    docker compose exec serendb-test-extensions psql -d contrib_regression -c "alter extension ${ext} update"
+    docker compose exec serendb-test-extensions psql -d contrib_regression -c "\dx ${ext}"
   done
 fi

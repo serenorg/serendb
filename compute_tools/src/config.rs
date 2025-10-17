@@ -66,7 +66,7 @@ pub fn write_postgres_conf(
     }
 
     // Add options for connecting to storage
-    writeln!(file, "# Neon storage settings")?;
+    writeln!(file, "# SerenDB storage settings")?;
     writeln!(file)?;
     if let Some(conninfo) = &spec.pageserver_connection_info {
         // Stripe size GUC should be defined prior to connection string
@@ -75,7 +75,7 @@ pub fn write_postgres_conf(
                 file,
                 "# from compute spec's pageserver_connection_info.stripe_size field"
             )?;
-            writeln!(file, "neon.stripe_size={stripe_size}")?;
+            writeln!(file, "serendb.stripe_size={stripe_size}")?;
         }
 
         let mut libpq_urls: Option<Vec<String>> = Some(Vec::new());
@@ -119,59 +119,59 @@ pub fn write_postgres_conf(
             )?;
             writeln!(
                 file,
-                "neon.pageserver_connstring={}",
+                "serendb.pageserver_connstring={}",
                 escape_conf_value(&libpq_urls.join(","))
             )?;
         } else {
-            writeln!(file, "# no neon.pageserver_connstring")?;
+            writeln!(file, "# no serendb.pageserver_connstring")?;
         }
     } else {
         // Stripe size GUC should be defined prior to connection string
         if let Some(stripe_size) = spec.shard_stripe_size {
             writeln!(file, "# from compute spec's shard_stripe_size field")?;
-            writeln!(file, "neon.stripe_size={stripe_size}")?;
+            writeln!(file, "serendb.stripe_size={stripe_size}")?;
         }
         if let Some(s) = &spec.pageserver_connstring {
             writeln!(file, "# from compute spec's pageserver_connstring field")?;
-            writeln!(file, "neon.pageserver_connstring={}", escape_conf_value(s))?;
+            writeln!(file, "serendb.pageserver_connstring={}", escape_conf_value(s))?;
         }
     }
 
     if !spec.safekeeper_connstrings.is_empty() {
-        let mut neon_safekeepers_value = String::new();
+        let mut serendb_safekeepers_value = String::new();
         tracing::info!(
             "safekeepers_connstrings is not zero, gen: {:?}",
             spec.safekeepers_generation
         );
         // If generation is given, prepend sk list with g#number:
         if let Some(generation) = spec.safekeepers_generation {
-            write!(neon_safekeepers_value, "g#{generation}:")?;
+            write!(serendb_safekeepers_value, "g#{generation}:")?;
         }
-        neon_safekeepers_value.push_str(&spec.safekeeper_connstrings.join(","));
+        serendb_safekeepers_value.push_str(&spec.safekeeper_connstrings.join(","));
         writeln!(
             file,
-            "neon.safekeepers={}",
-            escape_conf_value(&neon_safekeepers_value)
+            "serendb.safekeepers={}",
+            escape_conf_value(&serendb_safekeepers_value)
         )?;
     }
     if let Some(s) = &spec.tenant_id {
-        writeln!(file, "neon.tenant_id={}", escape_conf_value(&s.to_string()))?;
+        writeln!(file, "serendb.tenant_id={}", escape_conf_value(&s.to_string()))?;
     }
     if let Some(s) = &spec.timeline_id {
         writeln!(
             file,
-            "neon.timeline_id={}",
+            "serendb.timeline_id={}",
             escape_conf_value(&s.to_string())
         )?;
     }
     if let Some(s) = &spec.project_id {
-        writeln!(file, "neon.project_id={}", escape_conf_value(s))?;
+        writeln!(file, "serendb.project_id={}", escape_conf_value(s))?;
     }
     if let Some(s) = &spec.branch_id {
-        writeln!(file, "neon.branch_id={}", escape_conf_value(s))?;
+        writeln!(file, "serendb.branch_id={}", escape_conf_value(s))?;
     }
     if let Some(s) = &spec.endpoint_id {
-        writeln!(file, "neon.endpoint_id={}", escape_conf_value(s))?;
+        writeln!(file, "serendb.endpoint_id={}", escape_conf_value(s))?;
     }
 
     // tls
@@ -201,7 +201,7 @@ pub fn write_postgres_conf(
         writeln!(file, "lc_numeric='C.UTF-8'")?;
     }
 
-    writeln!(file, "neon.compute_mode={}", spec.mode.to_type_str())?;
+    writeln!(file, "serendb.compute_mode={}", spec.mode.to_type_str())?;
     match spec.mode {
         ComputeMode::Primary => {}
         ComputeMode::Static(lsn) => {
@@ -238,7 +238,7 @@ pub fn write_postgres_conf(
 
     writeln!(
         file,
-        "neon.privileged_role_name={}",
+        "serendb.privileged_role_name={}",
         escape_conf_value(params.privileged_role_name.as_str())
     )?;
 
@@ -278,7 +278,7 @@ pub fn write_postgres_conf(
                 // Typically, this should be unreacheable,
                 // because we always set at least some shared_preload_libraries in the spec
                 // but let's handle it explicitly anyway.
-                writeln!(file, "shared_preload_libraries='neon,pgaudit'")?;
+                writeln!(file, "shared_preload_libraries='serendb,pgaudit'")?;
             }
             writeln!(file, "# Managed by compute_ctl base audit settings: end")?;
         }
@@ -332,7 +332,7 @@ pub fn write_postgres_conf(
                 // but let's handle it explicitly anyway.
                 writeln!(
                     file,
-                    "shared_preload_libraries='neon,pgaudit,pgauditlogtofile'"
+                    "shared_preload_libraries='serendb,pgaudit,pgauditlogtofile'"
                 )?;
             }
             writeln!(
@@ -342,13 +342,13 @@ pub fn write_postgres_conf(
         }
     }
 
-    writeln!(file, "neon.extension_server_port={extension_server_port}")?;
+    writeln!(file, "serendb.extension_server_port={extension_server_port}")?;
 
     if spec.drop_subscriptions_before_start {
-        writeln!(file, "neon.disable_logical_replication_subscribers=true")?;
+        writeln!(file, "serendb.disable_logical_replication_subscribers=true")?;
     } else {
         // be explicit about the default value
-        writeln!(file, "neon.disable_logical_replication_subscribers=false")?;
+        writeln!(file, "serendb.disable_logical_replication_subscribers=false")?;
     }
 
     // We need Postgres to send logs to rsyslog so that we can forward them

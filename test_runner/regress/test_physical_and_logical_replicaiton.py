@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import time
 
-from fixtures.neon_fixtures import NeonEnv, logical_replication_sync, wait_replica_caughtup
+from fixtures.serendb_fixtures import SerenDBEnv, logical_replication_sync, wait_replica_caughtup
 
 
-def test_physical_and_logical_replication_slot_not_copied(neon_simple_env: NeonEnv, vanilla_pg):
+def test_physical_and_logical_replication_slot_not_copied(serendb_simple_env: SerenDBEnv, vanilla_pg):
     """Test read replica of a primary which has a logical replication publication"""
-    env = neon_simple_env
+    env = serendb_simple_env
 
     n_records = 100000
 
@@ -51,9 +51,9 @@ def test_physical_and_logical_replication_slot_not_copied(neon_simple_env: NeonE
     assert s_cur.fetchall()[0][0] == 0
 
 
-def test_aux_not_logged_at_replica(neon_simple_env: NeonEnv, vanilla_pg):
+def test_aux_not_logged_at_replica(serendb_simple_env: SerenDBEnv, vanilla_pg):
     """Test that AUX files are not saved at replica"""
-    env = neon_simple_env
+    env = serendb_simple_env
 
     n_records = 20000
 

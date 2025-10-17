@@ -3,7 +3,7 @@
 //! In the local test environment, the data for each safekeeper is stored in
 //!
 //! ```text
-//!   .neon/safekeepers/<safekeeper id>
+//!   .serendb/safekeepers/<safekeeper id>
 //! ```
 use std::error::Error as _;
 use std::io::Write;

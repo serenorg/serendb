@@ -1316,7 +1316,7 @@ impl EvictionsWithLowResidenceDuration {
         match removed {
             Err(e) => {
                 // this has been hit in staging as
-                // <https://neondatabase.sentry.io/issues/4142396994/>, but we don't know how.
+                // <https://serendb.sentry.io/issues/4142396994/>, but we don't know how.
                 // because we can be in the drop path already, don't risk:
                 // - "double-panic => illegal instruction" or
                 // - future "drop panick => abort"
@@ -1472,7 +1472,7 @@ impl StorageIoSizeOperation {
     }
 }
 
-// Needed for the https://neonprod.grafana.net/d/5uK9tHL4k/picking-tenant-for-relocation?orgId=1
+// Needed for the https://serendbprod.grafana.net/d/5uK9tHL4k/picking-tenant-for-relocation?orgId=1
 pub(crate) static STORAGE_IO_SIZE: Lazy<UIntGaugeVec> = Lazy::new(|| {
     register_uint_gauge_vec!(
         "pageserver_io_operations_bytes_total",
@@ -1888,7 +1888,7 @@ static SMGR_QUERY_STARTED_PER_TENANT_TIMELINE: Lazy<IntCounterVec> = Lazy::new(|
 
 /// Per-timeline smgr histogram buckets should be the same as the compute buckets, such that the
 /// metrics are comparable across compute and Pageserver. See also:
-/// <https://github.com/neondatabase/neon/blob/1a87975d956a8ad17ec8b85da32a137ec4893fcc/pgxn/neon/neon_perf_counters.h#L18-L27>
+/// <https://github.com/neondatabase/neon/blob/1a87975d956a8ad17ec8b85da32a137ec4893fcc/pgxn/serendb/seren_perf_counters.h#L18-L27>
 /// <https://github.com/neondatabase/flux-fleet/blob/556182a939edda87ff1d85a6b02e5cec901e0e9e/apps/base/compute-metrics/scrape-compute-sql-exporter.yaml#L29-L35>
 static SMGR_QUERY_TIME_PER_TENANT_TIMELINE_BUCKETS: &[f64] =
     &[0.0006, 0.001, 0.003, 0.006, 0.01, 0.03, 0.1, 1.0, 3.0];

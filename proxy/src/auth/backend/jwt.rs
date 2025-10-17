@@ -31,7 +31,7 @@ const MIN_RENEW: Duration = Duration::from_secs(30);
 const AUTO_RENEW: Duration = Duration::from_secs(300);
 const MAX_RENEW: Duration = Duration::from_secs(3600);
 const MAX_JWK_BODY_SIZE: usize = 64 * 1024;
-const JWKS_USER_AGENT: &str = "neon-proxy";
+const JWKS_USER_AGENT: &str = "serendb-proxy";
 
 const JWKS_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const JWKS_FETCH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -853,11 +853,11 @@ mod tests {
         let body = typed_json::json! {{
             "exp": now + 3600,
             "nbf": now,
-            "aud": ["audience1", "neon", "audience2"],
+            "aud": ["audience1", "serendb", "audience2"],
             "sub": "user1",
             "sid": "session1",
             "jti": "token1",
-            "iss": "neon-testing",
+            "iss": "serendb-testing",
         }};
         build_custom_jwt_payload(kid, body, sig)
     }
@@ -1246,14 +1246,14 @@ X0n5X2/pBLJzxZc62ccvZYVnctBiFs6HbSnxpuMQCfkt/BcR/ttIepBQQIW86wHL
             Test {
                 body: json! {{
                     "nbf": now + 60,
-                    "aud": "neon",
+                    "aud": "serendb",
                 }},
                 error: JwtClaimsError::JwtTokenNotYetReadyToUse(now + 60),
             },
             Test {
                 body: json! {{
                     "exp": now - 60,
-                    "aud": ["neon"],
+                    "aud": ["serendb"],
                 }},
                 error: JwtClaimsError::JwtTokenHasExpired(now - 60),
             },
@@ -1293,7 +1293,7 @@ X0n5X2/pBLJzxZc62ccvZYVnctBiFs6HbSnxpuMQCfkt/BcR/ttIepBQQIW86wHL
         let rules = vec![AuthRule {
             id: String::new(),
             jwks_url: format!("http://{jwks_addr}/").parse().unwrap(),
-            audience: Some("neon".to_string()),
+            audience: Some("serendb".to_string()),
             role_names: vec![RoleNameInt::from(&role)],
         }];
 

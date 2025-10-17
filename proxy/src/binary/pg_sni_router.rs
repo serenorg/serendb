@@ -37,7 +37,7 @@ use crate::util::run_until_cancelled;
 project_git_version!(GIT_VERSION);
 
 fn cli() -> clap::Command {
-    clap::Command::new("Neon proxy/router")
+    clap::Command::new("SerenDB proxy/router")
         .version(GIT_VERSION)
         .arg(
             Arg::new("listen")

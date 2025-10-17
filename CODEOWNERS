@@ -1,29 +1,29 @@
 # Autoscaling
-/libs/vm_monitor/ @neondatabase/autoscaling
+/libs/vm_monitor/ @serendb/autoscaling
 
 # DevProd & PerfCorr
-/.github/ @neondatabase/developer-productivity @neondatabase/performance-correctness
+/.github/ @serendb/developer-productivity @serendb/performance-correctness
 
 # Compute
-/pgxn/ @neondatabase/compute
-/vendor/ @neondatabase/compute
-/compute/ @neondatabase/compute
-/compute_tools/ @neondatabase/compute
+/pgxn/ @serendb/compute
+/vendor/ @serendb/compute
+/compute/ @serendb/compute
+/compute_tools/ @serendb/compute
 
 # Proxy
-/libs/proxy/ @neondatabase/proxy
-/proxy/ @neondatabase/proxy
+/libs/proxy/ @serendb/proxy
+/proxy/ @serendb/proxy
 
 # Storage
-/pageserver/ @neondatabase/storage
-/safekeeper/ @neondatabase/storage
-/storage_controller @neondatabase/storage
-/storage_scrubber @neondatabase/storage
-/libs/pageserver_api/ @neondatabase/storage
-/libs/remote_storage/ @neondatabase/storage
-/libs/safekeeper_api/ @neondatabase/storage
+/pageserver/ @serendb/storage
+/safekeeper/ @serendb/storage
+/storage_controller @serendb/storage
+/storage_scrubber @serendb/storage
+/libs/pageserver_api/ @serendb/storage
+/libs/remote_storage/ @serendb/storage
+/libs/safekeeper_api/ @serendb/storage
 
 # Shared
-/pgxn/neon/ @neondatabase/compute @neondatabase/storage
-/libs/compute_api/ @neondatabase/compute @neondatabase/control-plane
-/libs/postgres_ffi/ @neondatabase/compute @neondatabase/storage
+/pgxn/serendb/ @serendb/compute @serendb/storage
+/libs/compute_api/ @serendb/compute @serendb/control-plane
+/libs/postgres_ffi/ @serendb/compute @serendb/storage

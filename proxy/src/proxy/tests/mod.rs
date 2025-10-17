@@ -30,7 +30,7 @@ use crate::error::ErrorKind;
 use crate::pglb::ERR_INSECURE_CONNECTION;
 use crate::pglb::handshake::{HandshakeData, handshake};
 use crate::pqproto::BeMessage;
-use crate::proxy::NeonOptions;
+use crate::proxy::SerenDBOptions;
 use crate::proxy::connect_compute::{ConnectMechanism, connect_to_compute_inner};
 use crate::proxy::retry::retry_after;
 use crate::stream::{PqStream, Stream};
@@ -562,7 +562,7 @@ fn helper_create_connect_info(
         ComputeUserInfo {
             endpoint: "endpoint".into(),
             user: "user".into(),
-            options: NeonOptions::parse_options_raw(""),
+            options: SerenDBOptions::parse_options_raw(""),
         },
     )
 }

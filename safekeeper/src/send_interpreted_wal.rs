@@ -777,7 +777,7 @@ mod tests {
             .unwrap();
 
         let resident_tli = tli.wal_residence_guard().await.unwrap();
-        let end_watch = Env::write_wal(tli, start_lsn, SIZE, MSG_COUNT, c"neon-file:", None)
+        let end_watch = Env::write_wal(tli, start_lsn, SIZE, MSG_COUNT, c"serendb-file:", None)
             .await
             .unwrap();
         let end_pos = end_watch.get();
@@ -919,7 +919,7 @@ mod tests {
             start_lsn,
             SIZE,
             MSG_COUNT,
-            c"neon-file:",
+            c"serendb-file:",
             Some(&mut next_record_lsns),
         )
         .await
@@ -1066,7 +1066,7 @@ mod tests {
             start_lsn,
             SIZE,
             MSG_COUNT,
-            c"neon-file:",
+            c"serendb-file:",
             Some(&mut next_record_lsns),
         )
         .await

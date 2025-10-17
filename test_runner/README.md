@@ -1,17 +1,17 @@
-## Neon test runner
+## SerenDB test runner
 
 This directory contains integration tests.
 
 Prerequisites:
 - Correctly configured Python, see [`/docs/sourcetree.md`](/docs/sourcetree.md#using-python)
-- Neon and Postgres binaries
+- SerenDB and Postgres binaries
     - See the root [README.md](/README.md) for build directions
       To run tests you need to add `--features testing` to Rust code build commands.
       For convenience, repository cargo config contains `build_testing` alias, that serves as a subcommand, adding the required feature flags.
       Usage example: `cargo build_testing --release` is equivalent to `cargo build --features testing --release`
     - Tests can be run from the git tree; or see the environment variables
       below to run from other directories.
-- The neon git repo, including the postgres submodule
+- The serendb git repo, including the postgres submodule
   (for some tests, e.g. `pg_regress`)
 
 ### Test Organization
@@ -23,14 +23,14 @@ environment with its own pageservers and safekeepers.
 'pg_clients' contains tests for connecting with various client
 libraries. Each client test uses a Dockerfile that pulls an image that
 contains the client, and connects to PostgreSQL with it. The client
-tests can be run against an existing PostgreSQL or Neon installation.
+tests can be run against an existing PostgreSQL or SerenDB installation.
 
 'performance' contains performance regression tests. Each test
 exercises a particular scenario or workload, and outputs
 measurements. They should be run serially, to avoid the tests
 interfering with the performance of each other. Some performance tests
-set up their own Neon environment, while others can be run against an
-existing PostgreSQL or Neon environment.
+set up their own SerenDB environment, while others can be run against an
+existing PostgreSQL or SerenDB environment.
 
 ### Running the tests
 
@@ -63,8 +63,8 @@ By default performance tests are excluded. To run them explicitly pass performan
 
 Useful environment variables:
 
-`NEON_BIN`: The directory where neon binaries can be found.
-`COMPATIBILITY_NEON_BIN`: The directory where the previous version of Neon binaries can be found
+`SERENDB_BIN`: The directory where SerenDB binaries can be found.
+`COMPATIBILITY_SERENDB_BIN`: The directory where the previous version of SerenDB binaries can be found
 `POSTGRES_DISTRIB_DIR`: The directory where postgres distribution can be found.
 Since pageserver supports several postgres versions, `POSTGRES_DISTRIB_DIR` must contain
 a subdirectory for each version with naming convention `v{PG_VERSION}/`.
@@ -75,12 +75,12 @@ This is used to construct full path to the postgres binaries.
 Format is 2-digit major version nubmer, i.e. `DEFAULT_PG_VERSION=17`
 `TEST_OUTPUT`: Set the directory where test state and test output files
 should go.
-`RUST_LOG`: logging configuration to pass into Neon CLI
+`RUST_LOG`: logging configuration to pass into SerenDB CLI
 
 Useful parameters and commands:
 
 `--preserve-database-files` to preserve pageserver (layer) and safekeer (segment) timeline files on disk
-after running a test suite. Such files might be large, so removed by default; but might be useful for debugging or creation of svg images with layer file contents. If `NeonEnvBuilder#preserve_database_files` set to `True` for a particular test, the whole `repo` directory will be attached to Allure report (thus uploaded to S3) as `everything.tar.zst` for this test.
+after running a test suite. Such files might be large, so removed by default; but might be useful for debugging or creation of svg images with layer file contents. If `SerenDBEnvBuilder#preserve_database_files` set to `True` for a particular test, the whole `repo` directory will be attached to Allure report (thus uploaded to S3) as `everything.tar.zst` for this test.
 
 Let stdout, stderr and `INFO` log messages go to the terminal instead of capturing them:
 `./scripts/pytest -s --log-cli-level=INFO ...`
@@ -93,7 +93,7 @@ Exit after the first test failure:
 
 #### Running Python tests against real S3 or S3-compatible services
 
-Neon's `libs/remote_storage` supports multiple implementations of remote storage.
+SerenDB's `libs/remote_storage` supports multiple implementations of remote storage.
 At the time of writing, that is
 ```rust
 pub enum RemoteStorageKind {
@@ -253,29 +253,29 @@ So, above instructions apply to the Rust test as well.
 
 ### Writing a test
 
-Every test needs a Neon Environment, or NeonEnv to operate in. A Neon Environment
+Every test needs a SerenDB Environment, or SerenDBEnv to operate in. A SerenDB Environment
 is like a little cloud-in-a-box, and consists of a Pageserver, 0-N Safekeepers, and
 compute Postgres nodes. The connections between them can be configured to use JWT
 authentication tokens, and some other configuration options can be tweaked too.
 
-The easiest way to get access to a Neon Environment is by using the `neon_simple_env`
+The easiest way to get access to a SerenDB Environment is by using the `serendb_simple_env`
 fixture. For convenience, there is a branch called `main` in environments created with
-'neon_simple_env', ready to be used in the test.
+'serendb_simple_env', ready to be used in the test.
 
-For more complicated cases, you can build a custom Neon Environment, with the `neon_env`
+For more complicated cases, you can build a custom SerenDB Environment, with the `serendb_env`
 fixture:
 
 ```python
-def test_foobar(neon_env_builder: NeonEnvBuilder):
+def test_foobar(serendb_env_builder: SerenDBEnvBuilder):
     # Prescribe the environment.
     # We want to have 3 safekeeper nodes, and use JWT authentication in the
     # connections to the page server
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.set_pageserver_auth(True)
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.set_pageserver_auth(True)
 
     # Now create the environment. This initializes the repository, and starts
     # up the page server and the safekeepers
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Run the test
     ...
@@ -285,8 +285,8 @@ The env includes a default tenant and timeline. Therefore, you do not need to cr
 tenant/timeline for testing.
 
 ```python
-def test_foobar2(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start() # Start the environment
+def test_foobar2(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start() # Start the environment
     with env.endpoints.create_start("main") as endpoint:
         # Start the compute endpoint
     client = env.pageserver.http_client() # Get the pageserver client
@@ -296,7 +296,7 @@ def test_foobar2(neon_env_builder: NeonEnvBuilder):
     client.timeline_detail(tenant_id=tenant_id, timeline_id=timeline_id)
 ```
 
-All the test which rely on NeonEnvBuilder, can check the various version combinations of the components.
+All the test which rely on SerenDBEnvBuilder, can check the various version combinations of the components.
 To do this yuo may want to add the parametrize decorator with the function fixtures.utils.allpairs_versions()
 E.g.
 

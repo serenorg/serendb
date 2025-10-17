@@ -51,8 +51,8 @@ jobs:
           FROM_TAG: ${{ inputs.from-tag }}
           TO_TAG: pinned
         run: |
-          docker manifest inspect "ghcr.io/neondatabase/build-tools:${FROM_TAG}" > "${FROM_TAG}.json"
-          docker manifest inspect "ghcr.io/neondatabase/build-tools:${TO_TAG}"   > "${TO_TAG}.json"
+          docker manifest inspect "ghcr.io/serenorg/build-tools:${FROM_TAG}" > "${FROM_TAG}.json"
+          docker manifest inspect "ghcr.io/serenorg/build-tools:${TO_TAG}"   > "${TO_TAG}.json"
 
           if diff "${FROM_TAG}.json" "${TO_TAG}.json"; then
             skip=true
@@ -76,26 +76,26 @@ jobs:
     with:
       image-map: |
         {
-          "ghcr.io/neondatabase/build-tools:${{ inputs.from-tag }}-bullseye": [
-            "docker.io/neondatabase/build-tools:pinned-bullseye",
-            "ghcr.io/neondatabase/build-tools:pinned-bullseye",
-            "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned-bullseye",
-            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/neondatabase/build-tools:pinned-bullseye"
+          "ghcr.io/serenorg/build-tools:${{ inputs.from-tag }}-bullseye": [
+            "docker.io/serenorg/build-tools:pinned-bullseye",
+            "ghcr.io/serenorg/build-tools:pinned-bullseye",
+            "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned-bullseye",
+            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/serenorg/build-tools:pinned-bullseye"
           ],
-          "ghcr.io/neondatabase/build-tools:${{ inputs.from-tag }}-bookworm": [
-            "docker.io/neondatabase/build-tools:pinned-bookworm",
-            "docker.io/neondatabase/build-tools:pinned",
-            "ghcr.io/neondatabase/build-tools:pinned-bookworm",
-            "ghcr.io/neondatabase/build-tools:pinned",
-            "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned-bookworm",
-            "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned",
-            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/neondatabase/build-tools:pinned-bookworm",
-            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/neondatabase/build-tools:pinned"
+          "ghcr.io/serenorg/build-tools:${{ inputs.from-tag }}-bookworm": [
+            "docker.io/serenorg/build-tools:pinned-bookworm",
+            "docker.io/serenorg/build-tools:pinned",
+            "ghcr.io/serenorg/build-tools:pinned-bookworm",
+            "ghcr.io/serenorg/build-tools:pinned",
+            "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned-bookworm",
+            "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_ECR_REGION }}.amazonaws.com/build-tools:pinned",
+            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/serenorg/build-tools:pinned-bookworm",
+            "${{ vars.AZURE_DEV_REGISTRY_NAME }}.azurecr.io/serenorg/build-tools:pinned"
           ]
         }
       aws-region: ${{ vars.AWS_ECR_REGION }}
-      aws-account-id: "${{ vars.NEON_DEV_AWS_ACCOUNT_ID }}"
-      aws-role-to-assume: "gha-oidc-neon-admin"
+      aws-account-id: "${{ vars.SERENDB_DEV_AWS_ACCOUNT_ID }}"
+      aws-role-to-assume: "gha-oidc-serendb-admin"
       azure-client-id: ${{ vars.AZURE_DEV_CLIENT_ID }}
       azure-subscription-id: ${{ vars.AZURE_DEV_SUBSCRIPTION_ID }}
       azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}

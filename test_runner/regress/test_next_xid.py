@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from fixtures.common_types import TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PgBin,
     VanillaPostgres,
     import_timeline_from_vanilla_postgres,
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_next_xid(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_next_xid(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
 
     endpoint = env.endpoints.create_start("main")
 
@@ -76,13 +76,13 @@ def test_next_xid(neon_env_builder: NeonEnvBuilder):
 # to be immediately advanced to the next epoch.
 #
 def test_import_at_2bil(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_bin: PgBin,
     vanilla_pg,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     # Reset the vanilla Postgres instance to somewhat before 2 billion transactions.
     pg_resetwal_path = os.path.join(pg_bin.pg_bin_path, "pg_resetwal")
@@ -104,7 +104,7 @@ def test_import_at_2bil(
     env.pageserver.tenant_create(tenant_id)
     timeline_id = TimelineId.generate()
 
-    # Import the cluster to Neon
+    # Import the cluster to SerenDB
     import_timeline_from_vanilla_postgres(
         test_output_dir,
         env,
@@ -131,7 +131,7 @@ def test_import_at_2bil(
     cur = conn.cursor()
 
     # Install extension containing function needed for test
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Advance nextXid close to 2 billion XIDs
     while True:
@@ -285,7 +285,7 @@ def advance_multixid_to(
 
 
 def test_multixid_wraparound_import(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     test_output_dir: Path,
     pg_bin: PgBin,
     vanilla_pg,
@@ -294,7 +294,7 @@ def test_multixid_wraparound_import(
     Test that the wraparound of the "next-multi-xid" counter is handled correctly in
     pageserver, And multi-offsets as well
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # In order to to test multixid wraparound, we need to first advance the counter to
     # within spitting distance of the wraparound, that is 2^32 multi-XIDs. We could simply
@@ -364,7 +364,7 @@ def test_multixid_wraparound_import(
     assert query_scalar(cur, "select count(*) from tt") == 10  # sanity check
 
     # Install extension containing function needed for test
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     # Consume a lot of XIDs, just to advance the XIDs to different range than the
     # multi-xids. That avoids confusion while debugging

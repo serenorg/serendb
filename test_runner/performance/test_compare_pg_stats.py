@@ -23,13 +23,13 @@ def get_seeds_matrix(default: int = 100):
 @pytest.mark.parametrize("scale", get_scales_matrix())
 @pytest.mark.parametrize("duration", get_durations_matrix(5))
 def test_compare_pg_stats_rw_with_pgbench_default(
-    neon_with_baseline: PgCompare,
+    serendb_with_baseline: PgCompare,
     seed: int,
     scale: int,
     duration: int,
     pg_stats_rw: list[PgStatTable],
 ):
-    env = neon_with_baseline
+    env = serendb_with_baseline
     # initialize pgbench
     env.pg_bin.run_capture(["pgbench", f"-s{scale}", "-i", env.pg.connstr()])
     env.flush()
@@ -45,13 +45,13 @@ def test_compare_pg_stats_rw_with_pgbench_default(
 @pytest.mark.parametrize("scale", get_scales_matrix())
 @pytest.mark.parametrize("duration", get_durations_matrix(5))
 def test_compare_pg_stats_wo_with_pgbench_simple_update(
-    neon_with_baseline: PgCompare,
+    serendb_with_baseline: PgCompare,
     seed: int,
     scale: int,
     duration: int,
     pg_stats_wo: list[PgStatTable],
 ):
-    env = neon_with_baseline
+    env = serendb_with_baseline
     # initialize pgbench
     env.pg_bin.run_capture(["pgbench", f"-s{scale}", "-i", env.pg.connstr()])
     env.flush()
@@ -67,13 +67,13 @@ def test_compare_pg_stats_wo_with_pgbench_simple_update(
 @pytest.mark.parametrize("scale", get_scales_matrix())
 @pytest.mark.parametrize("duration", get_durations_matrix(5))
 def test_compare_pg_stats_ro_with_pgbench_select_only(
-    neon_with_baseline: PgCompare,
+    serendb_with_baseline: PgCompare,
     seed: int,
     scale: int,
     duration: int,
     pg_stats_ro: list[PgStatTable],
 ):
-    env = neon_with_baseline
+    env = serendb_with_baseline
     # initialize pgbench
     env.pg_bin.run_capture(["pgbench", f"-s{scale}", "-i", env.pg.connstr()])
     env.flush()
@@ -89,13 +89,13 @@ def test_compare_pg_stats_ro_with_pgbench_select_only(
 @pytest.mark.parametrize("scale", get_scales_matrix())
 @pytest.mark.parametrize("duration", get_durations_matrix(5))
 def test_compare_pg_stats_wal_with_pgbench_default(
-    neon_with_baseline: PgCompare,
+    serendb_with_baseline: PgCompare,
     seed: int,
     scale: int,
     duration: int,
     pg_stats_wal: list[PgStatTable],
 ):
-    env = neon_with_baseline
+    env = serendb_with_baseline
     # initialize pgbench
     env.pg_bin.run_capture(["pgbench", f"-s{scale}", "-i", env.pg.connstr()])
     env.flush()
@@ -110,9 +110,9 @@ def test_compare_pg_stats_wal_with_pgbench_default(
 @pytest.mark.parametrize("n_tables", [1, 10])
 @pytest.mark.parametrize("duration", get_durations_matrix(10))
 def test_compare_pg_stats_wo_with_heavy_write(
-    neon_with_baseline: PgCompare, n_tables: int, duration: int, pg_stats_wo: list[PgStatTable]
+    serendb_with_baseline: PgCompare, n_tables: int, duration: int, pg_stats_wo: list[PgStatTable]
 ):
-    env = neon_with_baseline
+    env = serendb_with_baseline
     with env.pg.connect().cursor() as cur:
         for i in range(n_tables):
             cur.execute(

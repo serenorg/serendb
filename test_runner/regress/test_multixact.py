@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fixtures.neon_fixtures import NeonEnv, check_restored_datadir_content
+from fixtures.serendb_fixtures import SerenDBEnv, check_restored_datadir_content
 from fixtures.utils import query_scalar
 
 
@@ -14,8 +14,8 @@ from fixtures.utils import query_scalar
 # is enough to verify that the WAL records are handled correctly
 # in the pageserver.
 #
-def test_multixact(neon_simple_env: NeonEnv, test_output_dir):
-    env = neon_simple_env
+def test_multixact(serendb_simple_env: SerenDBEnv, test_output_dir):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
 
     cur = endpoint.connect().cursor()

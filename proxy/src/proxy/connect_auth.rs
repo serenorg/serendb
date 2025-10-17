@@ -50,7 +50,7 @@ pub(crate) async fn connect_to_compute_and_auth(
 
     // NOTE: This is messy, but should hopefully be detangled with PGLB.
     // We wanted to separate the concerns of **connect** to compute (a PGLB operation),
-    // from **authenticate** to compute (a NeonKeeper operation).
+    // from **authenticate** to compute (a SerenDBKeeper operation).
     //
     // This unfortunately removed retry handling for one error case where
     // the compute was cached, and we connected, but the compute cache was actually stale

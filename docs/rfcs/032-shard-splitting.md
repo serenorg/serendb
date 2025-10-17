@@ -26,7 +26,7 @@ tenants that do not specify an expected size up-front. There are a couple of gen
 approaches:
 
 - Write to a key space in order, and start a new shard when the highest key advances
-  past some point. This doesn't work well for Neon, because we write to our key space
+  past some point. This doesn't work well for SerenDB, because we write to our key space
   in many different contiguous ranges (per relation), rather than in one contiguous
   range. To adapt to this kind of model, we would need a sharding scheme where each
   relation had its own range of shards, which would be inefficient for the common

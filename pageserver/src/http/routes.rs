@@ -59,7 +59,7 @@ use utils::auth::SwappableJwtAuth;
 use utils::generation::Generation;
 use utils::id::{TenantId, TimelineId};
 use utils::lsn::Lsn;
-use wal_decoder::models::record::NeonWalRecord;
+use wal_decoder::models::record::SerenDBWalRecord;
 
 use crate::config::PageServerConf;
 use crate::context;
@@ -2733,7 +2733,7 @@ struct GetPageResponse {
     pub page: Bytes,
     pub layers_visited: u32,
     pub delta_layers_visited: u32,
-    pub records: Vec<(Lsn, NeonWalRecord)>,
+    pub records: Vec<(Lsn, SerenDBWalRecord)>,
     pub img: Option<(Lsn, Bytes)>,
 }
 

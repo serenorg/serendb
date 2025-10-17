@@ -11,8 +11,8 @@ use crate::worker_process::main_loop::CommunicatorWorkerProcessStruct;
 /// process.
 ///
 /// Inputs:
-///   `tenant_id` and `timeline_id` can be NULL, if we're been launched in "non-Neon" mode,
-///   where we use local storage instead of connecting to remote neon storage. That's
+///   `tenant_id` and `timeline_id` can be NULL, if we're been launched in "non-SerenDB" mode,
+///   where we use local storage instead of connecting to remote SerenDB storage. That's
 ///   currently only used in some unit tests.
 ///
 /// Result:

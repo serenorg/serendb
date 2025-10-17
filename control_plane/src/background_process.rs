@@ -1,13 +1,13 @@
-//! Spawns and kills background processes that are needed by Neon CLI.
+//! Spawns and kills background processes that are needed by SerenDB CLI.
 //! Applies common set-up such as log and pid files (if needed) to every process.
 //!
-//! Neon CLI does not run in background, so it needs to store the information about
+//! SerenDB CLI does not run in background, so it needs to store the information about
 //! spawned processes, which it does in this module.
 //! We do that by storing the pid of the process in the "${process_name}.pid" file.
 //! The pid file can be created by the process itself
-//! (Neon storage binaries do that and also ensure that a lock is taken onto that file)
+//! (SerenDB storage binaries do that and also ensure that a lock is taken onto that file)
 //! or we create such file after starting the process
-//! (non-Neon binaries don't necessarily follow our pidfile conventions).
+//! (non-SerenDB binaries don't necessarily follow our pidfile conventions).
 //! The pid stored in the file is later used to stop the service.
 //!
 //! See the [`lock_file`](utils::lock_file) module for more info.
@@ -95,11 +95,11 @@ where
         // spawn all child processes in their datadir, useful for all kinds of things,
         // not least cleaning up child processes e.g. after an unclean exit from the test suite:
         // ```
-        // lsof  -d cwd -a +D  Users/cs/src/neon/test_output
+        // lsof  -d cwd -a +D  Users/cs/src/serendb/test_output
         // ```
         .current_dir(datadir);
 
-    let filled_cmd = fill_env_vars_prefixed_neon(fill_remote_storage_secrets_vars(
+    let filled_cmd = fill_env_vars_prefixed_serendb(fill_remote_storage_secrets_vars(
         fill_rust_env_vars(background_command),
     ));
     filled_cmd.envs(envs);
@@ -137,7 +137,7 @@ where
         match process_started(pid, pid_file_to_check, &process_status_check).await {
             Ok(true) => {
                 println!("\n{process_name} started and passed status check, pid: {pid}");
-                // leak the child process, it'll outlive this neon_local invocation
+                // leak the child process, it'll outlive this serendb_local invocation
                 drop(scopeguard::ScopeGuard::into_inner(spawned_process));
                 return Ok(());
             }
@@ -294,9 +294,9 @@ fn fill_remote_storage_secrets_vars(mut cmd: &mut Command) -> &mut Command {
     cmd
 }
 
-fn fill_env_vars_prefixed_neon(mut cmd: &mut Command) -> &mut Command {
+fn fill_env_vars_prefixed_serendb(mut cmd: &mut Command) -> &mut Command {
     for (var, val) in std::env::vars() {
-        if var.starts_with("NEON_") {
+        if var.starts_with("SERENDB_") {
             cmd = cmd.env(var, val);
         }
     }

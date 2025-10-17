@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 # As of this writing, we're duplicate those giant WAL records for each page,
 # which makes the delta layer about 32x larger than it needs to be.
 #
-def test_gist_buffering_build(neon_with_baseline: PgCompare):
-    env = neon_with_baseline
+def test_gist_buffering_build(serendb_with_baseline: PgCompare):
+    env = serendb_with_baseline
 
     with closing(env.pg.connect()) as conn:
         with conn.cursor() as cur:

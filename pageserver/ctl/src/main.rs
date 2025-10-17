@@ -42,7 +42,7 @@ project_git_version!(GIT_VERSION);
 #[derive(Parser)]
 #[command(
     version = GIT_VERSION,
-    about = "Neon Pageserver binutils",
+    about = "SerenDB Pageserver binutils",
     long_about = "Reads pageserver (and related) binary files management utility"
 )]
 #[command(propagate_version = true)]

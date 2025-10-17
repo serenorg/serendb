@@ -4,22 +4,22 @@ import datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 @pytest.mark.timeout(120)
 def test_compute_ctl_api_latencies(
-    neon_simple_env: NeonEnv,
-    zenbenchmark: NeonBenchmarker,
+    serendb_simple_env: SerenDBEnv,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Test compute_ctl HTTP API performance. Do simple GET requests
     to catch any pathological degradations in the HTTP server.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
     client = endpoint.http_client()

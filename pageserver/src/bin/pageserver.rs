@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
     let workdir = arg_matches
         .get_one::<String>("workdir")
         .map(Utf8Path::new)
-        .unwrap_or_else(|| Utf8Path::new(".neon"));
+        .unwrap_or_else(|| Utf8Path::new(".serendb"));
     let workdir = workdir
         .canonicalize_utf8()
         .with_context(|| format!("Error opening workdir '{workdir}'"))?;
@@ -462,7 +462,7 @@ fn start_pageserver(
     let http_auth;
     let pg_auth;
     let grpc_auth;
-    if [conf.http_auth_type, conf.pg_auth_type, conf.grpc_auth_type].contains(&AuthType::NeonJWT) {
+    if [conf.http_auth_type, conf.pg_auth_type, conf.grpc_auth_type].contains(&AuthType::SerenDBJWT) {
         // unwrap is ok because check is performed when creating config, so path is set and exists
         let key_path = conf.auth_validation_public_key_path.as_ref().unwrap();
         info!("Loading public key(s) for verifying JWT tokens from {key_path:?}");
@@ -472,15 +472,15 @@ fn start_pageserver(
 
         http_auth = match conf.http_auth_type {
             AuthType::Trust => None,
-            AuthType::NeonJWT => Some(auth.clone()),
+            AuthType::SerenDBJWT => Some(auth.clone()),
         };
         pg_auth = match conf.pg_auth_type {
             AuthType::Trust => None,
-            AuthType::NeonJWT => Some(auth.clone()),
+            AuthType::SerenDBJWT => Some(auth.clone()),
         };
         grpc_auth = match conf.grpc_auth_type {
             AuthType::Trust => None,
-            AuthType::NeonJWT => Some(auth),
+            AuthType::SerenDBJWT => Some(auth),
         };
     } else {
         http_auth = None;
@@ -506,7 +506,7 @@ fn start_pageserver(
         None
     };
 
-    match var("NEON_AUTH_TOKEN") {
+    match var("SERENDB_AUTH_TOKEN") {
         Ok(v) => {
             info!("Loaded JWT token for authentication with Safekeeper");
             pageserver::config::SAFEKEEPER_AUTH_TOKEN
@@ -517,7 +517,7 @@ fn start_pageserver(
             info!("No JWT token for authentication with Safekeeper detected");
         }
         Err(e) => return Err(e).with_context(
-            || "Failed to either load to detect non-present NEON_AUTH_TOKEN environment variable",
+            || "Failed to either load to detect non-present SERENDB_AUTH_TOKEN environment variable",
         ),
     };
 
@@ -935,7 +935,7 @@ async fn create_remote_storage_client(
 }
 
 fn cli() -> Command {
-    Command::new("Neon page server")
+    Command::new("SerenDB page server")
         .about("Materializes WAL stream to pages and serves them to the postgres")
         .version(version())
         .arg(

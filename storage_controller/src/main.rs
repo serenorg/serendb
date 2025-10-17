@@ -155,11 +155,11 @@ struct Cli {
     #[arg(long)]
     address_for_peers: Option<Uri>,
 
-    /// `neon_local` sets this to the path of the neon_local repo dir.
+    /// `serendb_local` sets this to the path of the serendb_local repo dir.
     /// Only relevant for testing.
     // TODO: make `cfg(feature = "testing")`
     #[arg(long)]
-    neon_local_repo_dir: Option<PathBuf>,
+    serendb_local_repo_dir: Option<PathBuf>,
 
     /// Chaos testing: exercise tenant migrations
     #[arg(long)]
@@ -206,7 +206,7 @@ struct Cli {
     #[arg(long)]
     ssl_ca_file: Option<Utf8PathBuf>,
 
-    /// Neon local specific flag. When set, ignore [`Cli::control_plane_url`] and deliver
+    /// SerenDB local specific flag. When set, ignore [`Cli::control_plane_url`] and deliver
     /// the compute notification directly (instead of via control plane).
     #[arg(long, default_value = "false")]
     use_local_compute_notifications: bool,
@@ -387,7 +387,7 @@ async fn async_main() -> anyhow::Result<()> {
         }
         StrictMode::Strict if args.control_plane_url.is_none() => {
             // Production systems should always have a control plane URL set, to prevent falling
-            // back to trying to use neon_local.
+            // back to trying to use serendb_local.
             anyhow::bail!(
                 "`--control-plane-url` is not set: this is only permitted in `--dev` mode"
             );
@@ -457,7 +457,7 @@ async fn async_main() -> anyhow::Result<()> {
         max_split_shards: args.max_split_shards,
         initial_split_threshold: args.initial_split_threshold,
         initial_split_shards: args.initial_split_shards,
-        neon_local_repo_dir: args.neon_local_repo_dir,
+        serendb_local_repo_dir: args.serendb_local_repo_dir,
         max_secondary_lag_bytes: args.max_secondary_lag_bytes,
         heartbeat_interval: args
             .heartbeat_interval

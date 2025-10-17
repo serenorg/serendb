@@ -21,11 +21,11 @@ clients.
 
 ### Prior art
 
-In Neon:
+In SerenDB:
 
-- Layer File Spreading: https://www.notion.so/neondatabase/One-Pager-Layer-File-Spreading-Konstantin-21fd9b11b618475da5f39c61dd8ab7a4
-- Layer File SPreading: https://www.notion.so/neondatabase/One-Pager-Layer-File-Spreading-Christian-eb6b64182a214e11b3fceceee688d843
-- Key Space partitioning: https://www.notion.so/neondatabase/One-Pager-Key-Space-Partitioning-Stas-8e3a28a600a04a25a68523f42a170677
+- Layer File Spreading: https://www.notion.so/serendb/One-Pager-Layer-File-Spreading-Konstantin-21fd9b11b618475da5f39c61dd8ab7a4
+- Layer File SPreading: https://www.notion.so/serendb/One-Pager-Layer-File-Spreading-Christian-eb6b64182a214e11b3fceceee688d843
+- Key Space partitioning: https://www.notion.so/serendb/One-Pager-Key-Space-Partitioning-Stas-8e3a28a600a04a25a68523f42a170677
 
 Prior art in other distributed systems is too broad to capture here: pretty much
 any scale out storage system does something like this.
@@ -42,7 +42,7 @@ any scale out storage system does something like this.
 
 _Note: the definition of 'large database' is arbitrary, but the lower bound is to ensure that a database
 that a user might create on a current-gen enterprise SSD should also work well on
-Neon. The upper bound is whatever postgres can handle: i.e. we must make sure that the
+SerenDB. The upper bound is whatever postgres can handle: i.e. we must make sure that the
 pageserver backend is not the limiting factor in the database size_.
 
 ## Non Goals

@@ -231,7 +231,7 @@ pub fn init(
 
 /// Disable the default rust panic hook by using `set_hook`.
 ///
-/// For neon binaries, the assumption is that tracing is configured before with [`init`], after
+/// For SerenDB binaries, the assumption is that tracing is configured before with [`init`], after
 /// that sentry is configured (if needed). sentry will install it's own on top of this, always
 /// processing the panic before we log it.
 ///

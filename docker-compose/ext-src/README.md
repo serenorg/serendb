@@ -47,7 +47,7 @@ This directory includes the following extensions:
 
 ### Extension Upgrade Testing
 
-The extensions in this directory are used by the `test-upgrade.sh` script to test upgrading extensions between different versions of Neon Compute nodes. The script:
+The extensions in this directory are used by the `test-upgrade.sh` script to test upgrading extensions between different versions of SerenDB Compute nodes. The script:
 
 1. Creates a database with extensions installed on an old Compute version
 2. Creates timelines for each extension
@@ -69,7 +69,7 @@ A note about pg_regress: Since pg_regress attempts to set `lc_messages` for the 
 
 Two main workflows use these extensions:
 
-1. **Cloud Extensions Test** - Tests extensions on Neon cloud projects
+1. **Cloud Extensions Test** - Tests extensions on SerenDB cloud projects
 2. **Force Test Upgrading of Extension** - Tests upgrading extensions between different Compute versions
 
 These workflows are integrated into the build-and-test pipeline through shell scripts:
@@ -85,7 +85,7 @@ To add a new extension for testing:
 1. Create a directory named `extension-name-src` in this directory
 2. Add at minimum:
    - `regular-test.sh` for testing with regular users
-   - If `regular-test.sh` doesn't exist, the system will look for `neon-test.sh`
+   - If `regular-test.sh` doesn't exist, the system will look for `serendb-test.sh`
    - If neither exists, it will try to run `make installcheck`
    - `test-upgrade.sh` is only needed if you want to test upgrade scenarios
 3. Update the list of extensions in the `test_extensions_upgrade.sh` script if needed for upgrade testing
@@ -95,5 +95,5 @@ To add a new extension for testing:
 If you need to patch the extension sources:
 
 1. Place the patch file in the extension's directory
-2. Apply the patch in the appropriate script (`test-upgrade.sh`, `neon-test.sh`, `regular-test.sh`, or `Makefile`)
+2. Apply the patch in the appropriate script (`test-upgrade.sh`, `serendb-test.sh`, `regular-test.sh`, or `Makefile`)
 3. The patch will be applied during the testing process

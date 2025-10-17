@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     DEFAULT_BRANCH_NAME,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
 )
 from fixtures.utils import run_only_on_default_postgres, wait_until
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from fixtures.pageserver.http import PageserverHttpClient
 
 
-def check_client(env: NeonEnv, client: PageserverHttpClient):
+def check_client(env: SerenDBEnv, client: PageserverHttpClient):
     pg_version = env.pg_version
     initial_tenant = env.initial_tenant
 
@@ -61,8 +61,8 @@ def check_client(env: NeonEnv, client: PageserverHttpClient):
         assert TimelineId(timeline_details["timeline_id"]) == timeline_id
 
 
-def test_pageserver_http_get_wal_receiver_not_found(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_pageserver_http_get_wal_receiver_not_found(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     with env.pageserver.http_client() as client:
         tenant_id, timeline_id = env.create_tenant()
 
@@ -110,8 +110,8 @@ def expect_updated_msg_lsn(
 #
 # These fields used to be returned by a separate API call, but they're part of
 # `timeline_details` now.
-def test_pageserver_http_get_wal_receiver_success(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_pageserver_http_get_wal_receiver_success(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     with env.pageserver.http_client() as client:
         tenant_id, timeline_id = env.create_tenant()
         endpoint = env.endpoints.create_start(DEFAULT_BRANCH_NAME, tenant_id=tenant_id)
@@ -129,15 +129,15 @@ def test_pageserver_http_get_wal_receiver_success(neon_simple_env: NeonEnv):
         wait_until(lambda: expect_updated_msg_lsn(client, tenant_id, timeline_id, lsn))
 
 
-def test_pageserver_http_api_client(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_pageserver_http_api_client(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     with env.pageserver.http_client() as client:
         check_client(env, client)
 
 
-def test_pageserver_http_api_client_auth_enabled(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_pageserver_http_api_client_auth_enabled(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
 
     pageserver_token = env.auth_keys.generate_pageserver_token()
 
@@ -146,8 +146,8 @@ def test_pageserver_http_api_client_auth_enabled(neon_env_builder: NeonEnvBuilde
 
 
 @run_only_on_default_postgres("it does not use any postgres functionality")
-def test_pageserver_http_index_part_force_patch(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_pageserver_http_index_part_force_patch(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
     with env.pageserver.http_client() as client:
@@ -167,9 +167,9 @@ def test_pageserver_http_index_part_force_patch(neon_env_builder: NeonEnvBuilder
         assert client.timeline_detail(tenant_id, timeline_id)["rel_size_migration"] == "legacy"
 
 
-def test_pageserver_get_tenant_visible_size(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_pageservers = 1
-    env = neon_env_builder.init_start()
+def test_pageserver_get_tenant_visible_size(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_pageservers = 1
+    env = serendb_env_builder.init_start()
     env.create_tenant(shard_count=4)
     env.create_tenant(shard_count=2)
 

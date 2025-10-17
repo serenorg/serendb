@@ -7,7 +7,7 @@ This is a retrospective RFC describing a new storage strategy for AUX files.
 ## Motivation
 
 The original aux file storage strategy stores everything in a single `AUX_FILES_KEY`.
-Every time the compute node streams a `neon-file` record to the pageserver, it will
+Every time the compute node streams a `serendb-file` record to the pageserver, it will
 update the aux file hash map, and then write the serialized hash map into the key.
 This creates serious space bloat. There was a fix to log delta records (i.e., update
 a key in the hash map) to the aux file key. In this way, the pageserver only stores

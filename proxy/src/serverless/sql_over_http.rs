@@ -27,7 +27,7 @@ use super::conn_pool::AuthData;
 use super::conn_pool_lib::{self, ConnInfo};
 use super::error::{ConnInfoError, HttpCodeError, ReadPayloadError};
 use super::http_util::{
-    ALLOW_POOL, ARRAY_MODE, CONN_STRING, NEON_REQUEST_ID, RAW_TEXT_OUTPUT, TXN_DEFERRABLE,
+    ALLOW_POOL, ARRAY_MODE, CONN_STRING, SERENDB_REQUEST_ID, RAW_TEXT_OUTPUT, TXN_DEFERRABLE,
     TXN_ISOLATION_LEVEL, TXN_READ_ONLY, get_conn_info, json_response, uuid_to_header_value,
 };
 use super::json::{JsonConversionError, json_to_pg_text, pg_text_row_to_json};
@@ -116,7 +116,7 @@ pub(crate) async fn handle(
 
                         error!("Error response from local_proxy: {status} {msg}");
 
-                        json_map.retain(|key, _| !key.starts_with("neon:")); // remove all the neon-related keys
+                        json_map.retain(|key, _| !key.starts_with("serendb:")); // remove all the serendb-related keys
 
                         let resp_json = serde_json::to_string(&json_map)
                             .unwrap_or("failed to serialize the response message".to_string());
@@ -649,7 +649,7 @@ async fn handle_auth_broker_inner(
             req = req.header(h, hv);
         }
     }
-    req = req.header(&NEON_REQUEST_ID, uuid_to_header_value(ctx.session_id()));
+    req = req.header(&SERENDB_REQUEST_ID, uuid_to_header_value(ctx.session_id()));
 
     let req = req
         .body(body.map_err(|e| e).boxed()) //TODO: is there a potential for a regression here?

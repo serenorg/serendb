@@ -230,7 +230,7 @@ impl FileCacheState {
         self.query_with_retry(
             // The file cache GUC variable is in MiB, but the conversion with
             // pg_size_bytes means that the end result we get is in bytes.
-            "SELECT pg_size_bytes(current_setting('neon.file_cache_size_limit'));",
+            "SELECT pg_size_bytes(current_setting('serendb.file_cache_size_limit'));",
             &[],
         )
         .await
@@ -252,7 +252,7 @@ impl FileCacheState {
             // The file cache GUC variable is in MiB, but the conversion with pg_size_bytes
             // means that the end result we get is in bytes.
             .query_with_retry(
-                "SELECT pg_size_bytes(current_setting('neon.max_file_cache_size'));",
+                "SELECT pg_size_bytes(current_setting('serendb.max_file_cache_size'));",
                 &[],
             )
             .await
@@ -285,7 +285,7 @@ impl FileCacheState {
         // why we're constructing the query here.
         self.client
             .query(
-                &format!("ALTER SYSTEM SET neon.file_cache_size_limit = {num_mb};"),
+                &format!("ALTER SYSTEM SET serendb.file_cache_size_limit = {num_mb};"),
                 &[],
             )
             .await

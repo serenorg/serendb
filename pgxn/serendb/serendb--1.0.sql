@@ -1,4 +1,4 @@
-\echo Use "CREATE EXTENSION neon" to load this file. \quit
+\echo Use "CREATE EXTENSION serendb" to load this file. \quit
 
 CREATE FUNCTION pg_cluster_size()
 RETURNS bigint

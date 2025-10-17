@@ -74,7 +74,7 @@ runs:
       env:
         UNIQUE_KEY: ${{ inputs.unique-key }}
         COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        BUCKET: neon-github-public-dev
+        BUCKET: serendb-github-public-dev
 
     - name: Cleanup
       if: always()

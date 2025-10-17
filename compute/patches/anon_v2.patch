@@ -7,13 +7,13 @@ index 0cdc769..5eab1d6 100644
  
  -- TODO : https://en.wikipedia.org/wiki/T-closeness
 +
-+-- NEON Patches
++-- SerenDB Patches
 +
 +DO $$
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT ALL ON SCHEMA anon to %I', privileged_role_name);
 +  EXECUTE format('GRANT ALL ON ALL TABLES IN SCHEMA anon TO %I', privileged_role_name);

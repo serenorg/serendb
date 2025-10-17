@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
- * neon_perf_counters.h
- *	  Performance counters for neon storage requests
+ * serendb_perf_counters.h
+ *	  Performance counters for SerenDB storage requests
  *-------------------------------------------------------------------------
  */
 
-#ifndef NEON_PERF_COUNTERS_H
-#define NEON_PERF_COUNTERS_H
+#ifndef SERENDB_PERF_COUNTERS_H
+#define SERENDB_PERF_COUNTERS_H
 
 #if PG_VERSION_NUM >= 170000
 #include "storage/procnumber.h"
@@ -67,7 +67,7 @@ typedef struct
 	 * page is already readily prefetched whenever we need to read a page.
 	 *
 	 * Note: we accumulate these in microseconds, because that's convenient in
-	 * the backend, but the 'neon_backend_perf_counters' view will convert
+	 * the backend, but the 'serendb_backend_perf_counters' view will convert
 	 * them to seconds, to make them more idiomatic as prometheus metrics.
 	 */
 	IOHistogramData getpage_hist;
@@ -154,10 +154,10 @@ typedef struct
 	 * Histogram of query execution time.
 	 */
 	QTHistogramData query_time_hist;
-} neon_per_backend_counters;
+} serendb_per_backend_counters;
 
-/* Pointer to the shared memory array of neon_per_backend_counters structs */
-extern neon_per_backend_counters *neon_per_backend_counters_shared;
+/* Pointer to the shared memory array of serendb_per_backend_counters structs */
+extern serendb_per_backend_counters *serendb_per_backend_counters_shared;
 
 /*
  * Size of the perf counters array in shared memory. One slot for each backend
@@ -165,17 +165,17 @@ extern neon_per_backend_counters *neon_per_backend_counters_shared;
  * for prepared transactions, because they're not real processes and cannot do
  * I/O.
  */
-#define NUM_NEON_PERF_COUNTER_SLOTS (MaxBackends + NUM_AUXILIARY_PROCS)
+#define NUM_SERENDB_PERF_COUNTER_SLOTS (MaxBackends + NUM_AUXILIARY_PROCS)
 
-#define MyNeonCounters (&neon_per_backend_counters_shared[MyProcNumber])
+#define MySerenDBCounters (&serendb_per_backend_counters_shared[MyProcNumber])
 
 extern void inc_getpage_wait(uint64 latency);
 extern void inc_page_cache_read_wait(uint64 latency);
 extern void inc_page_cache_write_wait(uint64 latency);
 extern void inc_query_time(uint64 elapsed);
 
-extern Size NeonPerfCountersShmemSize(void);
-extern void NeonPerfCountersShmemInit(void);
+extern Size SerenDBPerfCountersShmemSize(void);
+extern void SerenDBPerfCountersShmemInit(void);
 
 /* BEGIN_HADRON */
 typedef struct
@@ -197,4 +197,4 @@ static const int TestHookCorruption = 1;
 /* END_HADRON */
 
 
-#endif							/* NEON_PERF_COUNTERS_H */
+#endif							/* SERENDB_PERF_COUNTERS_H */

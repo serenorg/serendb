@@ -18,7 +18,7 @@ functions to crash, or to execute arbitrary code. That is not a
 security problem for PostgreSQL; if you have superuser access, you
 have full access to the system anyway.
 
-The Neon pageserver, however, is multi-tenant. It needs to execute WAL
+The SerenDB pageserver, however, is multi-tenant. It needs to execute WAL
 belonging to different tenants in the same system, and malicious WAL
 in one tenant must not affect other tenants.
 
@@ -39,7 +39,7 @@ access to anyway.
 ## WAL-redo process communication
 
 The WAL redo process runs the 'postgres' executable, launched with a
-Neon-specific command-line option to put it into WAL-redo process
+SerenDB-specific command-line option to put it into WAL-redo process
 mode.  The pageserver controls the lifetime of the WAL redo processes,
 launching them as needed. If a tenant is detached from the pageserver,
 any WAL redo processes for that tenant are killed.
@@ -58,7 +58,7 @@ Some WAL record types are handled directly in the pageserver, by
 bespoken Rust code, and are not sent over to the WAL redo process.
 This includes SLRU-related WAL records, like commit records. SLRUs
 don't use the standard Postgres buffer manager, so dealing with them
-in the Neon WAL redo mode would require quite a few changes to
+in the SerenDB WAL redo mode would require quite a few changes to
 Postgres code and special handling in the protocol anyway.
 
 Some record types that include a full-page-image (e.g. XLOG_FPI) are

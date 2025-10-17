@@ -1,4 +1,4 @@
-//! The canonical way we run `initdb` in Neon.
+//! The canonical way we run `initdb` in SerenDB.
 //!
 //! initdb has implicit defaults that are dependent on the environment, e.g., locales & collations.
 //!

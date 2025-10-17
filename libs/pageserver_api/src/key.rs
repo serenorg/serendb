@@ -220,7 +220,7 @@ impl Key {
     }
 
     /// 'field2' is used to store tablespaceid for relations and small enum numbers for other relish.
-    /// As long as Neon does not support tablespace (because of lack of access to local file system),
+    /// As long as SerenDB does not support tablespace (because of lack of access to local file system),
     /// we can assume that only some predefined namespace OIDs are used which can fit in u16
     pub fn to_i128(&self) -> i128 {
         assert!(self.is_i128_representable(), "invalid key: {self}");

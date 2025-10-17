@@ -40,7 +40,7 @@ runs:
       shell: bash -euxo pipefail {0}
       env:
         PR_NUMBER: ${{ github.event.pull_request.number }}
-        BUCKET: neon-github-public-dev
+        BUCKET: serendb-github-public-dev
       run: |
         if [ -n "${PR_NUMBER}" ]; then
           BRANCH_OR_PR=pr-${PR_NUMBER}
@@ -103,7 +103,7 @@ runs:
         # Do it up to 5 times to avoid race condition
         for _ in $(seq 1 5); do
           for i in $(seq 1 ${LOCK_TIMEOUT}); do
-            LOCK_ACQUIRED=$(aws s3api head-object --bucket neon-github-public-dev --key ${LOCK_FILE} | jq --raw-output '.LastModified' || true)
+            LOCK_ACQUIRED=$(aws s3api head-object --bucket serendb-github-public-dev --key ${LOCK_FILE} | jq --raw-output '.LastModified' || true)
             # `date --date="..."` is supported only by gnu date (i.e. it doesn't work on BSD/macOS)
             if [ -z "${LOCK_ACQUIRED}" ] || [ "$(( $(date +%s) - $(date --date="${LOCK_ACQUIRED}" +%s) ))" -gt "${LOCK_TIMEOUT}" ]; then
               break

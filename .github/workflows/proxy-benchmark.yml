@@ -35,7 +35,7 @@ jobs:
     runs-on: [ self-hosted, unit-perf-aws-arm ]
     timeout-minutes: 60  # 1h timeout
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -44,7 +44,7 @@ jobs:
     - name: Checkout proxy-bench Repo
       uses: actions/checkout@v4
       with:
-        repository: neondatabase/proxy-bench
+        repository: serenorg/proxy-bench
         path: proxy-bench
 
     - name: Set up the environment which depends on $RUNNER_TEMP on nvme drive
@@ -54,8 +54,8 @@ jobs:
         PROXY_BENCH_PATH=$(realpath ./proxy-bench)
         {
           echo "PROXY_BENCH_PATH=$PROXY_BENCH_PATH"
-          echo "NEON_DIR=${RUNNER_TEMP}/neon"
-          echo "NEON_PROXY_PATH=${RUNNER_TEMP}/neon/bin/proxy"
+          echo "SERENDB_DIR=${RUNNER_TEMP}/serendb"
+          echo "SERENDB_PROXY_PATH=${RUNNER_TEMP}/serendb/bin/proxy"
           echo "TEST_OUTPUT=${PROXY_BENCH_PATH}/test_output"
           echo ""
         } >> "$GITHUB_ENV"
@@ -81,10 +81,10 @@ jobs:
 
     - name: Ingest Bench Results
       if: always()
-      working-directory: ${{ env.NEON_DIR }}
+      working-directory: ${{ env.SERENDB_DIR }}
       run: |
         mkdir -p $TEST_OUTPUT
-        python $NEON_DIR/scripts/proxy_bench_results_ingest.py --out $TEST_OUTPUT
+        python $SERENDB_DIR/scripts/proxy_bench_results_ingest.py --out $TEST_OUTPUT
 
     - name: Push Metrics to Proxy perf database
       shell: bash -euxo pipefail {0}
@@ -92,8 +92,8 @@ jobs:
       env:
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PROXY_TEST_RESULT_CONNSTR }}"
         REPORT_FROM: $TEST_OUTPUT
-      working-directory: ${{ env.NEON_DIR }}
-      run: $NEON_DIR/scripts/generate_and_push_perf_report.sh
+      working-directory: ${{ env.SERENDB_DIR }}
+      run: $SERENDB_DIR/scripts/generate_and_push_perf_report.sh
 
     - name: Notify Failure
       if: failure()

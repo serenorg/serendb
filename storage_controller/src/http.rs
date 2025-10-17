@@ -16,7 +16,7 @@ use http_utils::request::{must_get_query_param, parse_query_param, parse_request
 use http_utils::{RequestExt, RouterBuilder};
 use hyper::header::CONTENT_TYPE;
 use hyper::{Body, Request, Response, StatusCode, Uri};
-use metrics::{BuildInfo, NeonMetrics};
+use metrics::{BuildInfo, SerenDBMetrics};
 use pageserver_api::controller_api::{
     MetadataHealthListOutdatedRequest, MetadataHealthListOutdatedResponse,
     MetadataHealthListUnhealthyResponse, MetadataHealthUpdateRequest, MetadataHealthUpdateResponse,
@@ -58,7 +58,7 @@ pub struct HttpState {
     service: Arc<crate::service::Service>,
     auth: Option<Arc<SwappableJwtAuth>>,
     rate_limiter: governor::DefaultKeyedRateLimiter<TenantId>,
-    neon_metrics: NeonMetrics,
+    serendb_metrics: SerenDBMetrics,
     allowlist_routes: &'static [&'static str],
 }
 
@@ -73,7 +73,7 @@ impl HttpState {
             service,
             auth,
             rate_limiter: governor::RateLimiter::keyed(quota),
-            neon_metrics: NeonMetrics::new(build_info),
+            serendb_metrics: SerenDBMetrics::new(build_info),
             allowlist_routes: &[
                 "/status",
                 "/live",
@@ -1928,7 +1928,7 @@ pub async fn measured_metrics_handler(req: Request<Body>) -> Result<Response<Bod
     };
 
     let state = get_state(&req);
-    let payload = crate::metrics::METRICS_REGISTRY.encode(&state.neon_metrics);
+    let payload = crate::metrics::METRICS_REGISTRY.encode(&state.serendb_metrics);
     let response = Response::builder()
         .status(200)
         .header(CONTENT_TYPE, TEXT_FORMAT)

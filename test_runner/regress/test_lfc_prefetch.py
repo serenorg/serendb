@@ -8,21 +8,21 @@ from fixtures.log_helper import log
 from fixtures.utils import USE_LFC
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 @pytest.mark.timeout(600)
 @pytest.mark.skipif(not USE_LFC, reason="LFC is disabled, skipping")
-def test_lfc_prefetch(neon_simple_env: NeonEnv):
+def test_lfc_prefetch(serendb_simple_env: SerenDBEnv):
     """
     Test resizing the Local File Cache
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start(
         "main",
         config_lines=[
-            "neon.max_file_cache_size=1GB",
-            "neon.file_cache_size_limit=1GB",
+            "serendb.max_file_cache_size=1GB",
+            "serendb.file_cache_size_limit=1GB",
             "effective_io_concurrency=100",
             "shared_buffers=1MB",
             "enable_bitmapscan=off",
@@ -32,7 +32,7 @@ def test_lfc_prefetch(neon_simple_env: NeonEnv):
     )
     conn = endpoint.connect()
     cur = conn.cursor()
-    cur.execute("create extension neon")
+    cur.execute("create extension serendb")
     cur.execute("create table t(pk integer, sk integer, filler text default repeat('x',200))")
     cur.execute("set statement_timeout=0")
     cur.execute("select setseed(0.5)")
@@ -41,10 +41,10 @@ def test_lfc_prefetch(neon_simple_env: NeonEnv):
     cur.execute("vacuum t")
 
     # reset LFC
-    cur.execute("alter system set neon.file_cache_size_limit=0")
+    cur.execute("alter system set serendb.file_cache_size_limit=0")
     cur.execute("select pg_reload_conf()")
     time.sleep(1)
-    cur.execute("alter system set neon.file_cache_size_limit='1GB'")
+    cur.execute("alter system set serendb.file_cache_size_limit='1GB'")
     cur.execute("select pg_reload_conf()")
 
     cur.execute(
@@ -74,7 +74,7 @@ def test_lfc_prefetch(neon_simple_env: NeonEnv):
     # if prefetch requests are not stored in LFC, we continue to sent unused prefetch request tyo PS
     assert prefetch_expired > 0
 
-    cur.execute("set neon.store_prefetch_result_in_lfc=on")
+    cur.execute("set serendb.store_prefetch_result_in_lfc=on")
 
     cur.execute(
         "explain (analyze,prefetch,format json) select sum(pk) from (select pk from t where sk between 500000 and 600000 limit 100) s5"

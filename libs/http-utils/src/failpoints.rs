@@ -26,7 +26,7 @@ pub async fn failpoints_handler(
 ) -> Result<Response<Body>, ApiError> {
     if !fail::has_failpoints() {
         return Err(ApiError::BadRequest(anyhow::anyhow!(
-            "Cannot manage failpoints because neon was compiled without failpoints support"
+            "Cannot manage failpoints because SerenDB was compiled without failpoints support"
         )));
     }
 

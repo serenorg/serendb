@@ -46,8 +46,8 @@ def copy_test_data(rows: int):
 #
 # COPY performance tests.
 #
-def test_copy(neon_with_baseline: PgCompare):
-    env = neon_with_baseline
+def test_copy(serendb_with_baseline: PgCompare):
+    env = serendb_with_baseline
 
     # Get the timeline ID of our branch. We need it for the pageserver 'checkpoint' command
     with closing(env.pg.connect()) as conn:

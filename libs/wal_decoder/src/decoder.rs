@@ -90,7 +90,7 @@ impl MetadataRecord {
             pg_constants::RM_HEAP_ID | pg_constants::RM_HEAP2_ID => {
                 Self::decode_heapam_record(&mut buf, decoded, pg_version)?
             }
-            pg_constants::RM_NEON_ID => Self::decode_neonmgr_record(&mut buf, decoded, pg_version)?,
+            pg_constants::RM_SERENDB_ID => Self::decode_serendbmgr_record(&mut buf, decoded, pg_version)?,
             // Handle other special record types
             pg_constants::RM_SMGR_ID => Self::decode_smgr_record(&mut buf, decoded)?,
             pg_constants::RM_DBASE_ID => Self::decode_dbase_record(&mut buf, decoded, pg_version)?,
@@ -133,7 +133,7 @@ impl MetadataRecord {
             match metadata_record {
                 Some(
                     MetadataRecord::Heapam(HeapamRecord::ClearVmBits(ref clear_vm_bits))
-                    | MetadataRecord::Neonrmgr(NeonrmgrRecord::ClearVmBits(ref clear_vm_bits)),
+                    | MetadataRecord::SerenDBrmgr(SerenDBrmgrRecord::ClearVmBits(ref clear_vm_bits)),
                 ) => {
                     // Route VM page updates to the shards that own them. VM pages are stored in the VM fork
                     // of the main relation. These are sharded and managed just like regular relation pages.
@@ -158,7 +158,7 @@ impl MetadataRecord {
                                 MetadataRecord::Heapam(HeapamRecord::ClearVmBits(
                                     ref mut clear_vm_bits,
                                 ))
-                                | MetadataRecord::Neonrmgr(NeonrmgrRecord::ClearVmBits(
+                                | MetadataRecord::SerenDBrmgr(SerenDBrmgrRecord::ClearVmBits(
                                     ref mut clear_vm_bits,
                                 )),
                             ) => {
@@ -496,7 +496,7 @@ impl MetadataRecord {
         }
     }
 
-    fn decode_neonmgr_record(
+    fn decode_serendbmgr_record(
         buf: &mut Bytes,
         decoded: &DecodedWALRecord,
         pg_version: PgMajorVersion,
@@ -510,29 +510,29 @@ impl MetadataRecord {
         let mut old_heap_blkno: Option<u32> = None;
         let mut flags = pg_constants::VISIBILITYMAP_VALID_BITS;
 
-        assert_eq!(decoded.xl_rmid, pg_constants::RM_NEON_ID);
+        assert_eq!(decoded.xl_rmid, pg_constants::RM_SERENDB_ID);
 
         match pg_version {
             PgMajorVersion::PG16 | PgMajorVersion::PG17 => {
                 let info = decoded.xl_info & pg_constants::XLOG_HEAP_OPMASK;
 
                 match info {
-                    pg_constants::XLOG_NEON_HEAP_INSERT => {
-                        let xlrec = v17::rm_neon::XlNeonHeapInsert::decode(buf);
+                    pg_constants::XLOG_SERENDB_HEAP_INSERT => {
+                        let xlrec = v17::rm_serendb::XlSerenDBHeapInsert::decode(buf);
                         assert_eq!(0, buf.remaining());
                         if (xlrec.flags & pg_constants::XLH_INSERT_ALL_VISIBLE_CLEARED) != 0 {
                             new_heap_blkno = Some(decoded.blocks[0].blkno);
                         }
                     }
-                    pg_constants::XLOG_NEON_HEAP_DELETE => {
-                        let xlrec = v17::rm_neon::XlNeonHeapDelete::decode(buf);
+                    pg_constants::XLOG_SERENDB_HEAP_DELETE => {
+                        let xlrec = v17::rm_serendb::XlSerenDBHeapDelete::decode(buf);
                         if (xlrec.flags & pg_constants::XLH_DELETE_ALL_VISIBLE_CLEARED) != 0 {
                             new_heap_blkno = Some(decoded.blocks[0].blkno);
                         }
                     }
-                    pg_constants::XLOG_NEON_HEAP_UPDATE
-                    | pg_constants::XLOG_NEON_HEAP_HOT_UPDATE => {
-                        let xlrec = v17::rm_neon::XlNeonHeapUpdate::decode(buf);
+                    pg_constants::XLOG_SERENDB_HEAP_UPDATE
+                    | pg_constants::XLOG_SERENDB_HEAP_HOT_UPDATE => {
+                        let xlrec = v17::rm_serendb::XlSerenDBHeapUpdate::decode(buf);
                         // the size of tuple data is inferred from the size of the record.
                         // we can't validate the remaining number of bytes without parsing
                         // the tuple data.
@@ -547,8 +547,8 @@ impl MetadataRecord {
                             new_heap_blkno = Some(decoded.blocks[0].blkno);
                         }
                     }
-                    pg_constants::XLOG_NEON_HEAP_MULTI_INSERT => {
-                        let xlrec = v17::rm_neon::XlNeonHeapMultiInsert::decode(buf);
+                    pg_constants::XLOG_SERENDB_HEAP_MULTI_INSERT => {
+                        let xlrec = v17::rm_serendb::XlSerenDBHeapMultiInsert::decode(buf);
 
                         let offset_array_len =
                             if decoded.xl_info & pg_constants::XLOG_HEAP_INIT_PAGE > 0 {
@@ -563,18 +563,18 @@ impl MetadataRecord {
                             new_heap_blkno = Some(decoded.blocks[0].blkno);
                         }
                     }
-                    pg_constants::XLOG_NEON_HEAP_LOCK => {
-                        let xlrec = v17::rm_neon::XlNeonHeapLock::decode(buf);
+                    pg_constants::XLOG_SERENDB_HEAP_LOCK => {
+                        let xlrec = v17::rm_serendb::XlSerenDBHeapLock::decode(buf);
                         if (xlrec.flags & pg_constants::XLH_LOCK_ALL_FROZEN_CLEARED) != 0 {
                             old_heap_blkno = Some(decoded.blocks[0].blkno);
                             flags = pg_constants::VISIBILITYMAP_ALL_FROZEN;
                         }
                     }
-                    info => anyhow::bail!("Unknown WAL record type for Neon RMGR: {}", info),
+                    info => anyhow::bail!("Unknown WAL record type for SerenDB RMGR: {}", info),
                 }
             }
             PgMajorVersion::PG15 | PgMajorVersion::PG14 => anyhow::bail!(
-                "Neon RMGR has no known compatibility with PostgreSQL version {}",
+                "SerenDB RMGR has no known compatibility with PostgreSQL version {}",
                 pg_version
             ),
         }
@@ -587,7 +587,7 @@ impl MetadataRecord {
                 relnode: decoded.blocks[0].rnode_relnode,
             };
 
-            Ok(Some(MetadataRecord::Neonrmgr(NeonrmgrRecord::ClearVmBits(
+            Ok(Some(MetadataRecord::SerenDBrmgr(SerenDBrmgrRecord::ClearVmBits(
                 ClearVmBits {
                     new_heap_blkno,
                     old_heap_blkno,
@@ -927,13 +927,13 @@ impl MetadataRecord {
             let prefix = std::str::from_utf8(&buf[0..xlrec.prefix_size - 1])?;
 
             #[cfg(feature = "testing")]
-            if prefix == "neon-test" {
+            if prefix == "serendb-test" {
                 return Ok(Some(MetadataRecord::LogicalMessage(
                     LogicalMessageRecord::Failpoint,
                 )));
             }
 
-            if let Some(path) = prefix.strip_prefix("neon-file:") {
+            if let Some(path) = prefix.strip_prefix("serendb-file:") {
                 let buf_size = xlrec.prefix_size + xlrec.message_size;
                 let buf = Bytes::copy_from_slice(&buf[xlrec.prefix_size..buf_size]);
                 return Ok(Some(MetadataRecord::LogicalMessage(

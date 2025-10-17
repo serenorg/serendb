@@ -5,7 +5,7 @@
 //! the correct layer for the get/put call, walking back the timeline branching
 //! history as needed.
 //!
-//! The files are stored in the .neon/tenants/<tenant_id>/timelines/<timeline_id>
+//! The files are stored in the .serendb/tenants/<tenant_id>/timelines/<timeline_id>
 //! directory. See docs/pageserver-storage.md for how the files are managed.
 //! In addition to the layer files, there is a metadata file in the same
 //! directory that contains information about the timeline, in particular its
@@ -154,7 +154,7 @@ pub use crate::tenant::timeline::WalReceiverInfo;
 /// The "tenants" part of `tenants/<tenant>/timelines...`
 pub const TENANTS_SEGMENT_NAME: &str = "tenants";
 
-/// Parts of the `.neon/tenants/<tenant_id>/timelines/<timeline_id>` directory prefix.
+/// Parts of the `.serendb/tenants/<tenant_id>/timelines/<timeline_id>` directory prefix.
 pub const TIMELINES_SEGMENT_NAME: &str = "timelines";
 
 /// References to shared objects that are passed into each tenant, such
@@ -502,7 +502,7 @@ impl WalRedoManager {
         key: pageserver_api::key::Key,
         lsn: Lsn,
         base_img: Option<(Lsn, bytes::Bytes)>,
-        records: Vec<(Lsn, wal_decoder::models::record::NeonWalRecord)>,
+        records: Vec<(Lsn, wal_decoder::models::record::SerenDBWalRecord)>,
         pg_version: PgMajorVersion,
         redo_attempt_type: RedoAttemptType,
     ) -> Result<bytes::Bytes, walredo::Error> {
@@ -2458,7 +2458,7 @@ impl TenantShard {
         self.tenant_shard_id
     }
 
-    /// Get Timeline handle for given Neon timeline ID.
+    /// Get Timeline handle for given SerenDB timeline ID.
     /// This function is idempotent. It doesn't change internal state in any way.
     pub fn get_timeline(
         &self,
@@ -5907,12 +5907,12 @@ pub(crate) mod harness {
     use pageserver_api::shard::ShardIndex;
     use utils::id::TenantId;
     use utils::logging;
-    use wal_decoder::models::record::NeonWalRecord;
+    use wal_decoder::models::record::SerenDBWalRecord;
 
     use super::*;
     use crate::deletion_queue::mock::MockDeletionQueue;
     use crate::l0_flush::L0FlushConfig;
-    use crate::walredo::apply_neon;
+    use crate::walredo::apply_serendb;
 
     pub const TIMELINE_ID: TimelineId =
         TimelineId::from_array(hex!("11223344556677881122334455667788"));
@@ -6112,13 +6112,13 @@ pub(crate) mod harness {
             key: Key,
             lsn: Lsn,
             base_img: Option<(Lsn, Bytes)>,
-            records: Vec<(Lsn, NeonWalRecord)>,
+            records: Vec<(Lsn, SerenDBWalRecord)>,
             _pg_version: PgMajorVersion,
             _redo_attempt_type: RedoAttemptType,
         ) -> Result<Bytes, walredo::Error> {
-            let records_neon = records.iter().all(|r| apply_neon::can_apply_in_neon(&r.1));
-            if records_neon {
-                // For Neon wal records, we can decode without spawning postgres, so do so.
+            let records_serendb = records.iter().all(|r| apply_serendb::can_apply_in_serendb(&r.1));
+            if records_serendb {
+                // For SerenDB wal records, we can decode without spawning postgres, so do so.
                 let mut page = match (base_img, records.first()) {
                     (Some((_lsn, img)), _) => {
                         let mut page = BytesMut::new();
@@ -6127,12 +6127,12 @@ pub(crate) mod harness {
                     }
                     (_, Some((_lsn, rec))) if rec.will_init() => BytesMut::new(),
                     _ => {
-                        panic!("Neon WAL redo requires base image or will init record");
+                        panic!("SerenDB WAL redo requires base image or will init record");
                     }
                 };
 
                 for (record_lsn, record) in records {
-                    apply_neon::apply_in_neon(&record, record_lsn, key, &mut page)?;
+                    apply_serendb::apply_in_serendb(&record, record_lsn, key, &mut page)?;
                 }
                 Ok(page.freeze())
             } else {
@@ -6193,7 +6193,7 @@ mod tests {
     use utils::id::TenantId;
     use utils::shard::{ShardCount, ShardNumber};
     #[cfg(feature = "testing")]
-    use wal_decoder::models::record::NeonWalRecord;
+    use wal_decoder::models::record::SerenDBWalRecord;
     use wal_decoder::models::value::Value;
 
     use super::*;
@@ -6239,7 +6239,7 @@ mod tests {
                     acc.push(value.clone());
 
                     match value {
-                        Value::WalRecord(NeonWalRecord::Test { will_init, .. }) => {
+                        Value::WalRecord(SerenDBWalRecord::Test { will_init, .. }) => {
                             if *will_init {
                                 got_base = true;
                                 break;
@@ -6266,7 +6266,7 @@ mod tests {
             let mut blob = BytesMut::new();
             for value in acc.into_iter().rev() {
                 match value {
-                    Value::WalRecord(NeonWalRecord::Test { append, .. }) => {
+                    Value::WalRecord(SerenDBWalRecord::Test { append, .. }) => {
                         blob.extend_from_slice(append.as_bytes());
                     }
                     Value::Image(img) => {
@@ -6306,9 +6306,9 @@ mod tests {
                     }
 
                     let record = if will_init {
-                        Value::WalRecord(NeonWalRecord::wal_init(format!("[wil_init {key}@{lsn}]")))
+                        Value::WalRecord(SerenDBWalRecord::wal_init(format!("[wil_init {key}@{lsn}]")))
                     } else {
-                        Value::WalRecord(NeonWalRecord::wal_append(format!("[delta {key}@{lsn}]")))
+                        Value::WalRecord(SerenDBWalRecord::wal_append(format!("[delta {key}@{lsn}]")))
                     };
 
                     storage.insert((key, lsn), record);
@@ -6350,9 +6350,9 @@ mod tests {
                     }
 
                     let record = if will_init {
-                        Value::WalRecord(NeonWalRecord::wal_init(format!("[wil_init {key}@{lsn}]")))
+                        Value::WalRecord(SerenDBWalRecord::wal_init(format!("[wil_init {key}@{lsn}]")))
                     } else {
-                        Value::WalRecord(NeonWalRecord::wal_append(format!("[delta {key}@{lsn}]")))
+                        Value::WalRecord(SerenDBWalRecord::wal_append(format!("[delta {key}@{lsn}]")))
                     };
 
                     storage.insert((key, lsn), record);
@@ -9328,8 +9328,8 @@ mod tests {
 
     #[cfg(feature = "testing")]
     #[tokio::test]
-    async fn test_neon_test_record() -> anyhow::Result<()> {
-        let harness = TenantHarness::create("test_neon_test_record").await?;
+    async fn test_serendb_test_record() -> anyhow::Result<()> {
+        let harness = TenantHarness::create("test_serendb_test_record").await?;
         let (tenant, ctx) = harness.load().await;
 
         fn get_key(id: u32) -> Key {
@@ -9343,50 +9343,50 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(",0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(",0x20")),
             ),
             (
                 get_key(1),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append(",0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(",0x30")),
             ),
             (get_key(2), Lsn(0x10), Value::Image("0x10".into())),
             (
                 get_key(2),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(",0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(",0x20")),
             ),
             (
                 get_key(2),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append(",0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(",0x30")),
             ),
             (get_key(3), Lsn(0x10), Value::Image("0x10".into())),
             (
                 get_key(3),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_clear("c")),
+                Value::WalRecord(SerenDBWalRecord::wal_clear("c")),
             ),
             (get_key(4), Lsn(0x10), Value::Image("0x10".into())),
             (
                 get_key(4),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_init("i")),
+                Value::WalRecord(SerenDBWalRecord::wal_init("i")),
             ),
             (
                 get_key(4),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append_conditional("j", "i")),
+                Value::WalRecord(SerenDBWalRecord::wal_append_conditional("j", "i")),
             ),
             (
                 get_key(5),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_init("1")),
+                Value::WalRecord(SerenDBWalRecord::wal_init("1")),
             ),
             (
                 get_key(5),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append_conditional("j", "2")),
+                Value::WalRecord(SerenDBWalRecord::wal_append_conditional("j", "2")),
             ),
         ];
         let image1 = vec![(get_key(1), "0x10".into())];
@@ -9416,7 +9416,7 @@ mod tests {
             Bytes::from_static(b"0x10,0x20,0x30")
         );
 
-        // Need to remove the limit of "Neon WAL redo requires base image".
+        // Need to remove the limit of "SerenDB WAL redo requires base image".
 
         assert_eq!(
             tline.get(get_key(3), Lsn(0x50), &ctx).await?,
@@ -9677,7 +9677,7 @@ mod tests {
                 (
                     get_key(id),
                     Lsn(0x08),
-                    Value::WalRecord(NeonWalRecord::wal_init(format!("value {id}@0x10"))),
+                    Value::WalRecord(SerenDBWalRecord::wal_init(format!("value {id}@0x10"))),
                 )
             })
             .collect_vec();
@@ -9686,51 +9686,51 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(2),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x28),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
             ),
             (
                 get_key(3),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x40")),
             ),
         ];
         let delta2 = vec![
             (
                 get_key(5),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(6),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -9920,37 +9920,37 @@ mod tests {
             (
                 key,
                 Lsn(0x10),
-                Value::WalRecord(NeonWalRecord::wal_init("0x10")),
+                Value::WalRecord(SerenDBWalRecord::wal_init("0x10")),
             ),
             (
                 key,
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x20")),
             ),
             (
                 key,
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x30")),
             ),
             (
                 key,
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x40")),
             ),
             (
                 key,
                 Lsn(0x50),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x50")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x50")),
             ),
             (
                 key,
                 Lsn(0x60),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x60")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x60")),
             ),
             (
                 key,
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             ),
             (
                 key,
@@ -9962,7 +9962,7 @@ mod tests {
             (
                 key,
                 Lsn(0x90),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x90")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x90")),
             ),
         ];
         let res = tline
@@ -9991,11 +9991,11 @@ mod tests {
                     KeyLogAtLsn(vec![
                         (
                             Lsn(0x30),
-                            Value::WalRecord(NeonWalRecord::wal_append(";0x30")),
+                            Value::WalRecord(SerenDBWalRecord::wal_append(";0x30")),
                         ),
                         (
                             Lsn(0x40),
-                            Value::WalRecord(NeonWalRecord::wal_append(";0x40")),
+                            Value::WalRecord(SerenDBWalRecord::wal_append(";0x40")),
                         ),
                     ]),
                 ),
@@ -10010,14 +10010,14 @@ mod tests {
                     Lsn(0x60),
                     KeyLogAtLsn(vec![(
                         Lsn(0x60),
-                        Value::WalRecord(NeonWalRecord::wal_append(";0x60")),
+                        Value::WalRecord(SerenDBWalRecord::wal_append(";0x60")),
                     )]),
                 ),
             ],
             above_horizon: KeyLogAtLsn(vec![
                 (
                     Lsn(0x70),
-                    Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
                 ),
                 (
                     Lsn(0x80),
@@ -10027,7 +10027,7 @@ mod tests {
                 ),
                 (
                     Lsn(0x90),
-                    Value::WalRecord(NeonWalRecord::wal_append(";0x90")),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(";0x90")),
                 ),
             ]),
         };
@@ -10057,12 +10057,12 @@ mod tests {
             (
                 key,
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x20")),
             ),
             (
                 key,
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x30")),
             ),
             (
                 key,
@@ -10072,17 +10072,17 @@ mod tests {
             (
                 key,
                 Lsn(0x50),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x50")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x50")),
             ),
             (
                 key,
                 Lsn(0x60),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x60")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x60")),
             ),
             (
                 key,
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             ),
             (
                 key,
@@ -10094,7 +10094,7 @@ mod tests {
             (
                 key,
                 Lsn(0x90),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x90")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x90")),
             ),
         ];
         let res = tline
@@ -10122,21 +10122,21 @@ mod tests {
                     Lsn(0x50),
                     KeyLogAtLsn(vec![(
                         Lsn(0x50),
-                        Value::WalRecord(NeonWalRecord::wal_append(";0x50")),
+                        Value::WalRecord(SerenDBWalRecord::wal_append(";0x50")),
                     )]),
                 ),
                 (
                     Lsn(0x60),
                     KeyLogAtLsn(vec![(
                         Lsn(0x60),
-                        Value::WalRecord(NeonWalRecord::wal_append(";0x60")),
+                        Value::WalRecord(SerenDBWalRecord::wal_append(";0x60")),
                     )]),
                 ),
             ],
             above_horizon: KeyLogAtLsn(vec![
                 (
                     Lsn(0x70),
-                    Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
                 ),
                 (
                     Lsn(0x80),
@@ -10146,7 +10146,7 @@ mod tests {
                 ),
                 (
                     Lsn(0x90),
-                    Value::WalRecord(NeonWalRecord::wal_append(";0x90")),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(";0x90")),
                 ),
             ]),
         };
@@ -10159,22 +10159,22 @@ mod tests {
             (
                 key,
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x20")),
             ),
             (
                 key,
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x30")),
             ),
             (
                 key,
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x40")),
             ),
             (
                 key,
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             ),
         ];
         let res = tline
@@ -10199,7 +10199,7 @@ mod tests {
             )],
             above_horizon: KeyLogAtLsn(vec![(
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             )]),
         };
         assert_eq!(res, expected_res);
@@ -10208,22 +10208,22 @@ mod tests {
             (
                 key,
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x20")),
             ),
             (
                 key,
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x40")),
             ),
             (
                 key,
                 Lsn(0x60),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x60")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x60")),
             ),
             (
                 key,
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             ),
         ];
         let res = tline
@@ -10244,7 +10244,7 @@ mod tests {
                     Lsn(0x30),
                     KeyLogAtLsn(vec![(
                         Lsn(0x20),
-                        Value::WalRecord(NeonWalRecord::wal_append(";0x20")),
+                        Value::WalRecord(SerenDBWalRecord::wal_append(";0x20")),
                     )]),
                 ),
                 (
@@ -10257,7 +10257,7 @@ mod tests {
             ],
             above_horizon: KeyLogAtLsn(vec![(
                 Lsn(0x70),
-                Value::WalRecord(NeonWalRecord::wal_append(";0x70")),
+                Value::WalRecord(SerenDBWalRecord::wal_append(";0x70")),
             )]),
         };
         assert_eq!(res, expected_res);
@@ -10287,51 +10287,51 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(2),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x28),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
             ),
             (
                 get_key(3),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x40")),
             ),
         ];
         let delta2 = vec![
             (
                 get_key(5),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(6),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -10566,36 +10566,36 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(1),
                 Lsn(0x28),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
             ),
         ];
         let delta2 = vec![
             (
                 get_key(1),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(1),
                 Lsn(0x38),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x38")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x38")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -10795,51 +10795,51 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(2),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x28),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
             ),
             (
                 get_key(3),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(3),
                 Lsn(0x40),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x40")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x40")),
             ),
         ];
         let delta2 = vec![
             (
                 get_key(5),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(6),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -11068,7 +11068,7 @@ mod tests {
 
             let will_init = will_init_keys.contains(&i);
             if will_init {
-                delta_layer_spec.push((key, lsn, Value::WalRecord(NeonWalRecord::wal_init(""))));
+                delta_layer_spec.push((key, lsn, Value::WalRecord(SerenDBWalRecord::wal_init(""))));
 
                 expected_key_values.insert(key, "".to_string());
             } else {
@@ -11076,7 +11076,7 @@ mod tests {
                 delta_layer_spec.push((
                     key,
                     lsn,
-                    Value::WalRecord(NeonWalRecord::wal_append(&delta)),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(&delta)),
                 ));
 
                 expected_key_values
@@ -11189,7 +11189,7 @@ mod tests {
 
                 let will_init = will_init_keys.contains(&i);
                 if will_init {
-                    data.push((key, lsn, Value::WalRecord(NeonWalRecord::wal_init(""))));
+                    data.push((key, lsn, Value::WalRecord(SerenDBWalRecord::wal_init(""))));
 
                     expected_key_values.insert(key, "".to_string());
                 } else {
@@ -11197,7 +11197,7 @@ mod tests {
                     data.push((
                         key,
                         lsn,
-                        Value::WalRecord(NeonWalRecord::wal_append(&delta)),
+                        Value::WalRecord(SerenDBWalRecord::wal_append(&delta)),
                     ));
 
                     expected_key_values
@@ -11225,7 +11225,7 @@ mod tests {
                 data.push((
                     key,
                     lsn,
-                    Value::WalRecord(NeonWalRecord::wal_append(&delta)),
+                    Value::WalRecord(SerenDBWalRecord::wal_append(&delta)),
                 ));
 
                 expected_key_values
@@ -11292,7 +11292,7 @@ mod tests {
     // random scattered queries validating the results against in-memory storage.
     //
     // See this internal Notion page for a diagram of the layer map:
-    // https://www.notion.so/neondatabase/Read-Path-Unit-Testing-Fuzzing-1d1f189e0047806c8e5cd37781b0a350?pvs=4
+    // https://www.notion.so/serendb/Read-Path-Unit-Testing-Fuzzing-1d1f189e0047806c8e5cd37781b0a350?pvs=4
     //
     // A fuzzing mode is also supported. In this mode, the test will use a random
     // seed instead of a hardcoded one. Use it in conjunction with `cargo stress`
@@ -11958,35 +11958,35 @@ mod tests {
         let delta1 = vec![(
             get_key(1),
             Lsn(0x20),
-            Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
         )];
         let delta4 = vec![(
             get_key(1),
             Lsn(0x28),
-            Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
         )];
         let delta2 = vec![
             (
                 get_key(1),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(1),
                 Lsn(0x38),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x38")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x38")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -12214,35 +12214,35 @@ mod tests {
         let delta1 = vec![(
             get_key(1),
             Lsn(0x20),
-            Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
         )];
         let delta4 = vec![(
             get_key(1),
             Lsn(0x28),
-            Value::WalRecord(NeonWalRecord::wal_append("@0x28")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("@0x28")),
         )];
         let delta2 = vec![
             (
                 get_key(1),
                 Lsn(0x30),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x30")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x30")),
             ),
             (
                 get_key(1),
                 Lsn(0x38),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x38")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x38")),
             ),
         ];
         let delta3 = vec![
             (
                 get_key(8),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
             (
                 get_key(9),
                 Lsn(0x48),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x48")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x48")),
             ),
         ];
 
@@ -12567,18 +12567,18 @@ mod tests {
             (
                 get_key(1),
                 Lsn(0x20),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x20")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x20")),
             ),
             (
                 get_key(1),
                 Lsn(0x24),
-                Value::WalRecord(NeonWalRecord::wal_append("@0x24")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("@0x24")),
             ),
             (
                 get_key(1),
                 Lsn(0x28),
                 // This record will fail to redo
-                Value::WalRecord(NeonWalRecord::wal_append_conditional("@0x28", "???")),
+                Value::WalRecord(SerenDBWalRecord::wal_append_conditional("@0x28", "???")),
             ),
         ];
 

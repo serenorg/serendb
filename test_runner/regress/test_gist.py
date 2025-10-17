@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnv
+    from fixtures.serendb_fixtures import SerenDBEnv
 
 
 #
 # Test unlogged build for GIST index
 #
-def test_gist(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_gist(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint = env.endpoints.create_start("main")
     con = endpoint.connect()
     cur = con.cursor()

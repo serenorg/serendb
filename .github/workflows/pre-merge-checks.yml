@@ -117,7 +117,7 @@ jobs:
   # To get items from the merge queue merged into main we need to satisfy "Status checks that are required".
   # Currently we require 2 jobs (checks with exact name):
   # - conclusion
-  # - neon-cloud-e2e
+  # - serendb-cloud-e2e
   conclusion:
     # Do not run job on Pull Requests as it interferes with the `conclusion` job from the `build_and_test` workflow
     if: always() && github.event_name == 'merge_group'
@@ -135,7 +135,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Create fake `neon-cloud-e2e` check
+      - name: Create fake `serendb-cloud-e2e` check
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           # Retry script for 5XX server errors: https://github.com/actions/github-script#retries
@@ -148,7 +148,7 @@ jobs:
               owner: owner,
               repo: repo,
               sha: context.sha,
-              context: `neon-cloud-e2e`,
+              context: `serendb-cloud-e2e`,
               state: `success`,
               target_url: targetUrl,
               description: `fake check for merge queue`,

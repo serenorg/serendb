@@ -4,7 +4,7 @@ import threading
 import time
 
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnv, logical_replication_sync
+from fixtures.serendb_fixtures import SerenDBEnv, logical_replication_sync
 from fixtures.utils import query_scalar, wait_until
 
 
@@ -13,8 +13,8 @@ from fixtures.utils import query_scalar, wait_until
 # Endpoint on a new branch will drop all existing subscriptions at the start,
 # so it will not receive any changes.
 # If needed, user can create new subscriptions on the child branch.
-def test_subscriber_branching(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_subscriber_branching(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     env.create_branch("publisher")
     pub = env.endpoints.create("publisher")
     pub.respec(
@@ -46,7 +46,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         assert res[0][0] == n_records
 
     def insert_data(pub, start):
-        with pub.cursor(dbname="neondb", user="test", password="pubtestpwd") as pcur:
+        with pub.cursor(dbname="serendb", user="test", password="pubtestpwd") as pcur:
             for i in range(start, start + n_records):
                 pcur.execute("INSERT into t values (%s,random()*100000)", (i,))
 
@@ -60,14 +60,14 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         # If we don't do this, creating the subscription will fail
         pub.edit_hba(["host all test 0.0.0.0/0 md5"])
 
-    with pub.cursor(dbname="neondb", user="test", password="pubtestpwd") as pcur:
+    with pub.cursor(dbname="serendb", user="test", password="pubtestpwd") as pcur:
         pcur.execute("CREATE TABLE t (pk integer primary key, sk integer)")
         pcur.execute("CREATE PUBLICATION pub FOR TABLE t")
 
-        with sub.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             scur.execute("CREATE TABLE t (pk integer primary key, sk integer)")
             pub_conn = (
-                f"host=localhost port={pub.pg_port} dbname=neondb user=test password=pubtestpwd"
+                f"host=localhost port={pub.pg_port} dbname=serendb user=test password=pubtestpwd"
             )
             query = f"CREATE SUBSCRIPTION sub CONNECTION '{pub_conn}' PUBLICATION pub"
             scur.execute(query)
@@ -75,7 +75,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
 
         insert_data(pub, 0)
 
-        with sub.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             wait_until(check_that_changes_propagated)
             latest_end_lsn = query_scalar(
                 scur, "select latest_end_lsn from pg_catalog.pg_stat_subscription; "
@@ -106,7 +106,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         sub_child_1.start(create_test_user=True)
 
         # ensure that subscriber_child_1 sees all the data
-        with sub_child_1.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_1.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             scur.execute("SELECT count(*) FROM t")
             res = scur.fetchall()
             assert res[0][0] == n_records
@@ -117,7 +117,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
 
         # ensure that drop_subscriptions_done happened on this timeline
         with sub_child_1.cursor() as scur_postgres:
-            scur_postgres.execute("SELECT timeline_id from neon.drop_subscriptions_done")
+            scur_postgres.execute("SELECT timeline_id from serendb.drop_subscriptions_done")
             res = scur_postgres.fetchall()
             assert len(res) == 1
             assert str(sub_child_1_timeline_id) == res[0][0]
@@ -132,7 +132,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         assert res[0][0] == n_records
 
         # ensure that subscriber_child_1 doesn't see the new data
-        with sub_child_1.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_1.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             scur.execute("SELECT count(*) FROM t")
             res = scur.fetchall()
             assert res[0][0] == old_n_records
@@ -140,7 +140,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         # reenable logical replication on subscriber_child_1
         # using new publication
         # ensure that new publication works as expected
-        with sub_child_1.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_1.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             scur.execute("TRUNCATE t")
 
             # create new subscription
@@ -166,14 +166,14 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         )
         sub_child_1.start(create_test_user=True)
 
-        with sub_child_1.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_1.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             # ensure that even though the flag is set, we didn't drop new subscription
             scur.execute("SELECT 1 FROM pg_catalog.pg_subscription WHERE subname = 'sub_new'")
             assert len(scur.fetchall()) == 1
 
         # ensure that drop_subscriptions_done happened on this timeline
         with sub_child_1.cursor() as scur_postgres:
-            scur_postgres.execute("SELECT timeline_id from neon.drop_subscriptions_done")
+            scur_postgres.execute("SELECT timeline_id from serendb.drop_subscriptions_done")
             res = scur_postgres.fetchall()
             assert len(res) == 1
             assert str(sub_child_1_timeline_id) == res[0][0]
@@ -189,7 +189,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         # insert more data on publisher
         insert_data(pub, n_records)
         n_records += n_records
-        with sub_child_1.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_1.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             # ensure that there is a subscriptions in this database
             scur.execute("SELECT 1 FROM pg_catalog.pg_subscription WHERE subname = 'sub_new'")
             assert len(scur.fetchall()) == 1
@@ -201,14 +201,14 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
 
         # ensure that drop_subscriptions_done happened on this timeline
         with sub_child_1.cursor() as scur_postgres:
-            scur_postgres.execute("SELECT timeline_id from neon.drop_subscriptions_done")
+            scur_postgres.execute("SELECT timeline_id from serendb.drop_subscriptions_done")
             res = scur_postgres.fetchall()
             assert len(res) == 1
             assert str(sub_child_1_timeline_id) == res[0][0]
 
         # wake the sub and ensure that it catches up with the new data
         sub.start(create_test_user=True)
-        with sub.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             wait_until(check_that_changes_propagated)
             scur.execute("SELECT count(*) FROM t")
             res = scur.fetchall()
@@ -228,7 +228,7 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
         sub_child_2.start(create_test_user=True)
 
         # ensure that subscriber_child_2 does not inherit subscription from child_1
-        with sub_child_2.cursor(dbname="neondb", user="test", password="testpwd") as scur:
+        with sub_child_2.cursor(dbname="serendb", user="test", password="testpwd") as scur:
             # ensure that there are no subscriptions in this database
             scur.execute("SELECT count(*) FROM pg_catalog.pg_subscription")
             res = scur.fetchall()
@@ -236,21 +236,21 @@ def test_subscriber_branching(neon_simple_env: NeonEnv):
 
         # ensure that drop_subscriptions_done happened on this timeline
         with sub_child_2.cursor() as scur_postgres:
-            scur_postgres.execute("SELECT timeline_id from neon.drop_subscriptions_done")
+            scur_postgres.execute("SELECT timeline_id from serendb.drop_subscriptions_done")
             res = scur_postgres.fetchall()
             assert len(res) == 1
             assert str(sub_child_2_timeline_id) == res[0][0]
 
 
-def test_multiple_subscription_branching(neon_simple_env: NeonEnv):
+def test_multiple_subscription_branching(serendb_simple_env: SerenDBEnv):
     """
     Test that compute_ctl can handle concurrent deletion of subscriptions in a multiple databases
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     NUMBER_OF_DBS = 5
 
-    # Create and start endpoint so that neon_local put all the generated
+    # Create and start endpoint so that serendb_local put all the generated
     # stuff into the config.json file.
     endpoint = env.endpoints.create_start(
         "main",
@@ -263,7 +263,7 @@ def test_multiple_subscription_branching(neon_simple_env: NeonEnv):
 
     TEST_DB_NAMES = [
         {
-            "name": "neondb",
+            "name": "serendb",
             "owner": "cloud_admin",
         },
         {
@@ -369,7 +369,7 @@ def test_multiple_subscription_branching(neon_simple_env: NeonEnv):
 
     # ensure that subscription deletion happened on this timeline
     with sub_child_1.cursor() as scur_postgres:
-        scur_postgres.execute("SELECT timeline_id from neon.drop_subscriptions_done")
+        scur_postgres.execute("SELECT timeline_id from serendb.drop_subscriptions_done")
         res = scur_postgres.fetchall()
         log.info(f"res = {res}")
         assert len(res) == 1

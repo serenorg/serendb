@@ -30,9 +30,9 @@ fn main() -> anyhow::Result<()> {
         .to_str()
         .ok_or(anyhow!("Bad non-UTF path"))?;
 
-    let pgxn_neon = root_path.join("pgxn/neon");
-    let pgxn_neon = std::fs::canonicalize(pgxn_neon)?;
-    let pgxn_neon = pgxn_neon.to_str().ok_or(anyhow!("Bad non-UTF path"))?;
+    let pgxn_serendb = root_path.join("pgxn/serendb");
+    let pgxn_serendb = std::fs::canonicalize(pgxn_serendb)?;
+    let pgxn_serendb = pgxn_serendb.to_str().ok_or(anyhow!("Bad non-UTF path"))?;
 
     println!("cargo:rustc-link-lib=static=walproposer");
     println!("cargo:rustc-link-lib=static=pgport");
@@ -121,7 +121,7 @@ fn main() -> anyhow::Result<()> {
         .allowlist_var("WL_SOCKET_CLOSED")
         .allowlist_var("WL_SOCKET_MASK")
         .clang_arg("-DWALPROPOSER_LIB")
-        .clang_arg(format!("-I{pgxn_neon}"))
+        .clang_arg(format!("-I{pgxn_serendb}"))
         .clang_arg(format!("-I{inc_server_path}"));
 
     for name in unwind_abi_functions {

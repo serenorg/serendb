@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from fixtures.common_types import TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
     PgBin,
     fork_at_current_lsn,
     import_timeline_from_vanilla_postgres,
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 #
 # Test branching, when a transaction is in prepared state
 #
-def twophase_test_on_timeline(env: NeonEnv):
+def twophase_test_on_timeline(env: SerenDBEnv):
     endpoint = env.endpoints.create_start(
         "test_twophase", config_lines=["max_prepared_transactions=5"]
     )
@@ -96,18 +96,18 @@ def twophase_test_on_timeline(env: NeonEnv):
     assert cur.fetchall() == [("three",)]
 
 
-def test_twophase(neon_simple_env: NeonEnv):
+def test_twophase(serendb_simple_env: SerenDBEnv):
     """
     Test branching, when a transaction is in prepared state
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     env.create_branch("test_twophase")
 
     twophase_test_on_timeline(env)
 
 
 def test_twophase_nonzero_epoch(
-    neon_simple_env: NeonEnv,
+    serendb_simple_env: SerenDBEnv,
     test_output_dir: Path,
     pg_bin: PgBin,
     vanilla_pg,
@@ -117,7 +117,7 @@ def test_twophase_nonzero_epoch(
     have been consumed. (This is to ensure that we correctly use the full 64-bit XIDs in
     pg_twophase filenames with PostgreSQL v17.)
     """
-    env = neon_simple_env
+    env = serendb_simple_env
 
     # Reset the vanilla Postgres instance with a higher XID epoch
     pg_resetwal_path = os.path.join(pg_bin.pg_bin_path, "pg_resetwal")
@@ -126,7 +126,7 @@ def test_twophase_nonzero_epoch(
 
     timeline_id = TimelineId.generate()
 
-    # Import the cluster to Neon
+    # Import the cluster to SerenDB
     vanilla_pg.start()
     vanilla_pg.safe_psql("create user cloud_admin with password 'postgres' superuser")
     import_timeline_from_vanilla_postgres(
@@ -143,7 +143,7 @@ def test_twophase_nonzero_epoch(
     twophase_test_on_timeline(env)
 
 
-def test_twophase_at_wal_segment_start(neon_simple_env: NeonEnv):
+def test_twophase_at_wal_segment_start(serendb_simple_env: SerenDBEnv):
     """
     Same as 'test_twophase' test, but the server is started at an LSN at the beginning
     of a WAL segment. We had a bug where we didn't initialize the "long XLOG page header"
@@ -151,7 +151,7 @@ def test_twophase_at_wal_segment_start(neon_simple_env: NeonEnv):
     tried to read the XLOG_XACT_PREPARE record from the WAL, if that record was on the
     very first page of a WAL segment and the server was started up at that first page.
     """
-    env = neon_simple_env
+    env = serendb_simple_env
     timeline_id = env.create_branch("test_twophase", ancestor_branch_name="main")
 
     endpoint = env.endpoints.create_start(

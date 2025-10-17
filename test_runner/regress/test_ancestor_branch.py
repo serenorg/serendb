@@ -7,14 +7,14 @@ from fixtures.log_helper import log
 from fixtures.utils import query_scalar
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Create ancestor branches off the main branch.
 #
-def test_ancestor_branch(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_ancestor_branch(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     pageserver_http = env.pageserver.http_client()
 
     # Override defaults: 4M checkpoint_distance, disable background compaction and gc.
@@ -32,7 +32,7 @@ def test_ancestor_branch(neon_env_builder: NeonEnvBuilder):
 
     endpoint_branch0 = env.endpoints.create_start("main", tenant_id=tenant)
     branch0_cur = endpoint_branch0.connect().cursor()
-    branch0_timeline = TimelineId(query_scalar(branch0_cur, "SHOW neon.timeline_id"))
+    branch0_timeline = TimelineId(query_scalar(branch0_cur, "SHOW serendb.timeline_id"))
     log.info(f"b0 timeline {branch0_timeline}")
 
     # Create table, and insert 100k rows.
@@ -57,7 +57,7 @@ def test_ancestor_branch(neon_env_builder: NeonEnvBuilder):
     endpoint_branch1 = env.endpoints.create_start("branch1", tenant_id=tenant)
 
     branch1_cur = endpoint_branch1.connect().cursor()
-    branch1_timeline = TimelineId(query_scalar(branch1_cur, "SHOW neon.timeline_id"))
+    branch1_timeline = TimelineId(query_scalar(branch1_cur, "SHOW serendb.timeline_id"))
     log.info(f"b1 timeline {branch1_timeline}")
 
     branch1_lsn = query_scalar(branch1_cur, "SELECT pg_current_wal_insert_lsn()")
@@ -81,7 +81,7 @@ def test_ancestor_branch(neon_env_builder: NeonEnvBuilder):
     endpoint_branch2 = env.endpoints.create_start("branch2", tenant_id=tenant)
     branch2_cur = endpoint_branch2.connect().cursor()
 
-    branch2_timeline = TimelineId(query_scalar(branch2_cur, "SHOW neon.timeline_id"))
+    branch2_timeline = TimelineId(query_scalar(branch2_cur, "SHOW serendb.timeline_id"))
     log.info(f"b2 timeline {branch2_timeline}")
 
     branch2_lsn = query_scalar(branch2_cur, "SELECT pg_current_wal_insert_lsn()")

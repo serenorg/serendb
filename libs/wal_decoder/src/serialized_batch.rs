@@ -19,7 +19,7 @@ use utils::bin_ser::BeSer;
 use utils::lsn::Lsn;
 
 use crate::models::InterpretedWalRecord;
-use crate::models::record::NeonWalRecord;
+use crate::models::record::SerenDBWalRecord;
 use crate::models::value::Value;
 
 static ZERO_PAGE: Bytes = Bytes::from_static(&[0u8; BLCKSZ as usize]);
@@ -224,7 +224,7 @@ impl SerializedValueBatch {
 
                     Value::Image(image.freeze())
                 } else {
-                    Value::WalRecord(NeonWalRecord::Postgres {
+                    Value::WalRecord(SerenDBWalRecord::Postgres {
                         will_init: blk.will_init || blk.apply_image,
                         rec: decoded.record.clone(),
                     })
@@ -292,8 +292,8 @@ impl SerializedValueBatch {
                 estimate += (4 + 8 + BLCKSZ) as usize;
             } else {
                 // 4 bytes for the Value::WalRecord discriminator
-                // 4 bytes for the NeonWalRecord::Postgres discriminator
-                // 1 bytes for NeonWalRecord::Postgres::will_init
+                // 4 bytes for the SerenDBWalRecord::Postgres discriminator
+                // 1 bytes for SerenDBWalRecord::Postgres::will_init
                 // 8 bytes for encoding the size of the buffer
                 // length of the raw record
                 estimate += 8 + 1 + 8 + decoded.record.len();
@@ -655,22 +655,22 @@ mod tests {
             (
                 key.to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo")),
             ),
             (
                 key.next().to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("bar")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar")),
             ),
             (
                 key.to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("baz")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("baz")),
             ),
             (
                 key.next().next().to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("taz")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("taz")),
             ),
         ];
 
@@ -694,12 +694,12 @@ mod tests {
             (
                 key.to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo")),
             ),
             (
                 key.next().to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("bar")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar")),
             ),
         ];
 
@@ -714,7 +714,7 @@ mod tests {
         let value = (
             key.to_compact(),
             Lsn(LSN.0 + 0x10),
-            Value::WalRecord(NeonWalRecord::wal_append("baz")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("baz")),
         );
         let serialized_size = value.2.serialized_size().unwrap() as usize;
         let value = (value.0, value.1, serialized_size, value.2);
@@ -726,7 +726,7 @@ mod tests {
         let value = (
             key.next().next().to_compact(),
             LSN,
-            Value::WalRecord(NeonWalRecord::wal_append("taz")),
+            Value::WalRecord(SerenDBWalRecord::wal_append("taz")),
         );
         let serialized_size = value.2.serialized_size().unwrap() as usize;
         let value = (value.0, value.1, serialized_size, value.2);
@@ -745,17 +745,17 @@ mod tests {
             (
                 key.to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo")),
             ),
             (
                 key.next().to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("bar")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar")),
             ),
             (
                 key.next().next().to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("taz")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("taz")),
             ),
         ];
 
@@ -769,17 +769,17 @@ mod tests {
             (
                 key.to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("foo")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo")),
             ),
             (
                 key.next().to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("bar")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar")),
             ),
             (
                 key.next().next().to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("taz")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("taz")),
             ),
         ];
 
@@ -810,47 +810,47 @@ mod tests {
             (
                 rel_foo_base_key.to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo1")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo1")),
             ),
             (
                 rel_foo_base_key.add(1).to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo2")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo2")),
             ),
             (
                 rel_foo_base_key.add(5).to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("foo3")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo3")),
             ),
             (
                 rel_foo_base_key.add(1).to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("foo4")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo4")),
             ),
             (
                 rel_foo_base_key.add(10).to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("foo5")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo5")),
             ),
             (
                 rel_foo_base_key.add(11).to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("foo6")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo6")),
             ),
             (
                 rel_foo_base_key.add(12).to_compact(),
                 Lsn(LSN.0 + 0x10),
-                Value::WalRecord(NeonWalRecord::wal_append("foo7")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("foo7")),
             ),
             (
                 rel_bar_base_key.to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("bar1")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar1")),
             ),
             (
                 rel_bar_base_key.add(4).to_compact(),
                 LSN,
-                Value::WalRecord(NeonWalRecord::wal_append("bar2")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("bar2")),
             ),
         ];
 

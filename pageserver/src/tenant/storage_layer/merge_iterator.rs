@@ -404,7 +404,7 @@ mod tests {
     use pageserver_api::key::Key;
     use utils::lsn::Lsn;
     #[cfg(feature = "testing")]
-    use wal_decoder::models::record::NeonWalRecord;
+    use wal_decoder::models::record::SerenDBWalRecord;
 
     use super::*;
     use crate::DEFAULT_PG_VERSION;
@@ -604,22 +604,22 @@ mod tests {
             (
                 get_key(0),
                 Lsn(0x10),
-                Value::WalRecord(NeonWalRecord::wal_init("")),
+                Value::WalRecord(SerenDBWalRecord::wal_init("")),
             ),
             (
                 get_key(0),
                 Lsn(0x18),
-                Value::WalRecord(NeonWalRecord::wal_append("a")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("a")),
             ),
             (
                 get_key(5),
                 Lsn(0x10),
-                Value::WalRecord(NeonWalRecord::wal_init("")),
+                Value::WalRecord(SerenDBWalRecord::wal_init("")),
             ),
             (
                 get_key(5),
                 Lsn(0x18),
-                Value::WalRecord(NeonWalRecord::wal_append("b")),
+                Value::WalRecord(SerenDBWalRecord::wal_append("b")),
             ),
         ];
         let resident_layer_1 = produce_delta_layer(&tenant, &tline, test_deltas1.clone(), &ctx)

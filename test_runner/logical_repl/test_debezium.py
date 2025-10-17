@@ -1,5 +1,5 @@
 """
-Test the logical replication in Neon with Debezium as a consumer
+Test the logical replication in SerenDB with Debezium as a consumer
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from fixtures.log_helper import log
 from fixtures.utils import wait_until
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import RemotePostgres
+    from fixtures.serendb_fixtures import RemotePostgres
     from kafka import KafkaConsumer
 
 

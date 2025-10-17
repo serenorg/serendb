@@ -19,8 +19,8 @@ from fixtures.fast_import import (
     validate_import_from_vanilla_pg,
 )
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     PageserverImportConfig,
     PgBin,
     PgProtocol,
@@ -69,7 +69,7 @@ smoke_params = [
 @pytest.mark.parametrize("shard_count,stripe_size,rel_block_size", smoke_params)
 def test_pgdata_import_smoke(
     vanilla_pg: VanillaPostgres,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     shard_count: int | None,
     stripe_size: int,
     rel_block_size: RelBlockSize,
@@ -90,17 +90,17 @@ def test_pgdata_import_smoke(
         "/storage/api/v1/import_complete", method="PUT"
     ).respond_with_handler(handler)
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
-    if neon_env_builder.storage_controller_config is None:
-        neon_env_builder.storage_controller_config = {}
-    neon_env_builder.storage_controller_config["timelines_onto_safekeepers"] = True
+    if serendb_env_builder.storage_controller_config is None:
+        serendb_env_builder.storage_controller_config = {}
+    serendb_env_builder.storage_controller_config["timelines_onto_safekeepers"] = True
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # The test needs LocalFs support, which is only built in testing mode.
     env.pageserver.is_testing_enabled_or_skip()
@@ -139,7 +139,7 @@ def test_pgdata_import_smoke(
     # TODO: actually exercise fast_import here
     # TODO: test s3 remote storage
     #
-    importbucket_path = neon_env_builder.repo_dir / "importbucket"
+    importbucket_path = serendb_env_builder.repo_dir / "importbucket"
     mock_import_bucket(vanilla_pg, importbucket_path)
 
     #
@@ -157,7 +157,7 @@ def test_pgdata_import_smoke(
 
     idempotency = ImportPgdataIdemptencyKey.random()
     log.info(f"idempotency key {idempotency}")
-    # TODO: teach neon_local CLI about the idempotency & 429 error so we can run inside the loop
+    # TODO: teach serendb_local CLI about the idempotency & 429 error so we can run inside the loop
     # and check for 429
 
     import_branch_name = "imported"
@@ -171,7 +171,7 @@ def test_pgdata_import_smoke(
             },
         },
     )
-    env.neon_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
+    env.serendb_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
 
     def cplane_notified():
         assert import_completion_signaled.is_set()
@@ -301,7 +301,7 @@ def test_pgdata_import_smoke(
 
 @run_only_on_default_postgres(reason="PG version is irrelevant here")
 def test_import_completion_on_restart(
-    neon_env_builder: NeonEnvBuilder, vanilla_pg: VanillaPostgres, make_httpserver: HTTPServer
+    serendb_env_builder: SerenDBEnvBuilder, vanilla_pg: VanillaPostgres, make_httpserver: HTTPServer
 ):
     """
     Validate that the storage controller delivers the import completion notification
@@ -321,20 +321,20 @@ def test_import_completion_on_restart(
     ).respond_with_handler(handler)
 
     # Plug the cplane mock in
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
     # The import will specifiy a local filesystem path mocking remote storage
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     vanilla_pg.start()
     vanilla_pg.stop()
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
-    importbucket_path = neon_env_builder.repo_dir / "test_import_completion_bucket"
+    importbucket_path = serendb_env_builder.repo_dir / "test_import_completion_bucket"
     mock_import_bucket(vanilla_pg, importbucket_path)
 
     tenant_id = TenantId.generate()
@@ -383,7 +383,7 @@ def test_import_completion_on_restart(
 @run_only_on_default_postgres(reason="PG version is irrelevant here")
 @pytest.mark.parametrize("action", ["restart", "delete"])
 def test_import_respects_timeline_lifecycle(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     vanilla_pg: VanillaPostgres,
     make_httpserver: HTTPServer,
     action: str,
@@ -407,20 +407,20 @@ def test_import_respects_timeline_lifecycle(
     ).respond_with_handler(handler)
 
     # Plug the cplane mock in
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
     # The import will specifiy a local filesystem path mocking remote storage
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     vanilla_pg.start()
     vanilla_pg.stop()
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
-    importbucket_path = neon_env_builder.repo_dir / "test_import_completion_bucket"
+    importbucket_path = serendb_env_builder.repo_dir / "test_import_completion_bucket"
     mock_import_bucket(vanilla_pg, importbucket_path)
 
     tenant_id = TenantId.generate()
@@ -496,7 +496,7 @@ def test_import_respects_timeline_lifecycle(
 
 @skip_in_debug_build("Validation query takes too long in debug builds")
 def test_import_chaos(
-    neon_env_builder: NeonEnvBuilder, vanilla_pg: VanillaPostgres, make_httpserver: HTTPServer
+    serendb_env_builder: SerenDBEnvBuilder, vanilla_pg: VanillaPostgres, make_httpserver: HTTPServer
 ):
     """
     Perform a timeline import while injecting chaos in the environment.
@@ -507,8 +507,8 @@ def test_import_chaos(
     ALLOWED_IMPORT_RUNTIME = 90  # seconds
     SHARD_COUNT = 4
 
-    neon_env_builder.num_pageservers = SHARD_COUNT
-    neon_env_builder.pageserver_import_config = PageserverImportConfig(
+    serendb_env_builder.num_pageservers = SHARD_COUNT
+    serendb_env_builder.pageserver_import_config = PageserverImportConfig(
         import_job_concurrency=1,
         import_job_soft_size_limit=64 * 1024,
         import_job_checkpoint_threshold=4,
@@ -538,12 +538,12 @@ def test_import_chaos(
     ).respond_with_handler(handler)
 
     # Plug the cplane mock in
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
     # The import will specifiy a local filesystem path mocking remote storage
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     vanilla_pg.start()
 
@@ -551,7 +551,7 @@ def test_import_chaos(
 
     vanilla_pg.stop()
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # Pause after every import task to extend the test runtime and allow
@@ -593,7 +593,7 @@ def test_import_chaos(
             ]
         )
 
-    importbucket_path = neon_env_builder.repo_dir / "test_import_chaos_bucket"
+    importbucket_path = serendb_env_builder.repo_dir / "test_import_chaos_bucket"
     mock_import_bucket(vanilla_pg, importbucket_path)
 
     tenant_id = TenantId.generate()
@@ -711,7 +711,7 @@ def test_import_chaos(
             chaos_fut.result()
 
     import_branch_name = "imported"
-    env.neon_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
+    env.serendb_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
     endpoint = env.endpoints.create_start(branch_name=import_branch_name, tenant_id=tenant_id)
 
     # Validate the imported data is legit
@@ -736,7 +736,7 @@ def test_fast_import_with_pageserver_ingest(
     mock_s3_server: MockS3Server,
     mock_kms: KMSClient,
     mock_s3_client: S3Client,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     make_httpserver: HTTPServer,
 ):
     # Prepare KMS and S3
@@ -767,12 +767,12 @@ def test_fast_import_with_pageserver_ingest(
         "/storage/api/v1/import_complete", method="PUT"
     ).respond_with_handler(handler)
 
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{cplane_mgmt_api_server.host}:{cplane_mgmt_api_server.port}/storage/api/v1/"
     )
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    env = serendb_env_builder.init_start()
 
     env.pageserver.patch_config_toml_nonrecursive(
         {
@@ -810,7 +810,7 @@ def test_fast_import_with_pageserver_ingest(
 
     idempotency = ImportPgdataIdemptencyKey.random()
     log.info(f"idempotency key {idempotency}")
-    # TODO: teach neon_local CLI about the idempotency & 429 error so we can run inside the loop
+    # TODO: teach serendb_local CLI about the idempotency & 429 error so we can run inside the loop
     # and check for 429
 
     import_branch_name = "imported"
@@ -830,7 +830,7 @@ def test_fast_import_with_pageserver_ingest(
             },
         },
     )
-    env.neon_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
+    env.serendb_cli.mappings_map_branch(import_branch_name, tenant_id, timeline_id)
 
     # Run fast_import
     fast_import.set_aws_creds(
@@ -855,7 +855,7 @@ def test_fast_import_with_pageserver_ingest(
     vanilla_pg.stop()
 
     def validate_vanilla_equivalence(ep):
-        res = ep.safe_psql("SELECT count(*), sum(a) FROM foo;", dbname="neondb")
+        res = ep.safe_psql("SELECT count(*), sum(a) FROM foo;", dbname="serendb")
         assert res[0] == (10, 55), f"got result: {res}"
 
     # Sanity check that data in pgdata is expected:
@@ -866,7 +866,7 @@ def test_fast_import_with_pageserver_ingest(
         new_pgdata_vanilla_pg.start()
 
         # database name and user are hardcoded in fast_import binary, and they are different from normal vanilla postgres
-        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/neondb")
+        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/serendb")
         validate_vanilla_equivalence(conn)
 
     def cplane_notified():
@@ -884,7 +884,7 @@ def test_fast_import_with_pageserver_ingest(
 
     # check that we can do basic ops
 
-    ep.safe_psql("create table othertable(values text)", dbname="neondb")
+    ep.safe_psql("create table othertable(values text)", dbname="serendb")
     rw_lsn = Lsn(ep.safe_psql_scalar("select pg_current_wal_flush_lsn()"))
     ep.stop()
 
@@ -899,7 +899,7 @@ def test_fast_import_with_pageserver_ingest(
         branch_name="br-tip", endpoint_id="br-tip-ro", tenant_id=tenant_id
     )
     validate_vanilla_equivalence(br_tip_endpoint)
-    br_tip_endpoint.safe_psql("select * from othertable", dbname="neondb")
+    br_tip_endpoint.safe_psql("select * from othertable", dbname="serendb")
     br_tip_endpoint.stop()
 
     # ... at the initdb lsn
@@ -923,7 +923,7 @@ def test_fast_import_with_pageserver_ingest(
     )
     validate_vanilla_equivalence(br_initdb_endpoint)
     with pytest.raises(psycopg2.errors.UndefinedTable):
-        br_initdb_endpoint.safe_psql("select * from othertable", dbname="neondb")
+        br_initdb_endpoint.safe_psql("select * from othertable", dbname="serendb")
     br_initdb_endpoint.stop()
 
     env.pageserver.stop(immediate=True)
@@ -949,7 +949,7 @@ def test_fast_import_binary(
         new_pgdata_vanilla_pg.start()
 
         # database name and user are hardcoded in fast_import binary, and they are different from normal vanilla postgres
-        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/neondb")
+        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/serendb")
         res = conn.safe_psql("SELECT count(*) FROM foo;")
         log.info(f"Result: {res}")
         assert res[0][0] == 10
@@ -998,10 +998,10 @@ def test_fast_import_event_triggers(
         new_pgdata_vanilla_pg.start()
 
         # database name and user are hardcoded in fast_import binary, and they are different from normal vanilla postgres
-        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/neondb")
+        conn = PgProtocol(dsn=f"postgresql://cloud_admin@localhost:{pg_port}/serendb")
         res = conn.safe_psql("SELECT count(*) FROM pg_event_trigger;")
         log.info(f"Result: {res}")
-        assert res[0][0] == 0, f"Neon does not support importing event triggers, got: {res[0][0]}"
+        assert res[0][0] == 0, f"SerenDB does not support importing event triggers, got: {res[0][0]}"
 
 
 def test_fast_import_restore_to_connstring(
@@ -1019,7 +1019,7 @@ def test_fast_import_restore_to_connstring(
     pg_bin = PgBin(test_output_dir, pg_distrib_dir, pg_version)
     port = port_distributor.get_port()
     with VanillaPostgres(pgdatadir, pg_bin, port) as destination_vanilla_pg:
-        destination_vanilla_pg.configure(["shared_preload_libraries='neon_rmgr'"])
+        destination_vanilla_pg.configure(["shared_preload_libraries='serendb_rmgr'"])
         destination_vanilla_pg.start()
 
         # create another database & role and try to restore there
@@ -1078,7 +1078,7 @@ def test_fast_import_restore_to_connstring_from_s3_spec(
     pg_bin = PgBin(test_output_dir, pg_distrib_dir, pg_version)
     port = port_distributor.get_port()
     with VanillaPostgres(pgdatadir, pg_bin, port) as destination_vanilla_pg:
-        destination_vanilla_pg.configure(["shared_preload_libraries='neon_rmgr'"])
+        destination_vanilla_pg.configure(["shared_preload_libraries='serendb_rmgr'"])
         destination_vanilla_pg.start()
 
         # Encrypt connstrings and put spec into S3
@@ -1150,7 +1150,7 @@ def test_fast_import_restore_to_connstring_error_to_s3_bad_destination(
 
     # Encrypt connstrings and put spec into S3
     source_connstring_encrypted = encrypt(vanilla_pg.connstr())
-    destination_connstring_encrypted = encrypt("postgres://random:connection@string:5432/neondb")
+    destination_connstring_encrypted = encrypt("postgres://random:connection@string:5432/serendb")
     spec = {
         "encryption_secret": {"KMS": {"key_id": key_id}},
         "source_connstring_ciphertext_base64": base64.b64encode(

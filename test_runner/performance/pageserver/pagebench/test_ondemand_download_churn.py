@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.benchmark_fixture import MetricReport, NeonBenchmarker
+from fixtures.benchmark_fixture import MetricReport, SerenDBBenchmarker
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     flush_ep_to_pageserver,
 )
@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize("concurrency_per_target", [1, 10, 100])
 @pytest.mark.timeout(1000)
 def test_download_churn(
-    neon_env_builder: NeonEnvBuilder,
-    zenbenchmark: NeonBenchmarker,
+    serendb_env_builder: SerenDBEnvBuilder,
+    zenbenchmark: SerenDBBenchmarker,
     pg_bin: PgBin,
     io_engine: str,
     concurrency_per_target: int,
@@ -47,7 +47,7 @@ def test_download_churn(
     # configure cache sizes like in prod
     page_cache_size = 16384
     max_file_descriptors = 500000
-    neon_env_builder.pageserver_config_override = (
+    serendb_env_builder.pageserver_config_override = (
         f"page_cache_size={page_cache_size}; max_file_descriptors={max_file_descriptors}"
     )
     params.update(
@@ -64,7 +64,7 @@ def test_download_churn(
         record(param, metric_value=value, report=MetricReport.TEST_PARAM, **kwargs)
 
     # Setup env
-    env = setup_env(neon_env_builder, pg_bin)
+    env = setup_env(serendb_env_builder, pg_bin)
     env.pageserver.allowed_errors.append(
         f".*path=/v1/tenant/{env.initial_tenant}/timeline.* request was dropped before completing"
     )
@@ -72,14 +72,14 @@ def test_download_churn(
     run_benchmark(env, pg_bin, record, io_engine, concurrency_per_target, duration)
 
 
-def setup_env(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def setup_env(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
     # We configure tenant conf such that SQL query below produces a lot of layers.
     # We don't care what's in the layers really, we just care that layers are created.
     bytes_per_layer = 10 * (1024**2)
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "pitr_interval": "1000d",  # let's not make it get in the way
             "gc_period": "0s",  # disable periodic gc to avoid noise
@@ -112,7 +112,7 @@ def setup_env(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
 
 
 def run_benchmark(
-    env: NeonEnv,
+    env: SerenDBEnv,
     pg_bin: PgBin,
     record,
     io_engine: str,
@@ -121,7 +121,7 @@ def run_benchmark(
 ):
     ps_http = env.pageserver.http_client()
     cmd = [
-        str(env.neon_binpath / "pagebench"),
+        str(env.serendb_binpath / "pagebench"),
         "ondemand-download-churn",
         "--mgmt-api-endpoint",
         ps_http.base_url,

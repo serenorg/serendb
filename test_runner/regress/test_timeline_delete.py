@@ -10,9 +10,9 @@ import pytest
 import requests
 from fixtures.common_types import Lsn, TenantId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnv,
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     PgBin,
     last_flush_lsn_upload,
 )
@@ -37,8 +37,8 @@ from fixtures.utils import query_scalar, run_pg_bench_small, wait_until
 from urllib3.util.retry import Retry
 
 
-def test_timeline_delete(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_timeline_delete(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
 
     env.pageserver.allowed_errors.extend(
         [
@@ -140,7 +140,7 @@ DELETE_FAILPOINTS = [
 @pytest.mark.parametrize("failpoint", DELETE_FAILPOINTS)
 @pytest.mark.parametrize("check", list(Check))
 def test_delete_timeline_exercise_crash_safety_failpoints(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     failpoint: str,
     check: Check,
     pg_bin: PgBin,
@@ -161,9 +161,9 @@ def test_delete_timeline_exercise_crash_safety_failpoints(
     8. Retry or restart without the failpoint and check the result.
     """
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "0s",
             "compaction_period": "0s",
@@ -182,7 +182,7 @@ def test_delete_timeline_exercise_crash_safety_failpoints(
         last_flush_lsn_upload(env, endpoint, env.initial_tenant, timeline_id)
 
         assert_prefix_not_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -262,7 +262,7 @@ def test_delete_timeline_exercise_crash_safety_failpoints(
     # Check remote is empty
     if remote_storage_kind is RemoteStorageKind.MOCK_S3:
         assert_prefix_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -284,7 +284,7 @@ def test_delete_timeline_exercise_crash_safety_failpoints(
 
 @pytest.mark.parametrize("fill_branch", [True, False])
 def test_timeline_resurrection_on_attach(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     fill_branch: bool,
 ):
     """
@@ -294,7 +294,7 @@ def test_timeline_resurrection_on_attach(
     """
 
     ##### First start, insert data and upload it to the remote storage
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     ps_http = env.pageserver.http_client()
     pg = env.endpoints.create_start("main")
@@ -369,16 +369,16 @@ def test_timeline_resurrection_on_attach(
     assert all([tl["state"] == "Active" for tl in timelines])
 
 
-def test_timeline_delete_fail_before_local_delete(neon_env_builder: NeonEnvBuilder):
+def test_timeline_delete_fail_before_local_delete(serendb_env_builder: SerenDBEnvBuilder):
     """
     When deleting a timeline, if we succeed in setting the deleted flag remotely
     but fail to delete the local state, restarting the pageserver should resume
     the deletion of the local state.
     """
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(
         [
@@ -434,7 +434,7 @@ def test_timeline_delete_fail_before_local_delete(neon_env_builder: NeonEnvBuild
     assert all([tl["state"] == "Active" for tl in timelines])
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -451,7 +451,7 @@ def test_timeline_delete_fail_before_local_delete(neon_env_builder: NeonEnvBuild
         )
 
         assert_prefix_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -465,12 +465,12 @@ def test_timeline_delete_fail_before_local_delete(neon_env_builder: NeonEnvBuild
     # for some reason the check above doesnt immediately take effect for the below.
     # Assume it is mock server incosistency and check a few times.
     wait_until(
-        lambda: assert_prefix_empty(neon_env_builder.pageserver_remote_storage),
+        lambda: assert_prefix_empty(serendb_env_builder.pageserver_remote_storage),
         timeout=2,
     )
 
     # We deleted our only tenant, and the scrubber fails if it detects nothing
-    neon_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.disable_scrub_on_exit()
 
 
 @pytest.mark.parametrize(
@@ -478,7 +478,7 @@ def test_timeline_delete_fail_before_local_delete(neon_env_builder: NeonEnvBuild
     ["persist_deleted_index_part", "in_progress_delete"],
 )
 def test_concurrent_timeline_delete_stuck_on(
-    neon_env_builder: NeonEnvBuilder, stuck_failpoint: str
+    serendb_env_builder: SerenDBEnvBuilder, stuck_failpoint: str
 ):
     """
     If delete is stuck console will eventually retry deletion.
@@ -491,9 +491,9 @@ def test_concurrent_timeline_delete_stuck_on(
     signalling to console that it should retry later.
     """
 
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     child_timeline_id = env.create_branch("child", ancestor_branch_name="main")
 
@@ -558,7 +558,7 @@ def test_concurrent_timeline_delete_stuck_on(
         first_call_thread.join()
 
 
-def test_delete_timeline_client_hangup(neon_env_builder: NeonEnvBuilder):
+def test_delete_timeline_client_hangup(serendb_env_builder: SerenDBEnvBuilder):
     """
     If the client hangs up before we start the index part upload but after deletion is scheduled
     we mark it
@@ -568,9 +568,9 @@ def test_delete_timeline_client_hangup(neon_env_builder: NeonEnvBuilder):
 
     This tests cancel safety up to the given failpoint.
     """
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.MOCK_S3)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     child_timeline_id = env.create_branch("child", ancestor_branch_name="main")
 
@@ -623,11 +623,11 @@ def test_delete_timeline_client_hangup(neon_env_builder: NeonEnvBuilder):
 
 
 def test_timeline_delete_works_for_remote_smoke(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     ps_http = env.pageserver.http_client()
     env.endpoints.create_start("main")
@@ -658,7 +658,7 @@ def test_timeline_delete_works_for_remote_smoke(
 
     for timeline_id in timeline_ids:
         assert_prefix_not_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -675,7 +675,7 @@ def test_timeline_delete_works_for_remote_smoke(
         timeline_delete_wait_completed(ps_http, tenant_id=tenant_id, timeline_id=timeline_id)
 
         assert_prefix_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -688,20 +688,20 @@ def test_timeline_delete_works_for_remote_smoke(
 
     # for some reason the check above doesnt immediately take effect for the below.
     # Assume it is mock server inconsistency and check twice.
-    wait_until(lambda: assert_prefix_empty(neon_env_builder.pageserver_remote_storage))
+    wait_until(lambda: assert_prefix_empty(serendb_env_builder.pageserver_remote_storage))
 
     # We deleted our only tenant, and the scrubber fails if it detects nothing
-    neon_env_builder.disable_scrub_on_exit()
+    serendb_env_builder.disable_scrub_on_exit()
 
 
 def test_delete_orphaned_objects(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
     remote_storage_kind = RemoteStorageKind.LOCAL_FS
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "gc_period": "0s",
             "compaction_period": "0s",
@@ -758,13 +758,13 @@ def test_delete_orphaned_objects(
 
 
 def test_timeline_delete_resumed_on_attach(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
+    env = serendb_env_builder.init_start(initial_tenant_conf=many_small_layers_tenant_config())
 
     tenant_id = env.initial_tenant
 
@@ -777,7 +777,7 @@ def test_timeline_delete_resumed_on_attach(
         last_flush_lsn_upload(env, endpoint, env.initial_tenant, timeline_id)
 
         assert_prefix_not_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -823,7 +823,7 @@ def test_timeline_delete_resumed_on_attach(
     assert reason.endswith(f"failpoint: {failpoint}"), reason
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -854,7 +854,7 @@ def test_timeline_delete_resumed_on_attach(
     assert not tenant_path.exists()
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",

@@ -194,7 +194,7 @@ I propose to add another state to tenant/timeline - PendingDelete. This state sh
 Pros:
 
 - Storage is not dependent on control plane. Storage can be restarted even if control plane is not working.
-- Allows for easier dogfooding, console can use Neon backed database as primary operational data store. If storage depends on control plane and control plane depends on storage we're stuck.
+- Allows for easier dogfooding, console can use SerenDB backed database as primary operational data store. If storage depends on control plane and control plane depends on storage we're stuck.
 - No need to share inner s3 workings with control plane. Pageserver presents api contract and S3 paths are not part of this contract.
 - No need to pass list of alive timelines to attach call. This will be solved by pageserver observing deleted flag. See
 
@@ -264,6 +264,6 @@ After discussion in comments I see that we settled on two options (though a bit 
 
 To my mind the only benefit of the latter approach is possible code reuse between safekeepers and pageservers. Otherwise poking around integrating s3 library into control plane, configuring shared knowledge about paths in s3 - are the downsides. Another downside of relying on control plane is the testing process. Control plane resides in different repository so it is quite hard to test pageserver related changes there. e2e test suite there doesn't support shutting down pageservers, which are separate docker containers there instead of just processes.
 
-With pageserver owning everything we still give the retry logic to control plane but its easier to duplicate if needed compared to sharing inner s3 workings. We will have needed tests for retry logic in neon repo.
+With pageserver owning everything we still give the retry logic to control plane but its easier to duplicate if needed compared to sharing inner s3 workings. We will have needed tests for retry logic in SerenDB repo.
 
 So the decision is to proceed with pageserver centric approach.

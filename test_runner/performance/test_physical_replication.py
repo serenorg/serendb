@@ -11,16 +11,16 @@ import pytest
 from fixtures.benchmark_fixture import MetricReport
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_api import connection_parameters_to_env
+from fixtures.serendb_api import connection_parameters_to_env
 
 if TYPE_CHECKING:
     import subprocess
     from pathlib import Path
     from typing import Any
 
-    from fixtures.benchmark_fixture import NeonBenchmarker
-    from fixtures.neon_api import NeonAPI
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.benchmark_fixture import SerenDBBenchmarker
+    from fixtures.serendb_api import SerenDBAPI
+    from fixtures.serendb_fixtures import PgBin
     from fixtures.pg_version import PgVersion
 
 
@@ -53,22 +53,22 @@ def check_pgbench_still_running(pgbench: subprocess.Popen[str]):
 @pytest.mark.timeout(2 * 60 * 60)
 def test_ro_replica_lag(
     pg_bin: PgBin,
-    neon_api: NeonAPI,
+    serendb_api: SerenDBAPI,
     pg_version: PgVersion,
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     test_duration_min = 60
     sync_interval_min = 10
 
     pgbench_duration = f"-T{test_duration_min * 60 * 2}"
 
-    project = neon_api.create_project(
+    project = serendb_api.create_project(
         pg_version, f"Test readonly replica lag, GITHUB_RUN_ID={os.getenv('GITHUB_RUN_ID')}"
     )
     project_id = project["project"]["id"]
     log.info("Project ID: %s", project_id)
     log.info("Primary endpoint ID: %s", project["endpoints"][0]["id"])
-    neon_api.wait_for_operation_to_finish(project_id)
+    serendb_api.wait_for_operation_to_finish(project_id)
     error_occurred = False
     try:
         branch_id = project["branch"]["id"]
@@ -77,7 +77,7 @@ def test_ro_replica_lag(
             project["connection_uris"][0]["connection_parameters"]
         )
 
-        replica = neon_api.create_endpoint(
+        replica = serendb_api.create_endpoint(
             project_id,
             branch_id,
             endpoint_type="read_only",
@@ -86,9 +86,9 @@ def test_ro_replica_lag(
         log.info("Replica endpoint ID: %s", replica["endpoint"]["id"])
         replica_env = master_env.copy()
         replica_env["PGHOST"] = replica["endpoint"]["host"]
-        neon_api.wait_for_operation_to_finish(project_id)
+        serendb_api.wait_for_operation_to_finish(project_id)
 
-        replica_connstr = neon_api.get_connection_uri(
+        replica_connstr = serendb_api.get_connection_uri(
             project_id,
             endpoint_id=replica["endpoint"]["id"],
         )["uri"]
@@ -137,13 +137,13 @@ def test_ro_replica_lag(
         log.error(traceback.format_exc())
     finally:
         assert not error_occurred  # Fail the test if an error occurred
-        neon_api.delete_project(project_id)
+        serendb_api.delete_project(project_id)
 
 
 def report_pgbench_aggregate_intervals(
     output_dir: Path,
     prefix: str,
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     for filename in os.listdir(output_dir):
         if filename.startswith(prefix):
@@ -180,9 +180,9 @@ def report_pgbench_aggregate_intervals(
 def test_replication_start_stop(
     pg_bin: PgBin,
     test_output_dir: Path,
-    neon_api: NeonAPI,
+    serendb_api: SerenDBAPI,
     pg_version: PgVersion,
-    zenbenchmark: NeonBenchmarker,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Cycles through different configurations of read replicas being enabled disabled. The whole time,
@@ -197,13 +197,13 @@ def test_replication_start_stop(
     pgbench_duration = f"-T{2**num_replicas * configuration_test_time_sec}"
     error_occurred = False
 
-    project = neon_api.create_project(
+    project = serendb_api.create_project(
         pg_version, f"Test replication start stop, GITHUB_RUN_ID={os.getenv('GITHUB_RUN_ID')}"
     )
     project_id = project["project"]["id"]
     log.info("Project ID: %s", project_id)
     log.info("Primary endpoint ID: %s", project["endpoints"][0]["id"])
-    neon_api.wait_for_operation_to_finish(project_id)
+    serendb_api.wait_for_operation_to_finish(project_id)
     try:
         branch_id = project["branch"]["id"]
         master_connstr = project["connection_uris"][0]["connection_uri"]
@@ -213,7 +213,7 @@ def test_replication_start_stop(
 
         replicas = []
         for i in range(num_replicas):
-            replica = neon_api.create_endpoint(
+            replica = serendb_api.create_endpoint(
                 project_id,
                 branch_id,
                 endpoint_type="read_only",
@@ -221,10 +221,10 @@ def test_replication_start_stop(
             )
             log.info("Replica %d endpoint ID: %s", i + 1, replica["endpoint"]["id"])
             replicas.append(replica)
-            neon_api.wait_for_operation_to_finish(project_id)
+            serendb_api.wait_for_operation_to_finish(project_id)
 
         replica_connstr = [
-            neon_api.get_connection_uri(
+            serendb_api.get_connection_uri(
                 project_id,
                 endpoint_id=replicas[i]["endpoint"]["id"],
             )["uri"]
@@ -291,11 +291,11 @@ def test_replication_start_stop(
                     pgb.wait()
                     replica_pgbench[ireplica] = None
 
-                    neon_api.suspend_endpoint(
+                    serendb_api.suspend_endpoint(
                         project_id,
                         replicas[ireplica]["endpoint"]["id"],
                     )
-                    neon_api.wait_for_operation_to_finish(project_id)
+                    serendb_api.wait_for_operation_to_finish(project_id)
 
             time.sleep(configuration_test_time_sec)
 
@@ -322,6 +322,6 @@ def test_replication_start_stop(
         log.error(traceback.format_exc())
     finally:
         assert not error_occurred
-        neon_api.delete_project(project_id)
+        serendb_api.delete_project(project_id)
         # Only report results if we didn't error out
         report_pgbench_aggregate_intervals(test_output_dir, prefix, zenbenchmark)

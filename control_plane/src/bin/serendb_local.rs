@@ -1,9 +1,9 @@
 //!
-//! `neon_local` is an executable that can be used to create a local
-//! Neon environment, for testing purposes. The local environment is
+//! `serendb_local` is an executable that can be used to create a local
+//! SerenDB environment, for testing purposes. The local environment is
 //! quite different from the cloud environment with Kubernetes, but it
 //! easier to work with locally. The python tests in `test_runner`
-//! rely on `neon_local` to set up the environment for each test.
+//! rely on `serendb_local` to set up the environment for each test.
 //!
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
@@ -25,13 +25,13 @@ use control_plane::endpoint::{
 use control_plane::endpoint_storage::{ENDPOINT_STORAGE_DEFAULT_ADDR, EndpointStorage};
 use control_plane::local_env;
 use control_plane::local_env::{
-    EndpointStorageConf, InitForceMode, LocalEnv, NeonBroker, NeonLocalInitConf,
-    NeonLocalInitPageserverConf, SafekeeperConf,
+    EndpointStorageConf, InitForceMode, LocalEnv, SerenDBBroker, SerenDBLocalInitConf,
+    SerenDBLocalInitPageserverConf, SafekeeperConf,
 };
 use control_plane::pageserver::PageServerNode;
 use control_plane::safekeeper::SafekeeperNode;
 use control_plane::storage_controller::{
-    NeonStorageControllerStartArgs, NeonStorageControllerStopArgs, StorageController,
+    SerenDBStorageControllerStartArgs, SerenDBStorageControllerStopArgs, StorageController,
 };
 use nix::fcntl::{Flock, FlockArg};
 use pageserver_api::config::{
@@ -71,16 +71,16 @@ const DEFAULT_PG_VERSION_NUM: &str = "17";
 
 const DEFAULT_PAGESERVER_CONTROL_PLANE_API: &str = "http://127.0.0.1:1234/upcall/v1/";
 
-/// Neon CLI.
+/// SerenDB CLI.
 #[derive(clap::Parser)]
-#[command(version = GIT_VERSION, name = "Neon CLI")]
+#[command(version = GIT_VERSION, name = "SerenDB CLI")]
 struct Cli {
     #[command(subcommand)]
-    command: NeonLocalCmd,
+    command: SerenDBLocalCmd,
 }
 
 #[derive(clap::Subcommand)]
-enum NeonLocalCmd {
+enum SerenDBLocalCmd {
     Init(InitCmdArgs),
 
     #[command(subcommand)]
@@ -108,7 +108,7 @@ enum NeonLocalCmd {
     Stop(StopCmdArgs),
 }
 
-/// Initialize a new Neon repository, preparing configs for services to start with.
+/// Initialize a new SerenDB repository, preparing configs for services to start with.
 #[derive(clap::Args)]
 struct InitCmdArgs {
     /// How many pageservers to create (default 1).
@@ -577,7 +577,7 @@ struct EndpointCreateCmdArgs {
     /// If set, the node will be a hot replica on the specified timeline.
     #[clap(long, action = clap::ArgAction::Set, default_value_t = false)]
     hot_standby: bool,
-    /// If set, will set up the catalog for neon_superuser.
+    /// If set, will set up the catalog for serendb_superuser.
     #[clap(long)]
     update_catalog: bool,
     /// Allow multiple primary endpoints running on the same branch. Shouldn't be used normally, but
@@ -599,7 +599,7 @@ struct EndpointStartCmdArgs {
     /// Pageserver ID.
     #[clap(long = "pageserver-id")]
     endpoint_pageserver_id: Option<NodeId>,
-    /// Safekeepers membership generation to prefix neon.safekeepers with.
+    /// Safekeepers membership generation to prefix serendb.safekeepers with.
     #[clap(long)]
     safekeepers_generation: Option<u32>,
     /// List of safekeepers endpoint will talk to.
@@ -608,7 +608,7 @@ struct EndpointStartCmdArgs {
     /// Configure the remote extensions storage proxy gateway URL to request for extensions.
     #[clap(long, alias = "remote-ext-config")]
     remote_ext_base_url: Option<String>,
-    /// If set, will create test user `user` and `neondb` database. Requires `update-catalog = true`
+    /// If set, will create test user `user` and `serendb` database. Requires `update-catalog = true`
     #[clap(long)]
     create_test_user: bool,
     /// Allow multiple primary endpoints running on the same branch. Shouldn't be used normally, but
@@ -691,7 +691,7 @@ struct EndpointGenerateJwtCmdArgs {
     scope: Option<ComputeClaimsScope>,
 }
 
-/// Manage neon_local branch name mappings.
+/// Manage serendb_local branch name mappings.
 #[derive(clap::Subcommand)]
 enum MappingsCmd {
     Map(MappingsMapCmdArgs),
@@ -717,13 +717,13 @@ struct MappingsMapCmdArgs {
 struct TimelineTreeEl {
     /// `TimelineInfo` received from the `pageserver` via the `timeline_list` http API call.
     pub info: TimelineInfo,
-    /// Name, recovered from neon config mappings
+    /// Name, recovered from SerenDB config mappings
     pub name: Option<String>,
     /// Holds all direct children of this timeline referenced using `timeline_id`.
     pub children: BTreeSet<TimelineId>,
 }
 
-/// A flock-based guard over the neon_local repository directory
+/// A flock-based guard over the serendb_local repository directory
 struct RepoLock {
     _file: Flock<File>,
 }
@@ -738,9 +738,9 @@ impl RepoLock {
     }
 }
 
-// Main entry point for the 'neon_local' CLI utility
+// Main entry point for the 'serendb_local' CLI utility
 //
-// This utility helps to manage neon installation. That includes following:
+// This utility helps to manage SerenDB installation. That includes following:
 //   * Management of local postgres installations running on top of the
 //     pageserver.
 //   * Providing CLI api to the pageserver
@@ -748,8 +748,8 @@ impl RepoLock {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Check for 'neon init' command first.
-    let (subcommand_result, _lock) = if let NeonLocalCmd::Init(args) = cli.command {
+    // Check for 'serendb init' command first.
+    let (subcommand_result, _lock) = if let SerenDBLocalCmd::Init(args) = cli.command {
         (handle_init(&args).map(|env| Some(Cow::Owned(env))), None)
     } else {
         // This tool uses a collection of simple files to store its state, and consequently
@@ -767,22 +767,22 @@ fn main() -> Result<()> {
             .unwrap();
 
         let subcommand_result = match cli.command {
-            NeonLocalCmd::Init(_) => unreachable!("init was handled earlier already"),
-            NeonLocalCmd::Start(args) => rt.block_on(handle_start_all(&args, env)),
-            NeonLocalCmd::Stop(args) => rt.block_on(handle_stop_all(&args, env)),
-            NeonLocalCmd::Tenant(subcmd) => rt.block_on(handle_tenant(&subcmd, env)),
-            NeonLocalCmd::Timeline(subcmd) => rt.block_on(handle_timeline(&subcmd, env)),
-            NeonLocalCmd::Pageserver(subcmd) => rt.block_on(handle_pageserver(&subcmd, env)),
-            NeonLocalCmd::StorageController(subcmd) => {
+            SerenDBLocalCmd::Init(_) => unreachable!("init was handled earlier already"),
+            SerenDBLocalCmd::Start(args) => rt.block_on(handle_start_all(&args, env)),
+            SerenDBLocalCmd::Stop(args) => rt.block_on(handle_stop_all(&args, env)),
+            SerenDBLocalCmd::Tenant(subcmd) => rt.block_on(handle_tenant(&subcmd, env)),
+            SerenDBLocalCmd::Timeline(subcmd) => rt.block_on(handle_timeline(&subcmd, env)),
+            SerenDBLocalCmd::Pageserver(subcmd) => rt.block_on(handle_pageserver(&subcmd, env)),
+            SerenDBLocalCmd::StorageController(subcmd) => {
                 rt.block_on(handle_storage_controller(&subcmd, env))
             }
-            NeonLocalCmd::StorageBroker(subcmd) => rt.block_on(handle_storage_broker(&subcmd, env)),
-            NeonLocalCmd::Safekeeper(subcmd) => rt.block_on(handle_safekeeper(&subcmd, env)),
-            NeonLocalCmd::EndpointStorage(subcmd) => {
+            SerenDBLocalCmd::StorageBroker(subcmd) => rt.block_on(handle_storage_broker(&subcmd, env)),
+            SerenDBLocalCmd::Safekeeper(subcmd) => rt.block_on(handle_safekeeper(&subcmd, env)),
+            SerenDBLocalCmd::EndpointStorage(subcmd) => {
                 rt.block_on(handle_endpoint_storage(&subcmd, env))
             }
-            NeonLocalCmd::Endpoint(subcmd) => rt.block_on(handle_endpoint(&subcmd, env)),
-            NeonLocalCmd::Mappings(subcmd) => handle_mappings(&subcmd, env),
+            SerenDBLocalCmd::Endpoint(subcmd) => rt.block_on(handle_endpoint(&subcmd, env)),
+            SerenDBLocalCmd::Mappings(subcmd) => handle_mappings(&subcmd, env),
         };
 
         let subcommand_result = if &original_env != env {
@@ -950,7 +950,7 @@ fn get_tenant_shard_id(
 
 fn handle_init(args: &InitCmdArgs) -> anyhow::Result<LocalEnv> {
     // Create the in-memory `LocalEnv` that we'd normally load from disk in `load_config`.
-    let init_conf: NeonLocalInitConf = if let Some(config_path) = &args.config {
+    let init_conf: SerenDBLocalInitConf = if let Some(config_path) = &args.config {
         // User (likely the Python test suite) provided a description of the environment.
         if args.num_pageservers.is_some() {
             bail!(
@@ -967,9 +967,9 @@ fn handle_init(args: &InitCmdArgs) -> anyhow::Result<LocalEnv> {
         toml_edit::de::from_str(&contents)?
     } else {
         // User (likely interactive) did not provide a description of the environment, give them the default
-        NeonLocalInitConf {
+        SerenDBLocalInitConf {
             control_plane_api: Some(DEFAULT_PAGESERVER_CONTROL_PLANE_API.parse().unwrap()),
-            broker: NeonBroker {
+            broker: SerenDBBroker {
                 listen_addr: Some(DEFAULT_BROKER_ADDR.parse().unwrap()),
                 listen_https_addr: None,
             },
@@ -985,7 +985,7 @@ fn handle_init(args: &InitCmdArgs) -> anyhow::Result<LocalEnv> {
                     let pg_port = DEFAULT_PAGESERVER_PG_PORT + i;
                     let http_port = DEFAULT_PAGESERVER_HTTP_PORT + i;
                     let grpc_port = DEFAULT_PAGESERVER_GRPC_PORT + i;
-                    NeonLocalInitPageserverConf {
+                    SerenDBLocalInitPageserverConf {
                         id: pageserver_id,
                         listen_pg_addr: format!("127.0.0.1:{pg_port}"),
                         listen_http_addr: format!("127.0.0.1:{http_port}"),
@@ -1005,7 +1005,7 @@ fn handle_init(args: &InitCmdArgs) -> anyhow::Result<LocalEnv> {
                 listen_addr: ENDPOINT_STORAGE_DEFAULT_ADDR,
             },
             pg_distrib_dir: None,
-            neon_distrib_dir: None,
+            serendb_distrib_dir: None,
             default_tenant_id: TenantId::from_array(std::array::from_fn(|_| 0)),
             storage_controller: None,
             control_plane_hooks_api: None,
@@ -1014,7 +1014,7 @@ fn handle_init(args: &InitCmdArgs) -> anyhow::Result<LocalEnv> {
     };
 
     LocalEnv::init(init_conf, &args.force)
-        .context("materialize initial neon_local environment on disk")?;
+        .context("materialize initial serendb_local environment on disk")?;
     Ok(LocalEnv::load_config(&local_env::base_path())
         .expect("freshly written config should be loadable"))
 }
@@ -1504,7 +1504,7 @@ async fn handle_endpoint(subcmd: &EndpointCmd, env: &local_env::LocalEnv) -> Res
             pageserver_conninfo.prefer_protocol = prefer_protocol;
 
             let ps_conf = env.get_pageserver_conf(DEFAULT_PAGESERVER_ID)?;
-            let auth_token = if matches!(ps_conf.pg_auth_type, AuthType::NeonJWT) {
+            let auth_token = if matches!(ps_conf.pg_auth_type, AuthType::SerenDBJWT) {
                 let claims = Claims::new(Some(endpoint.tenant_id), Scope::Tenant);
 
                 Some(env.generate_auth_token(&claims)?)
@@ -1746,7 +1746,7 @@ async fn handle_storage_controller(
     let svc = StorageController::from_env(env);
     match subcmd {
         StorageControllerCmd::Start(args) => {
-            let start_args = NeonStorageControllerStartArgs {
+            let start_args = SerenDBStorageControllerStartArgs {
                 instance_id: args.instance_id,
                 base_port: args.base_port,
                 start_timeout: args.start_timeout,
@@ -1760,7 +1760,7 @@ async fn handle_storage_controller(
         }
 
         StorageControllerCmd::Stop(args) => {
-            let stop_args = NeonStorageControllerStopArgs {
+            let stop_args = SerenDBStorageControllerStopArgs {
                 instance_id: args.instance_id,
                 immediate: match args.stop_mode {
                     StopMode::Fast => false,
@@ -1836,7 +1836,7 @@ async fn handle_endpoint_storage(
     let storage = EndpointStorage::from_env(env);
 
     // In tests like test_forward_compatibility or test_graceful_cluster_restart
-    // old neon binaries (without endpoint_storage) are present
+    // old SerenDB binaries (without endpoint_storage) are present
     if !storage.bin.exists() {
         eprintln!(
             "{} binary not found. Ignore if this is a compatibility test",
@@ -1894,7 +1894,7 @@ async fn handle_start_all(
 ) -> anyhow::Result<()> {
     // FIXME: this was called "retry_timeout", is it right?
     let Err(errors) = handle_start_all_impl(env, args.timeout).await else {
-        neon_start_status_check(env, args.timeout.as_ref())
+        serendb_start_status_check(env, args.timeout.as_ref())
             .await
             .context("status check after successful startup of all services")?;
         return Ok(());
@@ -1939,7 +1939,7 @@ async fn handle_start_all_impl(
         js.spawn(async move {
             let storage_controller = StorageController::from_env(env);
             storage_controller
-                .start(NeonStorageControllerStartArgs::with_default_instance_id(
+                .start(SerenDBStorageControllerStartArgs::with_default_instance_id(
                     retry_timeout,
                 ))
                 .await
@@ -1989,7 +1989,7 @@ async fn handle_start_all_impl(
     Ok(())
 }
 
-async fn neon_start_status_check(
+async fn serendb_start_status_check(
     env: &local_env::LocalEnv,
     retry_timeout: &Duration,
 ) -> anyhow::Result<()> {
@@ -2001,11 +2001,11 @@ async fn neon_start_status_check(
     let retries = retry_timeout.as_millis() / RETRY_INTERVAL.as_millis();
     let notice_after_retries = retry_timeout.as_millis() / NOTICE_AFTER_RETRIES.as_millis();
 
-    println!("\nRunning neon status check");
+    println!("\nRunning SerenDB status check");
 
     for retry in 0..retries {
         if retry == notice_after_retries {
-            println!("\nNeon status check has not passed yet, continuing to wait")
+            println!("\nSerenDB status check has not passed yet, continuing to wait")
         }
 
         let mut passed = true;
@@ -2033,14 +2033,14 @@ async fn neon_start_status_check(
         }
 
         if passed {
-            println!("\nNeon started and passed status check");
+            println!("\nSerenDB started and passed status check");
             return Ok(());
         }
 
         tokio::time::sleep(RETRY_INTERVAL).await;
     }
 
-    anyhow::bail!("\nNeon passed status check")
+    anyhow::bail!("\nSerenDB passed status check")
 }
 
 async fn handle_stop_all(args: &StopCmdArgs, env: &local_env::LocalEnv) -> Result<()> {
@@ -2095,7 +2095,7 @@ async fn try_stop_all(env: &local_env::LocalEnv, immediate: bool) {
 
     let storage_broker = StorageBroker::from_env(env);
     if let Err(e) = storage_broker.stop() {
-        eprintln!("neon broker stop failed: {e:#}");
+        eprintln!("SerenDB broker stop failed: {e:#}");
     }
 
     // Stop all storage controller instances. In the most common case there's only one,
@@ -2106,7 +2106,7 @@ async fn try_stop_all(env: &local_env::LocalEnv, immediate: bool) {
         .expect("Must inspect data dir");
     for (instance_id, _instance_dir_path) in storcon_instances {
         let storage_controller = StorageController::from_env(env);
-        let stop_args = NeonStorageControllerStopArgs {
+        let stop_args = SerenDBStorageControllerStopArgs {
             instance_id,
             immediate,
         };

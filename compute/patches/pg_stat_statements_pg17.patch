@@ -11,7 +11,7 @@ index 0bb2c397711..32764db1d8b 100644
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT EXECUTE ON FUNCTION pg_stat_statements_reset(Oid, Oid, bigint, boolean) TO %I', privileged_role_name);
 +END $$;
@@ -29,7 +29,7 @@ index 58cdf600fce..8be57a996f6 100644
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO %I', privileged_role_name);
 +END $$;
@@ -46,7 +46,7 @@ index 6fc3fed4c93..256345a8f79 100644
 +DECLARE
 +  privileged_role_name text;
 +BEGIN
-+  privileged_role_name := current_setting('neon.privileged_role_name');
++  privileged_role_name := current_setting('serendb.privileged_role_name');
 +
 +  EXECUTE format('GRANT EXECUTE ON FUNCTION pg_stat_statements_reset(Oid, Oid, bigint) TO %I', privileged_role_name);
 +END $$;

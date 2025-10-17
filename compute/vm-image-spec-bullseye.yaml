@@ -1,24 +1,24 @@
-# Supplemental file for neondatabase/autoscaling's vm-builder, for producing the VM compute image.
+# Supplemental file for serendb/autoscaling's vm-builder, for producing the VM compute image.
 ---
 commands:
   - name: cgconfigparser
     user: root
     sysvInitAction: sysinit
     shell: 'cgconfigparser -l /etc/cgconfig.conf -s 1664'
-  # restrict permissions on /neonvm/bin/resize-swap, because we grant access to compute_ctl for
+  # restrict permissions on /serendbvm/bin/resize-swap, because we grant access to compute_ctl for
   # running it as root.
   - name: chmod-resize-swap
     user: root
     sysvInitAction: sysinit
-    shell: 'chmod 711 /neonvm/bin/resize-swap'
+    shell: 'chmod 711 /serendbvm/bin/resize-swap'
   - name: chmod-set-disk-quota
     user: root
     sysvInitAction: sysinit
-    shell: 'chmod 711 /neonvm/bin/set-disk-quota'
+    shell: 'chmod 711 /serendbvm/bin/set-disk-quota'
   - name: pgbouncer
     user: postgres
     sysvInitAction: respawn
-    shell: '/usr/local/bin/pgbouncer /etc/pgbouncer.ini 2>&1 > /dev/virtio-ports/tech.neon.log.0'
+    shell: '/usr/local/bin/pgbouncer /etc/pgbouncer.ini 2>&1 > /dev/virtio-ports/tech.serendb.log.0'
   - name: local_proxy
     user: postgres
     sysvInitAction: respawn
@@ -31,7 +31,7 @@ commands:
     # but it's enabled by default and it doesn't filter out invalid databases, see
     # https://github.com/prometheus-community/postgres_exporter/blob/06a553c8166512c9d9c5ccf257b0f9bba8751dbc/collector/pg_database.go#L67
     # so if it hits one, it starts spamming logs
-    #   ERROR:  [NEON_SMGR] [reqid d9700000018] could not read db size of db 705302 from page server at lsn 5/A2457EB0
+    #   ERROR:  [SERENDB_SMGR] [reqid d9700000018] could not read db size of db 705302 from page server at lsn 5/A2457EB0
     shell: 'DATA_SOURCE_NAME="user=cloud_admin sslmode=disable dbname=postgres application_name=postgres-exporter pgaudit.log=none" /bin/postgres_exporter --no-collector.database --config.file=/etc/postgres_exporter.yml'
   - name: pgbouncer-exporter
     user: postgres
@@ -66,16 +66,16 @@ files:
       # resolve host" log messages that they generate.
       Defaults !fqdn
 
-      # Allow postgres user (which is what compute_ctl runs as) to run /neonvm/bin/resize-swap
-      # and /neonvm/bin/set-disk-quota as root without requiring entering a password (NOPASSWD),
+      # Allow postgres user (which is what compute_ctl runs as) to run /serendbvm/bin/resize-swap
+      # and /serendbvm/bin/set-disk-quota as root without requiring entering a password (NOPASSWD),
       # regardless of hostname (ALL)
       #
       # Also allow it to shut down the VM. The fast_import job does that when it's finished.
-      postgres ALL=(root) NOPASSWD: /neonvm/bin/resize-swap, /neonvm/bin/set-disk-quota, /neonvm/bin/poweroff, /usr/sbin/rsyslogd
+      postgres ALL=(root) NOPASSWD: /serendbvm/bin/resize-swap, /serendbvm/bin/set-disk-quota, /serendbvm/bin/poweroff, /usr/sbin/rsyslogd
   - filename: cgconfig.conf
     content: |
       # Configuration for cgroups in VM compute nodes
-      group neon-postgres {
+      group serendb-postgres {
           perm {
               admin {
                   uid = postgres;
@@ -141,7 +141,7 @@ merge: |
   # Allow postgres user (compute_ctl) to run swap resizer.
   # Need to install sudo in order to allow this.
   #
-  # Also, remove the 'read' permission from group/other on /neonvm/bin/resize-swap, just to be safe.
+  # Also, remove the 'read' permission from group/other on /serendbvm/bin/resize-swap, just to be safe.
   RUN set -e \
       && apt update \
       && apt install --no-install-recommends -y \

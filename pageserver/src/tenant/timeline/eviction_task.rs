@@ -351,7 +351,7 @@ impl Timeline {
     ///    get re-computed from layers, thereby counting towards layer access stats.
     /// 4. Make the eviction task imitate the layer accesses that typically hit caches.
     ///
-    /// We follow approach (4) here because in Neon prod deployment:
+    /// We follow approach (4) here because in SerenDB prod deployment:
     /// - page cache is quite small => high churn => low hit rate
     ///   => eviction gets correct access stats
     /// - value-level caches such as logical size & repatition have a high hit rate,

@@ -31,7 +31,7 @@ jobs:
       packages: read
 
     container:
-      image: ${{ inputs.build-tools-image || 'ghcr.io/neondatabase/build-tools:pinned' }}
+      image: ${{ inputs.build-tools-image || 'ghcr.io/serenorg/build-tools:pinned' }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

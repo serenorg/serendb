@@ -13,11 +13,11 @@ This RFC describes an approach to reduce performance degradation due to missing 
 
 ## Motivation
 
-Neon currently implements several features that guarantee high uptime of compute nodes:
+SerenDB currently implements several features that guarantee high uptime of compute nodes:
 
 1. Storage high-availability (HA), i.e. each tenant shard has a secondary pageserver location, so we can quickly switch over compute to it in case of primary pageserver failure.
 2. Fast compute provisioning, i.e. we have a fleet of pre-created empty computes, that are ready to serve workload, so restarting unresponsive compute is very fast.
-3. Preemptive NeonVM compute provisioning in case of k8s node unavailability.
+3. Preemptive SerenDBVM compute provisioning in case of k8s node unavailability.
 
 This helps us to be well-within the uptime SLO of 99.95% most of the time. Problems begin when we go up to multi-TB workloads and 32-64 CU computes.
 During restart, compute loses all caches: LFC, shared buffers, file system cache. Depending on the workload, it can take a lot of time to warm up the caches,
@@ -201,7 +201,7 @@ the rolling restart via warm replica, but without much of low-level implementati
 
   autonumber
 
-  participant proxy as Neon proxy
+  participant proxy as SerenDB proxy
 
   participant cplane as Control plane
 

@@ -14,12 +14,12 @@ import pytest
 from fixtures.auth_tokens import TokenScope
 from fixtures.common_types import Lsn, TenantId, TenantShardId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     DEFAULT_AZ_ID,
     LogCursor,
-    NeonEnv,
-    NeonEnvBuilder,
-    NeonPageserver,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
+    SerenDBPageserver,
     PageserverAvailability,
     PageserverSchedulingPolicy,
     PgBin,
@@ -65,7 +65,7 @@ if TYPE_CHECKING:
     from werkzeug.wrappers.request import Request
 
 
-def get_node_shard_counts(env: NeonEnv, tenant_ids):
+def get_node_shard_counts(env: SerenDBEnv, tenant_ids):
     counts: defaultdict[int, int] = defaultdict(int)
     for tid in tenant_ids:
         for shard in env.storage_controller.locate(tid):
@@ -81,7 +81,7 @@ class DeletionAPIKind(Enum):
 
 @pytest.mark.parametrize(**fixtures.utils.allpairs_versions())
 def test_storage_controller_smoke(
-    neon_env_builder: NeonEnvBuilder, compute_reconfigure_listener: ComputeReconfigure, combination
+    serendb_env_builder: SerenDBEnvBuilder, compute_reconfigure_listener: ComputeReconfigure, combination
 ):
     """
     Test the basic lifecycle of a storage controller:
@@ -91,9 +91,9 @@ def test_storage_controller_smoke(
     - Marking a pageserver offline
     """
 
-    neon_env_builder.num_pageservers = 3
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 3
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    env = serendb_env_builder.init_configs()
 
     # These bubble up from safekeepers
     for ps in env.pageservers:
@@ -246,10 +246,10 @@ def test_storage_controller_smoke(
 
 
 def test_node_status_after_restart(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_start()
 
     # Initially we have two online pageservers
     nodes = env.storage_controller.node_list()
@@ -278,15 +278,15 @@ def test_node_status_after_restart(
 
 
 def test_storage_controller_passthrough(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     For simple timeline/tenant GET APIs that don't require coordination across
     shards, the sharding service implements a proxy to shard zero.  This test
     calls those APIs.
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_start()
 
     # We will talk to storage controller as if it was a pageserver, using the pageserver
     # HTTP client
@@ -308,8 +308,8 @@ def test_storage_controller_passthrough(
     env.storage_controller.consistency_check()
 
 
-def test_storage_controller_restart(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_storage_controller_restart(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     tenant_a = env.initial_tenant
     tenant_b = TenantId.generate()
     env.storage_controller.tenant_create(tenant_b)
@@ -343,21 +343,21 @@ def test_storage_controller_restart(neon_env_builder: NeonEnvBuilder):
 
 
 def prepare_onboarding_env(
-    neon_env_builder: NeonEnvBuilder,
-) -> tuple[NeonEnv, NeonPageserver, TenantId, int]:
+    serendb_env_builder: SerenDBEnvBuilder,
+) -> tuple[SerenDBEnv, SerenDBPageserver, TenantId, int]:
     """
     For tests that do onboarding of a tenant to the storage controller, a small dance to
     set up one pageserver that won't be managed by the storage controller and create
     a tenant there.
     """
     # One pageserver to simulate legacy environment, two to be managed by storage controller
-    neon_env_builder.num_pageservers = 3
+    serendb_env_builder.num_pageservers = 3
 
     # Enable tests to use methods that require real S3 API
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
     # Start services by hand so that we can skip registration on one of the pageservers
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.broker.start()
     env.storage_controller.start()
     env.endpoint_storage.start()
@@ -392,15 +392,15 @@ def prepare_onboarding_env(
 
 
 @pytest.mark.parametrize("warm_up", [True, False])
-def test_storage_controller_onboarding(neon_env_builder: NeonEnvBuilder, warm_up: bool):
+def test_storage_controller_onboarding(serendb_env_builder: SerenDBEnvBuilder, warm_up: bool):
     """
     We onboard tenants to the sharding service by treating it as a 'virtual pageserver'
     which provides the /location_config API.  This is similar to creating a tenant,
     but imports the generation number.
     """
 
-    neon_env_builder.num_azs = 3
-    env, origin_ps, tenant_id, generation = prepare_onboarding_env(neon_env_builder)
+    serendb_env_builder.num_azs = 3
+    env, origin_ps, tenant_id, generation = prepare_onboarding_env(serendb_env_builder)
 
     virtual_ps_http = PageserverHttpClient(env.storage_controller_port, lambda: True)
 
@@ -547,7 +547,7 @@ def test_storage_controller_onboarding(neon_env_builder: NeonEnvBuilder, warm_up
 
 
 @run_only_on_default_postgres("this test doesn't start an endpoint")
-def test_storage_controller_onboard_detached(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_onboard_detached(serendb_env_builder: SerenDBEnvBuilder):
     """
     Sometimes, the control plane wants to delete a tenant that wasn't attached to any pageserver,
     and also wasn't ever registered with the storage controller.
@@ -556,7 +556,7 @@ def test_storage_controller_onboard_detached(neon_env_builder: NeonEnvBuilder):
     as normal.
     """
 
-    env, origin_ps, tenant_id, generation = prepare_onboarding_env(neon_env_builder)
+    env, origin_ps, tenant_id, generation = prepare_onboarding_env(serendb_env_builder)
 
     remote_prefix = "/".join(
         (
@@ -578,7 +578,7 @@ def test_storage_controller_onboard_detached(neon_env_builder: NeonEnvBuilder):
 
     # Since we will later assert that remote data is gone, as a control also check it was ever there
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=remote_prefix,
     )
 
@@ -605,14 +605,14 @@ def test_storage_controller_onboard_detached(neon_env_builder: NeonEnvBuilder):
 
     # Check that we really deleted it
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=remote_prefix,
     )
 
 
 def test_storage_controller_compute_hook(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     """
@@ -621,9 +621,9 @@ def test_storage_controller_compute_hook(
 
     # We will run two pageserver to migrate and check that the storage controller sends notifications
     # when migrating.
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
 
     # Set up fake HTTP notify endpoint
     notifications = []
@@ -638,10 +638,10 @@ def test_storage_controller_compute_hook(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
     # Start running
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
 
     # Initial notification from tenant creation
     assert len(notifications) == 1
@@ -735,16 +735,16 @@ NOTIFY_FAILURE_LOGS = [
 
 def test_storage_controller_stuck_compute_hook(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     """
     Test the migration process's behavior when the compute hook does not enable it to proceed
     """
 
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
 
     handle_params = {"status": 200}
 
@@ -758,10 +758,10 @@ def test_storage_controller_stuck_compute_hook(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
     # Start running
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
 
     # Initial notification from tenant creation
     assert len(notifications) == 1
@@ -881,7 +881,7 @@ def test_storage_controller_stuck_compute_hook(
 @run_only_on_default_postgres("postgres behavior is not relevant")
 def test_storage_controller_compute_hook_retry(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     """
@@ -891,9 +891,9 @@ def test_storage_controller_compute_hook_retry(
     Reproducer for https://github.com/neondatabase/cloud/issues/22612
     """
 
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
 
     handle_params = {"status": 200}
 
@@ -907,10 +907,10 @@ def test_storage_controller_compute_hook_retry(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
     # Start running
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -999,13 +999,13 @@ def test_storage_controller_compute_hook_retry(
 @run_only_on_default_postgres("postgres behavior is not relevant")
 def test_storage_controller_compute_hook_stuck_reconciles(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
-    neon_env_builder.num_pageservers = 4
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.num_pageservers = 4
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
 
     # Set up CP handler for compute notifications
     status_by_tenant: dict[TenantId, int] = {}
@@ -1019,8 +1019,8 @@ def test_storage_controller_compute_hook_stuck_reconciles(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    # Run neon environment
-    env = neon_env_builder.init_configs()
+    # Run SerenDB environment
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # Create two tenants:
@@ -1100,7 +1100,7 @@ def test_storage_controller_compute_hook_stuck_reconciles(
 @run_only_on_default_postgres("this test doesn't start an endpoint")
 def test_storage_controller_compute_hook_revert(
     httpserver: HTTPServer,
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver_listen_address: ListenAddress,
 ):
     """
@@ -1116,9 +1116,9 @@ def test_storage_controller_compute_hook_revert(
 
     # We will run two pageserver to migrate and check that the storage controller sends notifications
     # when migrating.
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
 
     # Set up fake HTTP notify endpoint
     notifications = []
@@ -1133,10 +1133,10 @@ def test_storage_controller_compute_hook_revert(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
     # Start running
-    env = neon_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
+    env = serendb_env_builder.init_start(initial_tenant_conf={"lsn_lease_length": "0s"})
     tenant_id = env.initial_tenant
     tenant_shard_id = TenantShardId(tenant_id, 0, 0)
 
@@ -1215,14 +1215,14 @@ def test_storage_controller_compute_hook_revert(
     wait_until(lambda: notified_ps(pageserver_a.id))
 
 
-def test_storage_controller_debug_apis(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_debug_apis(serendb_env_builder: SerenDBEnvBuilder):
     """
     Verify that occasional-use debug APIs work as expected.  This is a lightweight test
     that just hits the endpoints to check that they don't bitrot.
     """
 
-    neon_env_builder.num_pageservers = 3
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_pageservers = 3
+    env = serendb_env_builder.init_start()
 
     tenant_id = TenantId.generate()
     env.storage_controller.tenant_create(tenant_id, shard_count=2, shard_stripe_size=8192)
@@ -1230,7 +1230,7 @@ def test_storage_controller_debug_apis(neon_env_builder: NeonEnvBuilder):
     # Check that the consistency check passes on a freshly setup system
     env.storage_controller.consistency_check()
 
-    # These APIs are intentionally not implemented as methods on NeonStorageController, as
+    # These APIs are intentionally not implemented as methods on SerenDBStorageController, as
     # they're just for use in unanticipated circumstances.
 
     # Initial tenant (1 shard) and the one we just created (2 shards) should be visible
@@ -1297,7 +1297,7 @@ def test_storage_controller_debug_apis(neon_env_builder: NeonEnvBuilder):
 
 
 def test_storage_controller_s3_time_travel_recovery(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
     """
@@ -1305,18 +1305,18 @@ def test_storage_controller_s3_time_travel_recovery(
     """
 
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
     # Mock S3 doesn't have versioning enabled by default, enable it
     # (also do it before there is any writes to the bucket)
     if remote_storage_kind == RemoteStorageKind.MOCK_S3:
-        remote_storage = neon_env_builder.pageserver_remote_storage
+        remote_storage = serendb_env_builder.pageserver_remote_storage
         assert remote_storage, "remote storage not configured"
         enable_remote_storage_versioning(remote_storage)
 
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.num_pageservers = 1
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     virtual_ps_http = PageserverHttpClient(env.storage_controller_port, lambda: True)
 
     tenant_id = TenantId.generate()
@@ -1403,9 +1403,9 @@ def test_storage_controller_s3_time_travel_recovery(
     env.storage_controller.consistency_check()
 
 
-def test_storage_controller_auth(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.auth_enabled = True
-    env = neon_env_builder.init_start()
+def test_storage_controller_auth(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.auth_enabled = True
+    env = serendb_env_builder.init_start()
     svc = env.storage_controller
     api = env.storage_controller_api
 
@@ -1472,13 +1472,13 @@ def test_storage_controller_auth(neon_env_builder: NeonEnvBuilder):
         )
 
 
-def test_storage_controller_tenant_conf(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_tenant_conf(serendb_env_builder: SerenDBEnvBuilder):
     """
     Validate the pageserver-compatible API endpoints for setting and getting tenant conf, without
     supplying the whole LocationConf.
     """
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
 
     http = env.storage_controller.pageserver_api()
@@ -1512,7 +1512,7 @@ def test_storage_controller_tenant_conf(neon_env_builder: NeonEnvBuilder):
 
 
 def test_storage_controller_tenant_deletion(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     compute_reconfigure_listener: ComputeReconfigure,
 ):
     """
@@ -1521,16 +1521,16 @@ def test_storage_controller_tenant_deletion(
     - Deletion does not require the compute notification hook to be responsive
     - Deleting a tenant also removes all secondary locations
     """
-    neon_env_builder.num_pageservers = 4
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    serendb_env_builder.num_pageservers = 4
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         # Route to `compute_reconfigure_listener` instead
         "use_local_compute_notifications": False,
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -1553,7 +1553,7 @@ def test_storage_controller_tenant_deletion(
     # Assert all shards have some content in remote storage
     for shard_id in shard_ids:
         assert_prefix_not_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -1579,7 +1579,7 @@ def test_storage_controller_tenant_deletion(
 
     for shard_id in shard_ids:
         assert_prefix_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix="/".join(
                 (
                     "tenants",
@@ -1598,10 +1598,10 @@ class Failure:
     offline_timeout: int
     must_detect_after: int
 
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         raise NotImplementedError()
 
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         raise NotImplementedError()
 
     def nodes(self):
@@ -1615,12 +1615,12 @@ class NodeStop(Failure):
         self.offline_timeout = offline_timeout
         self.must_detect_after = must_detect_after
 
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         for ps_id in self.pageserver_ids:
             pageserver = env.get_pageserver(ps_id)
             pageserver.stop(immediate=self.immediate)
 
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         for ps_id in self.pageserver_ids:
             pageserver = env.get_pageserver(ps_id)
             pageserver.start()
@@ -1636,7 +1636,7 @@ class NodeRestartWithSlowReattach(Failure):
         self.must_detect_after = must_detect_after
         self.thread = None
 
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.stop(immediate=False)
 
@@ -1648,7 +1648,7 @@ class NodeRestartWithSlowReattach(Failure):
         self.thread = threading.Thread(target=start_ps)
         self.thread.start()
 
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         if self.thread is not None:
             self.thread.join()
 
@@ -1666,11 +1666,11 @@ class PageserverFailpoint(Failure):
         self.offline_timeout = offline_timeout
         self.must_detect_after = must_detect_after
 
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.http_client().configure_failpoints((self.failpoint, "return(1)"))
 
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.http_client().configure_failpoints((self.failpoint, "off"))
 
@@ -1678,7 +1678,7 @@ class PageserverFailpoint(Failure):
         return [self.pageserver_id]
 
 
-def build_node_to_tenants_map(env: NeonEnv) -> dict[int, list[TenantId]]:
+def build_node_to_tenants_map(env: SerenDBEnv) -> dict[int, list[TenantId]]:
     tenants = env.storage_controller.tenant_shard_dump()
 
     node_to_tenants: dict[int, list[TenantId]] = {}
@@ -1715,15 +1715,15 @@ def build_node_to_tenants_map(env: NeonEnv) -> dict[int, list[TenantId]]:
     ],
 )
 def test_storage_controller_heartbeats(
-    neon_env_builder: NeonEnvBuilder, pg_bin: PgBin, failure: Failure
+    serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin, failure: Failure
 ):
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "max_offline": "10s",
         "max_warming_up": "20s",
     }
 
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.storage_controller.allowed_errors.extend(
@@ -1840,14 +1840,14 @@ def test_storage_controller_heartbeats(
     env.storage_controller.consistency_check()
 
 
-def test_storage_controller_re_attach(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_re_attach(serendb_env_builder: SerenDBEnvBuilder):
     """
     Exercise the behavior of the /re-attach endpoint on pageserver startup when
     pageservers have a mixture of attached and secondary locations
     """
 
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     # We'll have two tenants.
@@ -1878,7 +1878,7 @@ def test_storage_controller_re_attach(neon_env_builder: NeonEnvBuilder):
 
     # We could pre-empty this by configuring the node to Offline, but it's preferable to test
     # the realistic path we would take when a node restarts uncleanly.
-    # The delay here will be ~NEON_LOCAL_MAX_UNAVAILABLE_INTERVAL in neon_local
+    # The delay here will be ~SERENDB_LOCAL_MAX_UNAVAILABLE_INTERVAL in serendb_local
     wait_until(failed_over)
 
     reconciles_before_restart = env.storage_controller.get_metric_value(
@@ -1907,11 +1907,11 @@ def test_storage_controller_re_attach(neon_env_builder: NeonEnvBuilder):
     assert reconciles_after_restart == reconciles_before_restart + 2
 
 
-def test_storage_controller_shard_scheduling_policy(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_shard_scheduling_policy(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that emergency hooks for disabling rogue tenants' reconcilers work as expected.
     """
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -2002,22 +2002,22 @@ def test_storage_controller_shard_scheduling_policy(neon_env_builder: NeonEnvBui
     assert len(env.pageserver.http_client().tenant_list_locations()["tenant_shards"]) == 1
 
 
-def test_storcon_cli(neon_env_builder: NeonEnvBuilder):
+def test_storcon_cli(serendb_env_builder: SerenDBEnvBuilder):
     """
     The storage controller command line interface (storcon-cli) is an internal tool.  Most tests
     just use the APIs directly: this test exercises some basics of the CLI as a regression test
     that the client remains usable as the server evolves.
     """
-    output_dir = neon_env_builder.test_output_dir
+    output_dir = serendb_env_builder.test_output_dir
     shard_count = 4
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
     env.create_tenant(tenant_id, placement_policy='{"Attached":1}', shard_count=shard_count)
 
-    base_args = [env.neon_binpath / "storcon_cli", "--api", env.storage_controller_api]
+    base_args = [env.serendb_binpath / "storcon_cli", "--api", env.storage_controller_api]
 
     def storcon_cli(args):
         """
@@ -2158,12 +2158,12 @@ def test_storcon_cli(neon_env_builder: NeonEnvBuilder):
     env.storage_controller.consistency_check()
 
 
-def test_lock_time_tracing(neon_env_builder: NeonEnvBuilder):
+def test_lock_time_tracing(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that when lock on resource (tenants, nodes) is held for too long it is
     traced in logs.
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     env.storage_controller.allowed_errors.extend(
         [
@@ -2222,7 +2222,7 @@ def test_lock_time_tracing(neon_env_builder: NeonEnvBuilder):
 
 @pytest.mark.parametrize("remote_storage", [RemoteStorageKind.LOCAL_FS, s3_storage()])
 @pytest.mark.parametrize("shard_count", [None, 4])
-def test_tenant_import(neon_env_builder: NeonEnvBuilder, shard_count, remote_storage):
+def test_tenant_import(serendb_env_builder: SerenDBEnvBuilder, shard_count, remote_storage):
     """
     Tenant import is a support/debug tool for recovering a tenant from remote storage
     if we don't have any metadata for it in the storage controller.
@@ -2231,13 +2231,13 @@ def test_tenant_import(neon_env_builder: NeonEnvBuilder, shard_count, remote_sto
     # This test is parametrized on remote storage because it exercises the relatively rare
     # code path of listing with a prefix that is not a directory name: this helps us notice
     # quickly if local_fs or s3_bucket implementations diverge.
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage)
 
     # Use multiple pageservers because some test helpers assume single sharded tenants
     # if there is only one pageserver.
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
     tenant_id = env.initial_tenant
 
     # Create a second timeline to ensure that import finds both
@@ -2284,7 +2284,7 @@ def test_tenant_import(neon_env_builder: NeonEnvBuilder, shard_count, remote_sto
     )
 
     # Now import it again
-    env.neon_cli.tenant_import(tenant_id)
+    env.serendb_cli.tenant_import(tenant_id)
 
     # Check we found the shards
     describe = env.storage_controller.tenant_describe(tenant_id)
@@ -2311,7 +2311,7 @@ def test_tenant_import(neon_env_builder: NeonEnvBuilder, shard_count, remote_sto
 @pytest.mark.parametrize(**fixtures.utils.allpairs_versions())
 @pytest.mark.parametrize("num_azs", [1, 2])
 def test_graceful_cluster_restart(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     num_azs: int,
     compute_reconfigure_listener: ComputeReconfigure,
     combination,
@@ -2325,10 +2325,10 @@ def test_graceful_cluster_restart(
     of reliably moving shards back to their home AZ, and the behavior for AZ-agnostic
     tenants where we fill based on a target shard count.
     """
-    neon_env_builder.num_azs = num_azs
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_azs = num_azs
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_count = 5
@@ -2349,7 +2349,7 @@ def test_graceful_cluster_restart(
     nodes = env.storage_controller.node_list()
     assert len(nodes) == 2
 
-    def assert_shard_counts_balanced(env: NeonEnv, shard_counts, total_shards):
+    def assert_shard_counts_balanced(env: SerenDBEnv, shard_counts, total_shards):
         # Assert that all nodes have some attached shards
         assert len(shard_counts) == len(env.pageservers)
 
@@ -2418,19 +2418,19 @@ def test_graceful_cluster_restart(
     assert_shard_counts_balanced(env, shard_counts, total_shards)
 
 
-def test_skip_drain_on_secondary_lag(neon_env_builder: NeonEnvBuilder, pg_bin: PgBin):
+def test_skip_drain_on_secondary_lag(serendb_env_builder: SerenDBEnvBuilder, pg_bin: PgBin):
     """
     Artificially make a tenant shard's secondary location lag behind the primary
     and check that storage controller driven node drains skip the lagging tenant shard.
     Finally, validate that the tenant shard is migrated when a new drain request comes
     in and it's no longer lagging.
     """
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.storage_controller_config = {
         "max_secondary_lag_bytes": 1 * 1024 * 1024,
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tid, timeline_id = env.create_tenant(placement_policy='{"Attached":1}')
@@ -2527,9 +2527,9 @@ def test_skip_drain_on_secondary_lag(neon_env_builder: NeonEnvBuilder, pg_bin: P
     assert locations[0]["node_id"] == secondary
 
 
-def test_background_operation_cancellation(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+def test_background_operation_cancellation(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_count = 10
@@ -2583,16 +2583,16 @@ def test_background_operation_cancellation(neon_env_builder: NeonEnvBuilder):
 @pytest.mark.parametrize("while_offline", [True, False])
 @pytest.mark.parametrize("deletion_api", [DeletionAPIKind.OLD, DeletionAPIKind.FORCE])
 def test_storage_controller_node_deletion(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     while_offline: bool,
     deletion_api: DeletionAPIKind,
 ):
     """
     Test that deleting a node works & properly reschedules everything that was on the node.
     """
-    neon_env_builder.num_pageservers = 3
-    neon_env_builder.num_azs = 3
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 3
+    serendb_env_builder.num_azs = 3
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_count = 10
@@ -2684,12 +2684,12 @@ def test_storage_controller_node_deletion(
 
 @pytest.mark.parametrize("deletion_api", [DeletionAPIKind.FORCE, DeletionAPIKind.GRACEFUL])
 def test_storage_controller_node_delete_cancellation(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     deletion_api: DeletionAPIKind,
 ):
-    neon_env_builder.num_pageservers = 3
-    neon_env_builder.num_azs = 3
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 3
+    serendb_env_builder.num_azs = 3
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_count = 12
@@ -2748,7 +2748,7 @@ def test_storage_controller_node_delete_cancellation(
 
 @pytest.mark.parametrize("shard_count", [None, 2])
 def test_storage_controller_metadata_health(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     shard_count: int | None,
 ):
     """
@@ -2771,7 +2771,7 @@ def test_storage_controller_metadata_health(
     """
 
     def update_and_query_metadata_health(
-        env: NeonEnv,
+        env: SerenDBEnv,
         healthy: list[TenantShardId],
         unhealthy: list[TenantShardId],
         outdated_duration: str = "1h",
@@ -2789,10 +2789,10 @@ def test_storage_controller_metadata_health(
 
         return unhealthy_res, outdated_res
 
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_start()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_start()
 
     # Mock tenant (`initial_tenant``) with healthy scrubber scan result
     tenant_a_shard_ids = (
@@ -2866,13 +2866,13 @@ def test_storage_controller_metadata_health(
         assert str(t) in outdated
 
 
-def test_storage_controller_step_down(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_step_down(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test the `/control/v1/step_down` storage controller API. Upon receiving such
     a request, the storage controller cancels any on-going reconciles and replies
     with 503 to all requests apart from `/control/v1/step_down`, `/status` and `/metrics`.
     """
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tid = TenantId.generate()
@@ -2953,9 +2953,9 @@ def test_storage_controller_step_down(neon_env_builder: NeonEnvBuilder):
     )
 
 
-# This is a copy of NeonEnv.start which injects the instance id and port
-# into the call to NeonStorageController.start
-def start_env(env: NeonEnv, storage_controller_port: int):
+# This is a copy of SerenDBEnv.start which injects the instance id and port
+# into the call to SerenDBStorageController.start
+def start_env(env: SerenDBEnv, storage_controller_port: int):
     timeout_in_seconds = 30
 
     # Storage controller starts first, so that pageserver /re-attach calls don't
@@ -2995,28 +2995,28 @@ def start_env(env: NeonEnv, storage_controller_port: int):
 
 @pytest.mark.parametrize("step_down_times_out", [False, True])
 def test_storage_controller_leadership_transfer(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     storage_controller_proxy: StorageControllerProxy,
     port_distributor: PortDistributor,
     step_down_times_out: bool,
 ):
-    neon_env_builder.auth_enabled = True
+    serendb_env_builder.auth_enabled = True
 
-    neon_env_builder.num_pageservers = 3
+    serendb_env_builder.num_pageservers = 3
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "database_url": f"127.0.0.1:{port_distributor.get_port()}",
         "start_as_candidate": True,
     }
 
-    neon_env_builder.storage_controller_port_override = storage_controller_proxy.port()
+    serendb_env_builder.storage_controller_port_override = storage_controller_proxy.port()
 
     storage_controller_1_port = port_distributor.get_port()
     storage_controller_2_port = port_distributor.get_port()
 
     storage_controller_proxy.route_to(f"http://127.0.0.1:{storage_controller_1_port}")
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     start_env(env, storage_controller_1_port)
 
     assert (
@@ -3090,7 +3090,7 @@ def test_storage_controller_leadership_transfer(
 
 
 def test_storage_controller_leadership_transfer_during_split(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     storage_controller_proxy: StorageControllerProxy,
     port_distributor: PortDistributor,
 ):
@@ -3098,23 +3098,23 @@ def test_storage_controller_leadership_transfer_during_split(
     Exercise a race between shard splitting and graceful leadership transfer.  This is
     a reproducer for https://github.com/neondatabase/neon/issues/11254
     """
-    neon_env_builder.auth_enabled = True
+    serendb_env_builder.auth_enabled = True
 
-    neon_env_builder.num_pageservers = 3
+    serendb_env_builder.num_pageservers = 3
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "database_url": f"127.0.0.1:{port_distributor.get_port()}",
         "start_as_candidate": True,
     }
 
-    neon_env_builder.storage_controller_port_override = storage_controller_proxy.port()
+    serendb_env_builder.storage_controller_port_override = storage_controller_proxy.port()
 
     storage_controller_1_port = port_distributor.get_port()
     storage_controller_2_port = port_distributor.get_port()
 
     storage_controller_proxy.route_to(f"http://127.0.0.1:{storage_controller_1_port}")
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     start_env(env, storage_controller_1_port)
 
     assert (
@@ -3244,11 +3244,11 @@ def test_storage_controller_leadership_transfer_during_split(
     assert status["scheduling"] == "Pause"
 
 
-def test_storage_controller_ps_restarted_during_drain(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_ps_restarted_during_drain(serendb_env_builder: SerenDBEnvBuilder):
     # single unsharded tenant, two locations
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.storage_controller.tenant_policy_update(env.initial_tenant, {"placement": {"Attached": 1}})
     env.storage_controller.reconcile_until_idle()
@@ -3290,11 +3290,11 @@ def test_storage_controller_ps_restarted_during_drain(neon_env_builder: NeonEnvB
 
 @pytest.mark.parametrize("deletion_api", [DeletionAPIKind.OLD, DeletionAPIKind.FORCE])
 def test_ps_unavailable_after_delete(
-    neon_env_builder: NeonEnvBuilder, deletion_api: DeletionAPIKind
+    serendb_env_builder: SerenDBEnvBuilder, deletion_api: DeletionAPIKind
 ):
-    neon_env_builder.num_pageservers = 3
+    serendb_env_builder.num_pageservers = 3
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     def assert_nodes_count(n: int):
         nodes = env.storage_controller.node_list()
@@ -3350,14 +3350,14 @@ def test_ps_unavailable_after_delete(
         wait_until(lambda: assert_nodes_count(3))
 
 
-def test_storage_controller_timeline_crud_race(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_timeline_crud_race(serendb_env_builder: SerenDBEnvBuilder):
     """
     The storage controller is meant to handle the case where a timeline CRUD operation races
     with a generation-incrementing change to the tenant: this should trigger a retry so that
     the operation lands on the highest-generation'd tenant location.
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
     tenant_id = TenantId.generate()
     env.storage_controller.tenant_create(tenant_id)
@@ -3413,15 +3413,15 @@ def test_storage_controller_timeline_crud_race(neon_env_builder: NeonEnvBuilder)
     ).timeline_create(PgVersion.NOT_SET, tenant_id, create_timeline_id)
 
 
-def test_storage_controller_validate_during_migration(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_validate_during_migration(serendb_env_builder: SerenDBEnvBuilder):
     """
     A correctness edge case: while we are live migrating and a shard's generation is
     visible to the Reconciler but not to the central Service, the generation validation
     API should still prevent stale generations from doing deletions.
     """
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
+    env = serendb_env_builder.init_configs()
     env.start()
 
     TENANT_CONF = {
@@ -3526,7 +3526,7 @@ def test_storage_controller_validate_during_migration(neon_env_builder: NeonEnvB
         assert healthy
     except:
         # On failures, we want to report them FAIL during the test, not as ERROR during teardown
-        neon_env_builder.enable_scrub_on_exit = False
+        serendb_env_builder.enable_scrub_on_exit = False
         raise
 
 
@@ -3551,7 +3551,7 @@ class MigrationFailpoints(Enum):
     ],
 )
 def test_storage_controller_proxy_during_migration(
-    neon_env_builder: NeonEnvBuilder, migration_failpoint: MigrationFailpoints
+    serendb_env_builder: SerenDBEnvBuilder, migration_failpoint: MigrationFailpoints
 ):
     """
     If we send a proxied GET request to the controller during a migration, it should route
@@ -3559,15 +3559,15 @@ def test_storage_controller_proxy_during_migration(
 
     Reproducer for https://github.com/neondatabase/neon/issues/9062
     """
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         # Publish long reconcile metric early
         "long_reconcile_threshold": "5s",
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = env.initial_tenant
@@ -3650,8 +3650,8 @@ def test_storage_controller_proxy_during_migration(
 
 
 @run_only_on_default_postgres("this is like a 'unit test' against storcon db")
-def test_safekeeper_deployment_time_update(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_configs()
+def test_safekeeper_deployment_time_update(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_configs()
     env.start()
 
     fake_id = 5
@@ -3757,8 +3757,8 @@ def test_safekeeper_deployment_time_update(neon_env_builder: NeonEnvBuilder):
 
 
 @run_only_on_default_postgres("this is like a 'unit test' against storcon db")
-def test_safekeeper_activating_to_active(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_configs()
+def test_safekeeper_activating_to_active(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_configs()
     env.start()
 
     fake_id = 5
@@ -3822,15 +3822,15 @@ def eq_safekeeper_records(a: dict[str, Any], b: dict[str, Any]) -> bool:
 
 
 @run_only_on_default_postgres("this is like a 'unit test' against storcon db")
-def test_shard_preferred_azs(neon_env_builder: NeonEnvBuilder):
+def test_shard_preferred_azs(serendb_env_builder: SerenDBEnvBuilder):
     def assign_az(ps_cfg):
         az = f"az-{ps_cfg['id'] % 2}"
         log.info("Assigned AZ {az}")
         ps_cfg["availability_zone"] = az
 
-    neon_env_builder.pageserver_config_override = assign_az
-    neon_env_builder.num_pageservers = 4
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.pageserver_config_override = assign_az
+    serendb_env_builder.num_pageservers = 4
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tids = [TenantId.generate() for _ in range(0, 3)]
@@ -3889,9 +3889,9 @@ def test_shard_preferred_azs(neon_env_builder: NeonEnvBuilder):
         MigrationFailpoints.POST_DETACH,
     ],
 )
-def test_timeline_delete_mid_live_migration(neon_env_builder: NeonEnvBuilder, migration_failpoint):
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+def test_timeline_delete_mid_live_migration(serendb_env_builder: SerenDBEnvBuilder, migration_failpoint):
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     for ps in env.pageservers:
@@ -3967,9 +3967,9 @@ def test_timeline_delete_mid_live_migration(neon_env_builder: NeonEnvBuilder, mi
         MigrationFailpoints.POST_DETACH,
     ],
 )
-def test_multi_attached_timeline_creation(neon_env_builder: NeonEnvBuilder, migration_failpoint):
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+def test_multi_attached_timeline_creation(serendb_env_builder: SerenDBEnvBuilder, migration_failpoint):
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -4054,18 +4054,18 @@ def test_multi_attached_timeline_creation(neon_env_builder: NeonEnvBuilder, migr
 
 @run_only_on_default_postgres("Postgres version makes no difference here")
 def test_storage_controller_detached_stopped(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test that detaching a tenant while it has scheduling policy set to Paused or Stop works
     """
 
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.num_pageservers = 1
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     virtual_ps_http = PageserverHttpClient(env.storage_controller_port, lambda: True)
 
@@ -4106,7 +4106,7 @@ def test_storage_controller_detached_stopped(
 
 @run_only_on_default_postgres("Postgres version makes no difference here")
 def test_storage_controller_detach_lifecycle(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test that detached tenants are handled properly through their lifecycle: getting dropped
@@ -4114,11 +4114,11 @@ def test_storage_controller_detach_lifecycle(
     """
 
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.num_pageservers = 1
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
     virtual_ps_http = PageserverHttpClient(env.storage_controller_port, lambda: True)
 
@@ -4138,7 +4138,7 @@ def test_storage_controller_detach_lifecycle(
     )
     # We will later check data is gone after deletion, so as a control check that it is present to begin with
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=remote_prefix,
     )
 
@@ -4202,14 +4202,14 @@ def test_storage_controller_detach_lifecycle(
 
     # Such deletions really work (empty remote storage)
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=remote_prefix,
     )
 
 
 @run_only_on_default_postgres("Postgres version makes no difference here")
 def test_storage_controller_node_flap_detach_race(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Reproducer for https://github.com/neondatabase/neon/issues/10253.
@@ -4218,9 +4218,9 @@ def test_storage_controller_node_flap_detach_race(
     going offline may race with the reconciliation done when then node comes
     back online.
     """
-    neon_env_builder.num_pageservers = 4
+    serendb_env_builder.num_pageservers = 4
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -4318,7 +4318,7 @@ def test_storage_controller_node_flap_detach_race(
 
 
 @run_only_on_default_postgres("this is like a 'unit test' against storcon db")
-def test_update_node_on_registration(neon_env_builder: NeonEnvBuilder):
+def test_update_node_on_registration(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that storage controller handles node_register requests with updated fields correctly.
     1. Run storage controller and register 1 pageserver without https port.
@@ -4326,8 +4326,8 @@ def test_update_node_on_registration(neon_env_builder: NeonEnvBuilder):
     3. Restart the storage controller. Check that https port is persistent.
     4. Register the same pageserver without https port again (rollback). Check that port has been removed.
     """
-    neon_env_builder.num_pageservers = 1
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 1
+    env = serendb_env_builder.init_configs()
 
     env.storage_controller.start()
     env.storage_controller.wait_until_ready()
@@ -4371,19 +4371,19 @@ def test_update_node_on_registration(neon_env_builder: NeonEnvBuilder):
     assert nodes[0]["listen_https_port"] is None
 
 
-def test_storage_controller_location_conf_equivalence(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_location_conf_equivalence(serendb_env_builder: SerenDBEnvBuilder):
     """
     Validate that a storage controller restart with no shards in a transient state
     performs zero reconciliations at start-up. Implicitly, this means that the location
     configs returned by the pageserver are identical to the persisted state in the
     storage controller database.
     """
-    neon_env_builder.num_pageservers = 1
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_pageservers = 1
+    serendb_env_builder.storage_controller_config = {
         "start_as_candidate": False,
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -4431,7 +4431,7 @@ class EmptyTimeline(Enum):
 @pytest.mark.parametrize("deletetion_subject", [DeletionSubject.TENANT, DeletionSubject.TIMELINE])
 @pytest.mark.parametrize("empty_timeline", [EmptyTimeline.EMPTY, EmptyTimeline.NONEMPTY])
 def test_storcon_create_delete_sk_down(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     restart_storcon: RestartStorcon,
     deletetion_subject: DeletionSubject,
     empty_timeline: EmptyTimeline,
@@ -4443,11 +4443,11 @@ def test_storcon_create_delete_sk_down(
       - deletion_subject: test that both single timeline and whole tenant deletion work.
     """
 
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.safekeepers[0].stop()
 
@@ -4544,7 +4544,7 @@ def test_storcon_create_delete_sk_down(
 @pytest.mark.parametrize("num_safekeepers", [1, 2, 3])
 @pytest.mark.parametrize("deletetion_subject", [DeletionSubject.TENANT, DeletionSubject.TIMELINE])
 def test_storcon_few_sk(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     num_safekeepers: int,
     deletetion_subject: DeletionSubject,
 ):
@@ -4554,12 +4554,12 @@ def test_storcon_few_sk(
       - deletion_subject: test that both single timeline and whole tenant deletion work.
     """
 
-    neon_env_builder.num_safekeepers = num_safekeepers
+    serendb_env_builder.num_safekeepers = num_safekeepers
     safekeeper_list = list(range(1, num_safekeepers + 1))
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     tenant_id = TenantId.generate()
     timeline_id = TimelineId.generate()
@@ -4593,7 +4593,7 @@ def test_storcon_few_sk(
 
 
 @pytest.mark.parametrize("wrong_az", [True, False])
-def test_storage_controller_graceful_migration(neon_env_builder: NeonEnvBuilder, wrong_az: bool):
+def test_storage_controller_graceful_migration(serendb_env_builder: SerenDBEnvBuilder, wrong_az: bool):
     """
     Test that the graceful migration API goes through the process of
     creating a secondary & waiting for it to warm up before cutting over, when
@@ -4601,12 +4601,12 @@ def test_storage_controller_graceful_migration(neon_env_builder: NeonEnvBuilder,
     """
 
     # 2 pageservers in 2 AZs, so that each AZ has a pageserver we can migrate to
-    neon_env_builder.num_pageservers = 4
-    neon_env_builder.num_azs = 2
+    serendb_env_builder.num_pageservers = 4
+    serendb_env_builder.num_azs = 2
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
-    # Enable secondary location (neon_local disables by default)
+    # Enable secondary location (serendb_local disables by default)
     env.storage_controller.tenant_policy_update(env.initial_tenant, {"placement": {"Attached": 1}})
     env.storage_controller.reconcile_until_idle()
 
@@ -4697,13 +4697,13 @@ def test_storage_controller_graceful_migration(neon_env_builder: NeonEnvBuilder,
         assert initial_ps.http_client().tenant_list_locations()["tenant_shards"] == []
 
 
-def test_attached_0_graceful_migration(neon_env_builder: NeonEnvBuilder):
-    neon_env_builder.num_pageservers = 4
-    neon_env_builder.num_azs = 2
+def test_attached_0_graceful_migration(serendb_env_builder: SerenDBEnvBuilder):
+    serendb_env_builder.num_pageservers = 4
+    serendb_env_builder.num_azs = 2
 
-    neon_env_builder.storcon_kick_secondary_downloads = False
+    serendb_env_builder.storcon_kick_secondary_downloads = False
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # It is default, but we want to ensure that there are no secondary locations requested
     env.storage_controller.tenant_policy_update(env.initial_tenant, {"placement": {"Attached": 0}})
@@ -4746,22 +4746,22 @@ def test_attached_0_graceful_migration(neon_env_builder: NeonEnvBuilder):
 
 @run_only_on_default_postgres("this is like a 'unit test' against storcon db")
 def test_storage_controller_migrate_with_pageserver_restart(
-    neon_env_builder: NeonEnvBuilder, make_httpserver
+    serendb_env_builder: SerenDBEnvBuilder, make_httpserver
 ):
     """
     Test that live migrations which fail right after incrementing the generation
     due to the destination going offline eventually send a compute notification
     after the destination re-attaches.
     """
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         # Disable transitions to offline
         "max_offline": "600s",
         "use_local_compute_notifications": False,
     }
 
-    neon_env_builder.control_plane_hooks_api = (
+    serendb_env_builder.control_plane_hooks_api = (
         f"http://{make_httpserver.host}:{make_httpserver.port}/"
     )
 
@@ -4773,7 +4773,7 @@ def test_storage_controller_migrate_with_pageserver_restart(
 
     make_httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(notify)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.storage_controller.allowed_errors.extend(
         [
@@ -4863,15 +4863,15 @@ def test_storage_controller_migrate_with_pageserver_restart(
 
 
 @run_only_on_default_postgres("PG version is not important for this test")
-def test_storage_controller_forward_404(neon_env_builder: NeonEnvBuilder):
+def test_storage_controller_forward_404(serendb_env_builder: SerenDBEnvBuilder):
     """
     Ensures that the storage controller correctly forwards 404s and converts some of them
     into 503s before forwarding to the client.
     """
-    neon_env_builder.num_pageservers = 2
-    neon_env_builder.num_azs = 2
+    serendb_env_builder.num_pageservers = 2
+    serendb_env_builder.num_azs = 2
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.storage_controller.allowed_errors.append(".*Reconcile error.*")
     env.storage_controller.allowed_errors.append(".*Timed out.*")
 
@@ -4962,7 +4962,7 @@ def test_storage_controller_forward_404(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_re_attach_with_stuck_secondary(neon_env_builder: NeonEnvBuilder):
+def test_re_attach_with_stuck_secondary(serendb_env_builder: SerenDBEnvBuilder):
     """
     This test assumes that the secondary location cannot be configured for whatever reason.
     It then attempts to detach and and attach the tenant back again and, finally, checks
@@ -4971,9 +4971,9 @@ def test_re_attach_with_stuck_secondary(neon_env_builder: NeonEnvBuilder):
     See LKB-204 for more details.
     """
 
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     env.storage_controller.allowed_errors.append(".*failpoint.*")

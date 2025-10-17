@@ -152,7 +152,7 @@ class LocalFsStorage:
         return toml.TomlEncoder().dump_inline_table(self.to_toml_dict())
 
     def cleanup(self):
-        # no cleanup is done here, because there's NeonEnvBuilder.cleanup_local_storage which will remove everything, including localfs files
+        # no cleanup is done here, because there's SerenDBEnvBuilder.cleanup_local_storage which will remove everything, including localfs files
         pass
 
     @staticmethod

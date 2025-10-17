@@ -1,6 +1,6 @@
 //! Rust definitions of the libpq-based pagestream API
 //!
-//! See also the C implementation of the same API in pgxn/neon/pagestore_client.h
+//! See also the C implementation of the same API in pgxn/serendb/pagestore_client.h
 
 use std::io::{BufRead, Read};
 
@@ -307,7 +307,7 @@ impl PagestreamFeMessage {
         body: &mut R,
         protocol_version: PagestreamProtocolVersion,
     ) -> anyhow::Result<PagestreamFeMessage> {
-        // these correspond to the NeonMessageTag enum in pagestore_client.h
+        // these correspond to the SerenDBMessageTag enum in pagestore_client.h
         //
         // TODO: consider using protobuf or serde bincode for less error prone
         // serialization.

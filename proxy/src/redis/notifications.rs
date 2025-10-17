@@ -12,7 +12,7 @@ use crate::intern::{AccountIdInt, EndpointIdInt, ProjectIdInt, RoleNameInt};
 use crate::metrics::{Metrics, RedisErrors, RedisEventsCount};
 use crate::util::deserialize_json_string;
 
-const CPLANE_CHANNEL_NAME: &str = "neondb-proxy-ws-updates";
+const CPLANE_CHANNEL_NAME: &str = "serendb-proxy-ws-updates";
 const RECONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 const INVALIDATION_LAG: std::time::Duration = std::time::Duration::from_secs(20);
 

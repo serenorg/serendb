@@ -167,9 +167,9 @@ impl AuthInterceptor {
 impl Interceptor for AuthInterceptor {
     fn call(&mut self, mut req: tonic::Request<()>) -> tonic::Result<tonic::Request<()>> {
         let metadata = req.metadata_mut();
-        metadata.insert("neon-tenant-id", self.tenant_id.clone());
-        metadata.insert("neon-timeline-id", self.timeline_id.clone());
-        metadata.insert("neon-shard-id", self.shard_id.clone());
+        metadata.insert("serendb-tenant-id", self.tenant_id.clone());
+        metadata.insert("serendb-timeline-id", self.timeline_id.clone());
+        metadata.insert("serendb-shard-id", self.shard_id.clone());
         if let Some(ref auth_header) = self.auth_header {
             metadata.insert("authorization", auth_header.clone());
         }

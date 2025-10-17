@@ -10,7 +10,7 @@ from fixtures.log_helper import log
 from fixtures.pageserver.http import PageserverApiException
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 def assert_child_processes(pageserver_pid, wal_redo_present=False, defunct_present=False):
@@ -26,8 +26,8 @@ def assert_child_processes(pageserver_pid, wal_redo_present=False, defunct_prese
 # when a tenant is detached. We had an issue previously where we failed
 # to wait and consume the exit code of the WAL redo process, leaving it behind
 # as a zombie process.
-def test_walredo_not_left_behind_on_detach(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_walredo_not_left_behind_on_detach(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     # We intentionally test for a non-existent tenant.
     env.pageserver.allowed_errors.append(".*NotFound: tenant.*")
     pageserver_http = env.pageserver.http_client()

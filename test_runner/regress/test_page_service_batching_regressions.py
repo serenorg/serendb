@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import NeonEnvBuilder
+from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 @pytest.mark.timeout(30)  # test takes <20s if pageserver impl is correct
 @pytest.mark.parametrize("kind", ["pageserver-stop", "tenant-detach"])
-def test_slow_flush(neon_env_builder: NeonEnvBuilder, neon_binpath: Path, kind: str):
+def test_slow_flush(serendb_env_builder: SerenDBEnvBuilder, serendb_binpath: Path, kind: str):
     def patch_pageserver_toml(config):
         config["page_service_pipelining"] = {
             "mode": "pipelined",
@@ -19,8 +19,8 @@ def test_slow_flush(neon_env_builder: NeonEnvBuilder, neon_binpath: Path, kind: 
             "batching": "uniform-lsn",
         }
 
-    neon_env_builder.pageserver_config_override = patch_pageserver_toml
-    env = neon_env_builder.init_start()
+    serendb_env_builder.pageserver_config_override = patch_pageserver_toml
+    env = serendb_env_builder.init_start()
 
     log.info("make flush appear slow")
 
@@ -29,7 +29,7 @@ def test_slow_flush(neon_env_builder: NeonEnvBuilder, neon_binpath: Path, kind: 
     # so that we capture the stderr from the helper somewhere.
     child = subprocess.Popen(
         [
-            neon_binpath / "test_helper_slow_client_reads",
+            serendb_binpath / "test_helper_slow_client_reads",
             env.pageserver.connstr(),
             str(env.initial_tenant),
             str(env.initial_timeline),

@@ -25,19 +25,19 @@
 
 #include "libpq-fe.h"
 
-#include "neon_walreader.h"
+#include "serendb_walreader.h"
 #include "walproposer.h"
 
-#define NEON_WALREADER_ERR_MSG_LEN 512
+#define SERENDB_WALREADER_ERR_MSG_LEN 512
 
 /*
- * Can be called where NeonWALReader *state is available in the context, adds log_prefix.
+ * Can be called where SerenDBWALReader *state is available in the context, adds log_prefix.
  */
 #define nwr_log(elevel, fmt, ...) elog(elevel, "%s" fmt, state->log_prefix, ## __VA_ARGS__)
 
-static NeonWALReadResult NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
-static NeonWALReadResult NeonWALReaderReadMsg(NeonWALReader *state);
-static bool NeonWALReadLocal(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
+static SerenDBWALReadResult SerenDBWALReadRemote(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
+static SerenDBWALReadResult SerenDBWALReaderReadMsg(SerenDBWALReader *state);
+static bool SerenDBWALReadLocal(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli);
 static bool is_wal_segment_exists(XLogSegNo segno, int segsize,
 								  TimeLineID tli);
 
@@ -56,9 +56,9 @@ typedef enum
 	RS_WAIT_EXEC_RESULT,
 	/* replication stream established */
 	RS_ESTABLISHED,
-} NeonWALReaderRemoteState;
+} SerenDBWALReaderRemoteState;
 
-struct NeonWALReader
+struct SerenDBWALReader
 {
 	/*
 	 * LSN before which we assume WAL is not available locally. Exists because
@@ -71,7 +71,7 @@ struct NeonWALReader
 	int			wre_errno;
 	TimeLineID	local_active_tlid;
 	/* Explains failure to read, static for simplicity. */
-	char		err_msg[NEON_WALREADER_ERR_MSG_LEN];
+	char		err_msg[SERENDB_WALREADER_ERR_MSG_LEN];
 
 	/*
 	 * Saved info about request in progress, used to check validity of
@@ -85,7 +85,7 @@ struct NeonWALReader
 	char		donor_name[64]; /* saved donor safekeeper name for logging */
 	XLogRecPtr	donor_lsn;
 	/* state of connection to safekeeper */
-	NeonWALReaderRemoteState rem_state;
+	SerenDBWALReaderRemoteState rem_state;
 	WalProposerConn *wp_conn;
 
 	/*
@@ -101,22 +101,22 @@ struct NeonWALReader
 	 */
 	XLogRecPtr	rem_lsn;
 
-	/* prepended to lines logged by neon_walreader, if provided */
+	/* prepended to lines logged by serendb_walreader, if provided */
 	char		log_prefix[64];
 };
 
-/* palloc and initialize NeonWALReader */
-NeonWALReader *
-NeonWALReaderAllocate(int wal_segment_size, XLogRecPtr available_lsn, char *log_prefix, TimeLineID tlid)
+/* palloc and initialize SerenDBWALReader */
+SerenDBWALReader *
+SerenDBWALReaderAllocate(int wal_segment_size, XLogRecPtr available_lsn, char *log_prefix, TimeLineID tlid)
 {
-	NeonWALReader *reader;
+	SerenDBWALReader *reader;
 
 	/*
 	 * Note: we allocate in TopMemoryContext, reusing the reader for all process
 	 * reads.
 	 */
-	reader = (NeonWALReader *)
-		MemoryContextAllocZero(TopMemoryContext, sizeof(NeonWALReader));
+	reader = (SerenDBWALReader *)
+		MemoryContextAllocZero(TopMemoryContext, sizeof(SerenDBWALReader));
 
 	reader->available_lsn = available_lsn;
 	reader->local_active_tlid = tlid;
@@ -134,10 +134,10 @@ NeonWALReaderAllocate(int wal_segment_size, XLogRecPtr available_lsn, char *log_
 }
 
 void
-NeonWALReaderFree(NeonWALReader *state)
+SerenDBWALReaderFree(SerenDBWALReader *state)
 {
 	if (state->seg.ws_file != -1)
-		neon_wal_segment_close(state);
+		serendb_wal_segment_close(state);
 	if (state->wp_conn)
 		libpqwp_disconnect(state->wp_conn);
 	pfree(state);
@@ -151,28 +151,28 @@ NeonWALReaderFree(NeonWALReader *state)
  * Read 'count' bytes into 'buf', starting at location 'startptr', from WAL
  * fetched from timeline 'tli'.
  *
- * Returns NEON_WALREAD_SUCCESS if succeeded, NEON_WALREAD_ERROR if an error
+ * Returns SERENDB_WALREAD_SUCCESS if succeeded, SERENDB_WALREAD_ERROR if an error
  * occurs, in which case 'err' has the description. Error always closes remote
  * connection, if there was any, so socket subscription should be removed.
  *
- * NEON_WALREAD_WOULDBLOCK means caller should obtain socket to wait for with
- * NeonWALReaderSocket and call NeonWALRead again with exactly the same
- * arguments when NeonWALReaderEvents happen on the socket. Note that per libpq
+ * SERENDB_WALREAD_WOULDBLOCK means caller should obtain socket to wait for with
+ * SerenDBWALReaderSocket and call SerenDBWALRead again with exactly the same
+ * arguments when SerenDBWALReaderEvents happen on the socket. Note that per libpq
  * docs during connection establishment (before first successful read) socket
  * underneath might change.
  *
  * Also, eventually walreader should switch from remote to local read; caller
- * should remove subscription to socket then by checking NeonWALReaderEvents
+ * should remove subscription to socket then by checking SerenDBWALReaderEvents
  * after successful read (otherwise next read might reopen the connection with
  * different socket).
  *
  * Reading not monotonically is not supported and will result in error.
  *
  * Caller should be sure that WAL up to requested LSN exists, otherwise
- * NEON_WALREAD_WOULDBLOCK might be always returned.
+ * SERENDB_WALREAD_WOULDBLOCK might be always returned.
  */
-NeonWALReadResult
-NeonWALRead(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
+SerenDBWALReadResult
+SerenDBWALRead(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
 {
 	/*
 	 * If requested data is before known available basebackup lsn or there is
@@ -180,35 +180,35 @@ NeonWALRead(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, Ti
 	 */
 	if (startptr < state->available_lsn || state->rem_state != RS_NONE)
 	{
-		return NeonWALReadRemote(state, buf, startptr, count, tli);
+		return SerenDBWALReadRemote(state, buf, startptr, count, tli);
 	}
-	if (NeonWALReadLocal(state, buf, startptr, count, tli))
+	if (SerenDBWALReadLocal(state, buf, startptr, count, tli))
 	{
-		return NEON_WALREAD_SUCCESS;
+		return SERENDB_WALREAD_SUCCESS;
 	}
 	else if (state->wre_errno == ENOENT)
 	{
 		nwr_log(LOG, "local read at %X/%X len %zu failed as segment file doesn't exist, attempting remote",
 				LSN_FORMAT_ARGS(startptr), count);
-		return NeonWALReadRemote(state, buf, startptr, count, tli);
+		return SerenDBWALReadRemote(state, buf, startptr, count, tli);
 	}
 	else
 	{
-		return NEON_WALREAD_ERROR;
+		return SERENDB_WALREAD_ERROR;
 	}
 }
 
 /* Do the read from remote safekeeper. */
-static NeonWALReadResult
-NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
+static SerenDBWALReadResult
+SerenDBWALReadRemote(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
 {
 	if (state->rem_state == RS_NONE)
 	{
-		if (!NeonWALReaderUpdateDonor(state))
+		if (!SerenDBWALReaderUpdateDonor(state))
 		{
 			snprintf(state->err_msg, sizeof(state->err_msg),
 					 "failed to establish remote connection to fetch WAL: no donor available");
-			return NEON_WALREAD_ERROR;
+			return SERENDB_WALREAD_ERROR;
 
 		}
 		/* no connection yet; start one */
@@ -219,12 +219,12 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 			snprintf(state->err_msg, sizeof(state->err_msg),
 					 "failed to connect to %s to fetch WAL: immediately failed with %s",
 					 state->donor_name, PQerrorMessage(state->wp_conn->pg_conn));
-			NeonWALReaderResetRemote(state);
-			return NEON_WALREAD_ERROR;
+			SerenDBWALReaderResetRemote(state);
+			return SERENDB_WALREAD_ERROR;
 		}
 		/* we'll poll immediately */
 		state->rem_state = RS_CONNECTING_WRITE;
-		return NEON_WALREAD_WOULDBLOCK;
+		return SERENDB_WALREAD_WOULDBLOCK;
 	}
 
 	if (state->rem_state == RS_CONNECTING_READ || state->rem_state == RS_CONNECTING_WRITE)
@@ -235,14 +235,14 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 				snprintf(state->err_msg, sizeof(state->err_msg),
 						 "failed to connect to %s to fetch WAL: poll error: %s",
 						 state->donor_name, PQerrorMessage(state->wp_conn->pg_conn));
-				NeonWALReaderResetRemote(state);
-				return NEON_WALREAD_ERROR;
+				SerenDBWALReaderResetRemote(state);
+				return SERENDB_WALREAD_ERROR;
 			case PGRES_POLLING_READING:
 				state->rem_state = RS_CONNECTING_READ;
-				return NEON_WALREAD_WOULDBLOCK;
+				return SERENDB_WALREAD_WOULDBLOCK;
 			case PGRES_POLLING_WRITING:
 				state->rem_state = RS_CONNECTING_WRITE;
-				return NEON_WALREAD_WOULDBLOCK;
+				return SERENDB_WALREAD_WOULDBLOCK;
 			case PGRES_POLLING_OK:
 				{
 					/* connection successfully established */
@@ -270,8 +270,8 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 						snprintf(state->err_msg, sizeof(state->err_msg),
 								 "failed to send %s query to %s: %s",
 								 start_repl_query, state->donor_name, PQerrorMessage(state->wp_conn->pg_conn));
-						NeonWALReaderResetRemote(state);
-						return NEON_WALREAD_ERROR;
+						SerenDBWALReaderResetRemote(state);
+						return SERENDB_WALREAD_ERROR;
 					}
 					state->rem_state = RS_WAIT_EXEC_RESULT;
 					break;
@@ -279,7 +279,7 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 
 			default:			/* there is unused PGRES_POLLING_ACTIVE */
 				Assert(false);
-				return NEON_WALREAD_ERROR;	/* keep the compiler quiet */
+				return SERENDB_WALREAD_ERROR;	/* keep the compiler quiet */
 		}
 	}
 
@@ -291,19 +291,19 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 				state->rem_state = RS_ESTABLISHED;
 				break;
 			case WP_EXEC_NEEDS_INPUT:
-				return NEON_WALREAD_WOULDBLOCK;
+				return SERENDB_WALREAD_WOULDBLOCK;
 			case WP_EXEC_FAILED:
 				snprintf(state->err_msg, sizeof(state->err_msg),
 						 "get START_REPLICATION result from %s failed: %s",
 						 state->donor_name, PQerrorMessage(state->wp_conn->pg_conn));
-				NeonWALReaderResetRemote(state);
-				return NEON_WALREAD_ERROR;
+				SerenDBWALReaderResetRemote(state);
+				return SERENDB_WALREAD_ERROR;
 			default:			/* can't happen */
 				snprintf(state->err_msg, sizeof(state->err_msg),
 						 "get START_REPLICATION result from %s: unexpected result",
 						 state->donor_name);
-				NeonWALReaderResetRemote(state);
-				return NEON_WALREAD_ERROR;
+				SerenDBWALReaderResetRemote(state);
+				return SERENDB_WALREAD_ERROR;
 		}
 	}
 
@@ -320,8 +320,8 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 			snprintf(state->err_msg, sizeof(state->err_msg),
 					 "args changed during request, was %X/%X %zu, now %X/%X %zu",
 					 LSN_FORMAT_ARGS(state->req_lsn), state->req_len, LSN_FORMAT_ARGS(startptr), count);
-			NeonWALReaderResetRemote(state);
-			return NEON_WALREAD_ERROR;
+			SerenDBWALReaderResetRemote(state);
+			return SERENDB_WALREAD_ERROR;
 		}
 		nwr_log(DEBUG5, "continuing remote read at req_lsn=%X/%X len=%zu, req_progress=%zu",
 				LSN_FORMAT_ARGS(startptr),
@@ -354,9 +354,9 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 		 */
 			state->req_len - state->req_progress > 0)
 		{
-			NeonWALReadResult read_msg_res = NeonWALReaderReadMsg(state);
+			SerenDBWALReadResult read_msg_res = SerenDBWALReaderReadMsg(state);
 
-			if (read_msg_res != NEON_WALREAD_SUCCESS)
+			if (read_msg_res != SERENDB_WALREAD_SUCCESS)
 				return read_msg_res;
 		}
 
@@ -368,8 +368,8 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 					 LSN_FORMAT_ARGS(state->rem_lsn),
 					 LSN_FORMAT_ARGS(state->req_lsn),
 					 state->req_len);
-			NeonWALReaderResetRemote(state);
-			return NEON_WALREAD_ERROR;
+			SerenDBWALReaderResetRemote(state);
+			return SERENDB_WALREAD_ERROR;
 		}
 
 		/* We can copy min of (available, requested) bytes. */
@@ -400,14 +400,14 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 			{
 				nwr_log(LOG, "closing remote connection as available_lsn %X/%X crossed and next read at %X/%X is likely to be served locally",
 						LSN_FORMAT_ARGS(state->available_lsn), LSN_FORMAT_ARGS(state->rem_lsn));
-				NeonWALReaderResetRemote(state);
+				SerenDBWALReaderResetRemote(state);
 			}
 			else if (state->rem_lsn >= state->available_lsn && next_segno > req_segno &&
 					 is_wal_segment_exists(next_segno, state->segcxt.ws_segsize, tli))
 			{
 				nwr_log(LOG, "closing remote connection as WAL file at next lsn %X/%X exists",
 						LSN_FORMAT_ARGS(state->rem_lsn));
-				NeonWALReaderResetRemote(state);
+				SerenDBWALReaderResetRemote(state);
 			}
 			state->req_lsn = InvalidXLogRecPtr;
 			state->req_len = 0;
@@ -416,7 +416,7 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
 			/* Update the current segment info. */
 			state->seg.ws_tli = tli;
 
-			return NEON_WALREAD_SUCCESS;
+			return SERENDB_WALREAD_SUCCESS;
 		}
 	}
 }
@@ -425,8 +425,8 @@ NeonWALReadRemote(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size cou
  * Read one WAL message from the stream, sets state->wal_ptr in case of success.
  * Resets remote state in case of failure.
  */
-static NeonWALReadResult
-NeonWALReaderReadMsg(NeonWALReader *state)
+static SerenDBWALReadResult
+SerenDBWALReaderReadMsg(SerenDBWALReader *state)
 {
 	while (true)				/* loop until we get 'w' */
 	{
@@ -446,7 +446,7 @@ NeonWALReaderReadMsg(NeonWALReader *state)
 			case PG_ASYNC_READ_SUCCESS:
 				break;
 			case PG_ASYNC_READ_TRY_AGAIN:
-				return NEON_WALREAD_WOULDBLOCK;
+				return SERENDB_WALREAD_WOULDBLOCK;
 			case PG_ASYNC_READ_FAIL:
 				snprintf(state->err_msg,
 						 sizeof(state->err_msg),
@@ -497,7 +497,7 @@ NeonWALReaderReadMsg(NeonWALReader *state)
 					nwr_log(DEBUG5, "received WAL msg at %X/%X len %zu",
 							LSN_FORMAT_ARGS(state->rem_lsn), state->wal_rem_len);
 
-					return NEON_WALREAD_SUCCESS;
+					return SERENDB_WALREAD_SUCCESS;
 				}
 			case 'k':
 				{
@@ -533,13 +533,13 @@ NeonWALReaderReadMsg(NeonWALReader *state)
 		}
 	}
 err:
-	NeonWALReaderResetRemote(state);
-	return NEON_WALREAD_ERROR;
+	SerenDBWALReaderResetRemote(state);
+	return SERENDB_WALREAD_ERROR;
 }
 
 /* reset remote connection and request in progress */
 void
-NeonWALReaderResetRemote(NeonWALReader *state)
+SerenDBWALReaderResetRemote(SerenDBWALReader *state)
 {
 	state->req_lsn = InvalidXLogRecPtr;
 	state->req_len = 0;
@@ -558,13 +558,13 @@ NeonWALReaderResetRemote(NeonWALReader *state)
 
 /*
  * Return socket of connection to remote source. Must be called only when
- * connection exists (NeonWALReaderEvents returns non zero).
+ * connection exists (SerenDBWALReaderEvents returns non zero).
  */
 pgsocket
-NeonWALReaderSocket(NeonWALReader *state)
+SerenDBWALReaderSocket(SerenDBWALReader *state)
 {
 	if (!state->wp_conn)
-		nwr_log(FATAL, "NeonWALReaderSocket is called without active remote connection");
+		nwr_log(FATAL, "SerenDBWALReaderSocket is called without active remote connection");
 	return PQsocket(state->wp_conn->pg_conn);
 }
 
@@ -574,7 +574,7 @@ NeonWALReaderSocket(NeonWALReader *state)
  * instead of readding it each time.
  */
 bool
-NeonWALReaderIsRemConnEstablished(NeonWALReader *state)
+SerenDBWALReaderIsRemConnEstablished(SerenDBWALReader *state)
 {
 	return state->rem_state == RS_ESTABLISHED;
 }
@@ -585,7 +585,7 @@ NeonWALReaderIsRemConnEstablished(NeonWALReader *state)
  * instead of readding it each time.
  */
 TimeLineID
-NeonWALReaderLocalActiveTimeLineID(NeonWALReader *state)
+SerenDBWALReaderLocalActiveTimeLineID(SerenDBWALReader *state)
 {
 	return state->local_active_tlid;
 }
@@ -595,7 +595,7 @@ NeonWALReaderLocalActiveTimeLineID(NeonWALReader *state)
  * connection is not active.
  */
 extern uint32
-NeonWALReaderEvents(NeonWALReader *state)
+SerenDBWALReaderEvents(SerenDBWALReader *state)
 {
 	switch (state->rem_state)
 	{
@@ -615,7 +615,7 @@ NeonWALReaderEvents(NeonWALReader *state)
 }
 
 static bool
-NeonWALReadLocal(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
+SerenDBWALReadLocal(SerenDBWALReader *state, char *buf, XLogRecPtr startptr, Size count, TimeLineID tli)
 {
 	char	   *p;
 	XLogRecPtr	recptr;
@@ -656,10 +656,10 @@ NeonWALReadLocal(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size coun
 		{
 			XLogSegNo	nextSegNo;
 
-			neon_wal_segment_close(state);
+			serendb_wal_segment_close(state);
 
 			XLByteToSeg(recptr, nextSegNo, state->segcxt.ws_segsize);
-			if (!neon_wal_segment_open(state, nextSegNo, &tli))
+			if (!serendb_wal_segment_open(state, nextSegNo, &tli))
 			{
 				char		fname[MAXFNAMELEN];
 
@@ -744,13 +744,13 @@ NeonWALReadLocal(NeonWALReader *state, char *buf, XLogRecPtr startptr, Size coun
 }
 
 XLogRecPtr
-NeonWALReaderGetRemLsn(NeonWALReader *state)
+SerenDBWALReaderGetRemLsn(SerenDBWALReader *state)
 {
 	return state->rem_lsn;
 }
 
 const WALOpenSegment *
-NeonWALReaderGetSegment(NeonWALReader *state)
+SerenDBWALReaderGetSegment(SerenDBWALReader *state)
 {
 	return &state->seg;
 }
@@ -762,7 +762,7 @@ NeonWALReaderGetSegment(NeonWALReader *state)
  * XLogReaderRoutine->segment_open callback for local pg_wal files
  */
 bool
-neon_wal_segment_open(NeonWALReader *state, XLogSegNo nextSegNo,
+serendb_wal_segment_open(SerenDBWALReader *state, XLogSegNo nextSegNo,
 					  TimeLineID *tli_p)
 {
 	TimeLineID	tli = *tli_p;
@@ -787,9 +787,9 @@ is_wal_segment_exists(XLogSegNo segno, int segsize, TimeLineID tli)
 	return stat(path, &stat_buffer) == 0;
 }
 
-/* copy of vanilla wal_segment_close with NeonWALReader */
+/* copy of vanilla wal_segment_close with SerenDBWALReader */
 void
-neon_wal_segment_close(NeonWALReader *state)
+serendb_wal_segment_close(SerenDBWALReader *state)
 {
 	if (state->seg.ws_file >= 0)
 	{
@@ -800,7 +800,7 @@ neon_wal_segment_close(NeonWALReader *state)
 }
 
 char *
-NeonWALReaderErrMsg(NeonWALReader *state)
+SerenDBWALReaderErrMsg(SerenDBWALReader *state)
 {
 	return state->err_msg;
 }
@@ -809,7 +809,7 @@ NeonWALReaderErrMsg(NeonWALReader *state)
  * Returns true if there is a donor, and false otherwise
  */
 bool
-NeonWALReaderUpdateDonor(NeonWALReader *state)
+SerenDBWALReaderUpdateDonor(SerenDBWALReader *state)
 {
 	WalproposerShmemState *wps = GetWalpropShmemState();
 

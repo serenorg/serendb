@@ -13,7 +13,7 @@ on:
     inputs:
       commit_hash:
         type: string
-        description: 'The long neon repo commit hash for the system under test (pageserver) to be tested.'
+        description: 'The long serendb repo commit hash for the system under test (pageserver) to be tested.'
         required: false
         default: ''
       recreate_snapshots:
@@ -42,7 +42,7 @@ jobs:
       pull-requests: write
     runs-on: [ self-hosted, unit-perf-aws-arm ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -53,11 +53,11 @@ jobs:
       DEFAULT_PG_VERSION: 16
       BUILD_TYPE: release
       RUST_BACKTRACE: 1
-      # NEON_ENV_BUILDER_USE_OVERLAYFS_FOR_SNAPSHOTS: 1 - doesn't work without root in container
-      S3_BUCKET: neon-github-public-dev
+      # SERENDB_ENV_BUILDER_USE_OVERLAYFS_FOR_SNAPSHOTS: 1 - doesn't work without root in container
+      S3_BUCKET: serendb-github-public-dev
       PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
     steps:
-    # we don't need the neon source code because we run everything remotely
+    # we don't need the serendb source code because we run everything remotely
     # however we still need the local github actions to run the allure step below
     - name: Harden the runner (Audit all outbound calls)
       uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -69,18 +69,18 @@ jobs:
       shell: bash -euxo pipefail {0}
       run: |
         {
-          echo "NEON_DIR=${RUNNER_TEMP}/neon"
-          echo "NEON_BIN=${RUNNER_TEMP}/neon/bin"
-          echo "POSTGRES_DISTRIB_DIR=${RUNNER_TEMP}/neon/pg_install"
-          echo "LD_LIBRARY_PATH=${RUNNER_TEMP}/neon/pg_install/v${DEFAULT_PG_VERSION}/lib"
+          echo "SERENDB_DIR=${RUNNER_TEMP}/serendb"
+          echo "SERENDB_BIN=${RUNNER_TEMP}/serendb/bin"
+          echo "POSTGRES_DISTRIB_DIR=${RUNNER_TEMP}/serendb/pg_install"
+          echo "LD_LIBRARY_PATH=${RUNNER_TEMP}/serendb/pg_install/v${DEFAULT_PG_VERSION}/lib"
           echo "BACKUP_DIR=${RUNNER_TEMP}/instance_store/saved_snapshots"
-          echo "TEST_OUTPUT=${RUNNER_TEMP}/neon/test_output"
-          echo "PERF_REPORT_DIR=${RUNNER_TEMP}/neon/test_output/perf-report-local"
-          echo "ALLURE_DIR=${RUNNER_TEMP}/neon/test_output/allure-results"
-          echo "ALLURE_RESULTS_DIR=${RUNNER_TEMP}/neon/test_output/allure-results/results"
+          echo "TEST_OUTPUT=${RUNNER_TEMP}/serendb/test_output"
+          echo "PERF_REPORT_DIR=${RUNNER_TEMP}/serendb/test_output/perf-report-local"
+          echo "ALLURE_DIR=${RUNNER_TEMP}/serendb/test_output/allure-results"
+          echo "ALLURE_RESULTS_DIR=${RUNNER_TEMP}/serendb/test_output/allure-results/results"
         } >> "$GITHUB_ENV"
 
-        echo "allure_results_dir=${RUNNER_TEMP}/neon/test_output/allure-results/results" >> "$GITHUB_OUTPUT"
+        echo "allure_results_dir=${RUNNER_TEMP}/serendb/test_output/allure-results/results" >> "$GITHUB_OUTPUT"
 
     - uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
       with:
@@ -94,7 +94,7 @@ jobs:
         INPUT_COMMIT_HASH: ${{ github.event.inputs.commit_hash }}
       run: |
         if [[ -z "${INPUT_COMMIT_HASH}" ]]; then
-          COMMIT_HASH=$(curl -s https://api.github.com/repos/neondatabase/neon/commits/main | jq -r '.sha')
+          COMMIT_HASH=$(curl -s https://api.github.com/repos/serenorg/serendb/commits/main | jq -r '.sha')
           echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
           echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
           echo "COMMIT_HASH_TYPE=latest" >> $GITHUB_ENV
@@ -104,19 +104,19 @@ jobs:
           echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
           echo "COMMIT_HASH_TYPE=manual" >> $GITHUB_ENV
         fi
-    - name: Checkout the neon repository at given commit hash
+    - name: Checkout the serendb repository at given commit hash
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         ref: ${{ steps.commit_hash.outputs.commit_hash }}
 
     # does not reuse ./.github/actions/download because we need to download the artifact for the given commit hash
     # example artifact
-    # s3://neon-github-public-dev/artifacts/48b870bc078bd2c450eb7b468e743b9c118549bf/15036827400/1/neon-Linux-X64-release-artifact.tar.zst /instance_store/artifacts/neon-Linux-release-artifact.tar.zst
+    # s3://serendb-github-public-dev/artifacts/48b870bc078bd2c450eb7b468e743b9c118549bf/15036827400/1/serendb-Linux-X64-release-artifact.tar.zst /instance_store/artifacts/serendb-Linux-release-artifact.tar.zst
     - name: Determine artifact S3_KEY for given commit hash and download and extract artifact
       id: artifact_prefix
       shell: bash -euxo pipefail {0}
       env:
-        ARCHIVE: ${{ runner.temp }}/downloads/neon-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst
+        ARCHIVE: ${{ runner.temp }}/downloads/serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst
         COMMIT_HASH: ${{ env.COMMIT_HASH }}
         COMMIT_HASH_TYPE: ${{ env.COMMIT_HASH_TYPE }}
       run: |
@@ -127,7 +127,7 @@ jobs:
           # the following command will fail until the artifacts are available ...
           S3_KEY=$(aws s3api list-objects-v2 --bucket "$S3_BUCKET" --prefix "artifacts/$COMMIT_HASH/" \
             | jq -r '.Contents[]?.Key' \
-            | grep "neon-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst" \
+            | grep "serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst" \
             | sort --version-sort \
             | tail -1) || true # ... thus ignore errors from the command
           if [[ -n "${S3_KEY}" ]]; then
@@ -147,8 +147,8 @@ jobs:
         else
           mkdir -p $(dirname $ARCHIVE)
           time aws s3 cp --only-show-errors s3://$S3_BUCKET/${S3_KEY} ${ARCHIVE}
-          mkdir -p ${NEON_DIR}
-          time tar -xf ${ARCHIVE} -C ${NEON_DIR}
+          mkdir -p ${SERENDB_DIR}
+          time tar -xf ${ARCHIVE} -C ${SERENDB_DIR}
           rm -f ${ARCHIVE}
         fi
 
@@ -201,7 +201,7 @@ jobs:
         CI: false  # need to override this env variable set by github to enforce using snapshots
       run: |
         export PLATFORM=hetzner-unit-perf-${COMMIT_HASH_TYPE}
-        # report the commit hash of the neon repository in the revision of the test results
+        # report the commit hash of the serendb repository in the revision of the test results
         export GITHUB_SHA=${COMMIT_HASH}
         rm -rf ${PERF_REPORT_DIR}
         rm -rf ${ALLURE_RESULTS_DIR}
@@ -215,7 +215,7 @@ jobs:
         ./scripts/pytest ${PARAMS} test_runner/performance/pageserver/pagebench/test_pageserver_max_throughput_getpage_at_latest_lsn.py::test_pageserver_characterize_throughput_with_n_tenants ${EXTRA_PARAMS}
         ./scripts/pytest ${PARAMS} test_runner/performance/pageserver/pagebench/test_pageserver_max_throughput_getpage_at_latest_lsn.py::test_pageserver_characterize_latencies_with_1_client_and_throughput_with_many_clients_one_tenant ${EXTRA_PARAMS}
 
-    - name: upload the performance metrics to the Neon performance database which is used by grafana dashboards to display the results
+    - name: upload the performance metrics to the SerenDB performance database which is used by grafana dashboards to display the results
       shell: bash -euxo pipefail {0}
       run: |
         export REPORT_FROM="$PERF_REPORT_DIR"
@@ -265,7 +265,7 @@ jobs:
       if: always()
       shell: bash -euxo pipefail {0}
       env:
-        ARCHIVE: ${{ runner.temp }}/downloads/neon-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst
+        ARCHIVE: ${{ runner.temp }}/downloads/serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact.tar.zst
       run: |
         # Cleanup the test resources
         if [[ -d "${BACKUP_DIR}" ]]; then
@@ -274,8 +274,8 @@ jobs:
         if [[ -d "${TEST_OUTPUT}" ]]; then
           rm -rf ${TEST_OUTPUT}
         fi
-        if [[ -d "${NEON_DIR}" ]]; then
-          rm -rf ${NEON_DIR}
+        if [[ -d "${SERENDB_DIR}" ]]; then
+          rm -rf ${SERENDB_DIR}
         fi
         rm -rf $(dirname $ARCHIVE)
 

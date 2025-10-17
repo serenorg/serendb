@@ -15,15 +15,15 @@ The stateless compute node that performs validation is separate from the storage
 
 Limit the maximum size of a PostgreSQL instance to limit free tier users (and other tiers in the future).
 First of all, this is needed to control our free tier production costs.
-Another reason to limit resources is risk management — we haven't (fully) tested and optimized neon for big clusters,
+Another reason to limit resources is risk management — we haven't (fully) tested and optimized SerenDB for big clusters,
 so we don't want to give users access to the functionality that we don't think is ready.
 
 ## Components
 
 * pageserver - calculate the size consumed by a timeline and add it to the feedback message.
 * safekeeper - pass feedback message from pageserver to compute.
-* compute - receive feedback message, enforce size limit based on GUC `neon.max_cluster_size`.
-* console - set and update `neon.max_cluster_size` setting
+* compute - receive feedback message, enforce size limit based on GUC `serendb.max_cluster_size`.
+* console - set and update `serendb.max_cluster_size` setting
 
 ## Proposed implementation
 
@@ -49,7 +49,7 @@ This message is received by the safekeeper and propagated to compute node as a p
 
 Finally, when compute node receives the `current_timeline_size` from safekeeper (or from pageserver directly), it updates the global variable.
 
-And then every neon_extend() operation checks if limit is reached `(current_timeline_size > neon.max_cluster_size)` and throws `ERRCODE_DISK_FULL` error if so.
+And then every serendb_extend() operation checks if limit is reached `(current_timeline_size > serendb.max_cluster_size)` and throws `ERRCODE_DISK_FULL` error if so.
 (see Postgres error codes [https://www.postgresql.org/docs/devel/errcodes-appendix.html](https://www.postgresql.org/docs/devel/errcodes-appendix.html))
 
 TODO:
@@ -75,5 +75,5 @@ We should warn users if the limit is soon to be reached.
 ### **Security implications**
 
 We treat compute as an untrusted component. That's why we try to isolate it with secure container runtime or a VM.
-Malicious users may change the `neon.max_cluster_size`, so we need an extra size limit check.
+Malicious users may change the `serendb.max_cluster_size`, so we need an extra size limit check.
 To cover this case, we also monitor the compute node size in the console.

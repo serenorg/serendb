@@ -10,8 +10,8 @@ import pytest
 import requests
 from fixtures.common_types import TenantId, TenantShardId, TimelineArchivalState, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
-    NeonEnvBuilder,
+from fixtures.serendb_fixtures import (
+    SerenDBEnvBuilder,
     last_flush_lsn_upload,
 )
 from fixtures.pageserver.http import PageserverApiException
@@ -33,15 +33,15 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.parametrize("shard_count", [0, 4])
-def test_timeline_archive(neon_env_builder: NeonEnvBuilder, shard_count: int):
+def test_timeline_archive(serendb_env_builder: SerenDBEnvBuilder, shard_count: int):
     unsharded = shard_count == 0
     if unsharded:
-        env = neon_env_builder.init_start()
+        env = serendb_env_builder.init_start()
         # If we run the unsharded version, talk to the pageserver directly
         ps_http = env.pageserver.http_client()
     else:
-        neon_env_builder.num_pageservers = shard_count
-        env = neon_env_builder.init_start(initial_tenant_shard_count=shard_count)
+        serendb_env_builder.num_pageservers = shard_count
+        env = serendb_env_builder.init_start(initial_tenant_shard_count=shard_count)
         # If we run the unsharded version, talk to the storage controller
         ps_http = env.storage_controller.pageserver_api()
 
@@ -152,12 +152,12 @@ def test_timeline_archive(neon_env_builder: NeonEnvBuilder, shard_count: int):
 
 
 @pytest.mark.parametrize("manual_offload", [False, True])
-def test_timeline_offloading(neon_env_builder: NeonEnvBuilder, manual_offload: bool):
+def test_timeline_offloading(serendb_env_builder: SerenDBEnvBuilder, manual_offload: bool):
     if manual_offload:
         # (automatic) timeline offloading defaults to true
-        neon_env_builder.pageserver_config_override = "timeline_offloading = false"
+        serendb_env_builder.pageserver_config_override = "timeline_offloading = false"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability
@@ -290,14 +290,14 @@ def test_timeline_offloading(neon_env_builder: NeonEnvBuilder, manual_offload: b
 
 
 @pytest.mark.parametrize("delete_timeline", [False, True])
-def test_timeline_offload_persist(neon_env_builder: NeonEnvBuilder, delete_timeline: bool):
+def test_timeline_offload_persist(serendb_env_builder: SerenDBEnvBuilder, delete_timeline: bool):
     """
     Test for persistence of timeline offload state
     """
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability
@@ -325,11 +325,11 @@ def test_timeline_offload_persist(neon_env_builder: NeonEnvBuilder, delete_timel
         last_flush_lsn_upload(env, endpoint, tenant_id, child_timeline_id)
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/",
     )
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/tenant-manifest",
     )
 
@@ -361,7 +361,7 @@ def test_timeline_offload_persist(neon_env_builder: NeonEnvBuilder, delete_timel
     assert not timeline_offloaded_api(root_timeline_id)
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/tenant-manifest",
     )
 
@@ -398,7 +398,7 @@ def test_timeline_offload_persist(neon_env_builder: NeonEnvBuilder, delete_timel
             assert sum == sum_again
 
         assert_prefix_not_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix=f"tenants/{str(env.initial_tenant)}/tenant-manifest",
         )
 
@@ -407,26 +407,26 @@ def test_timeline_offload_persist(neon_env_builder: NeonEnvBuilder, delete_timel
     ps_http.tenant_delete(tenant_id)
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/",
     )
 
 
 @run_only_on_default_postgres("this test isn't sensitive to the contents of timelines")
 @skip_in_debug_build("times out in debug builds")
-def test_timeline_archival_chaos(neon_env_builder: NeonEnvBuilder):
+def test_timeline_archival_chaos(serendb_env_builder: SerenDBEnvBuilder):
     """
     A general consistency check on archival/offload timeline state, and its intersection
     with tenant migrations and timeline deletions.
     """
 
-    neon_env_builder.storage_controller_config = {"heartbeat_interval": "100msec"}
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.storage_controller_config = {"heartbeat_interval": "100msec"}
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
     # We will exercise migrations, so need multiple pageservers
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "compaction_period": "1s",
         }
@@ -717,17 +717,17 @@ def test_timeline_archival_chaos(neon_env_builder: NeonEnvBuilder):
     ],
 )
 def test_timeline_retain_lsn(
-    neon_env_builder: NeonEnvBuilder, with_intermediary: bool, offload_child: str | None
+    serendb_env_builder: SerenDBEnvBuilder, with_intermediary: bool, offload_child: str | None
 ):
     """
     Ensure that retain_lsn functionality for timelines works, both for offloaded and non-offloaded ones
     """
     if offload_child == "offload-corrupt":
         # Our corruption code only works with S3 compatible storage
-        neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+        serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
-    neon_env_builder.rust_log_override = "info,[gc_timeline]=debug"
-    env = neon_env_builder.init_start()
+    serendb_env_builder.rust_log_override = "info,[gc_timeline]=debug"
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability
@@ -896,15 +896,15 @@ def test_timeline_retain_lsn(
             assert sum == pre_branch_sum
 
 
-def test_timeline_offload_delete_race(neon_env_builder: NeonEnvBuilder):
+def test_timeline_offload_delete_race(serendb_env_builder: SerenDBEnvBuilder):
     """
     Regression test for https://github.com/neondatabase/cloud/issues/30406
     """
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.num_pageservers = 2
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability
     tenant_id, root_timeline_id = env.create_tenant(
@@ -943,11 +943,11 @@ def test_timeline_offload_delete_race(neon_env_builder: NeonEnvBuilder):
         last_flush_lsn_upload(env, endpoint, tenant_id, child_timeline_id)
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/",
     )
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/tenant-manifest",
     )
 
@@ -986,7 +986,7 @@ def test_timeline_offload_delete_race(neon_env_builder: NeonEnvBuilder):
 
     def child_prefix_empty():
         assert_prefix_empty(
-            neon_env_builder.pageserver_remote_storage,
+            serendb_env_builder.pageserver_remote_storage,
             prefix=f"tenants/{str(tenant_id)}/{str(child_timeline_id)}/",
         )
 
@@ -1024,14 +1024,14 @@ def test_timeline_offload_delete_race(neon_env_builder: NeonEnvBuilder):
     assert gc_summary["tenant_manifests_deleted"] == 0
 
 
-def test_timeline_offload_generations(neon_env_builder: NeonEnvBuilder):
+def test_timeline_offload_generations(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test for scrubber deleting old generations of manifests
     """
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability
@@ -1059,11 +1059,11 @@ def test_timeline_offload_generations(neon_env_builder: NeonEnvBuilder):
         last_flush_lsn_upload(env, endpoint, tenant_id, child_timeline_id)
 
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/",
     )
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix=f"tenants/{str(tenant_id)}/tenant-manifest",
     )
 
@@ -1140,7 +1140,7 @@ def test_timeline_offload_generations(neon_env_builder: NeonEnvBuilder):
 
 @pytest.mark.parametrize("end_with_offloaded", [False, True])
 def test_timeline_offload_race_unarchive(
-    neon_env_builder: NeonEnvBuilder, end_with_offloaded: bool
+    serendb_env_builder: SerenDBEnvBuilder, end_with_offloaded: bool
 ):
     """
     Ensure that unarchive and timeline offload don't race each other
@@ -1149,7 +1149,7 @@ def test_timeline_offload_race_unarchive(
 
     failpoint = "before-timeline-auto-offload"
 
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     ps_http = env.pageserver.http_client()
 
     # Turn off gc and compaction loops: we want to issue them manually for better reliability

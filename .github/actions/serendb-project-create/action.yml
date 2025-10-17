@@ -1,9 +1,9 @@
-name: 'Create Neon Project'
-description: 'Create Neon Project using API'
+name: 'Create SerenDB Project'
+description: 'Create SerenDB Project using API'
 
 inputs:
   api_key:
-    description: 'Neon API key'
+    description: 'SerenDB API key'
     required: true
   region_id:
     description: 'Region ID, if not set the project will be created in the default region'
@@ -12,8 +12,8 @@ inputs:
     description: 'Postgres version; default is 16'
     default: '16'
   api_host:
-    description: 'Neon API host'
-    default: console-stage.neon.build
+    description: 'SerenDB API host'
+    default: console-stage.serendb.build
   compute_units:
     description: '[Min, Max] compute units'
     default: '[1, 1]'
@@ -40,11 +40,11 @@ inputs:
   psql_path:
     description: 'Path to psql binary - it is caller responsibility to provision the psql binary'
     required: false
-    default: '/tmp/neon/pg_install/v16/bin/psql'
+    default: '/tmp/serendb/pg_install/v16/bin/psql'
   libpq_lib_path:
     description: 'Path to directory containing libpq library - it is caller responsibility to provision the libpq library'
     required: false
-    default: '/tmp/neon/pg_install/v16/lib'
+    default: '/tmp/serendb/pg_install/v16/lib'
   project_settings:
     description: 'A JSON object with project settings'
     required: false
@@ -53,16 +53,16 @@ inputs:
 outputs:
   dsn:
     description: 'Created Project DSN (for main database)'
-    value: ${{ steps.create-neon-project.outputs.dsn }}
+    value: ${{ steps.create-serendb-project.outputs.dsn }}
   project_id:
     description: 'Created Project ID'
-    value: ${{ steps.create-neon-project.outputs.project_id }}
+    value: ${{ steps.create-serendb-project.outputs.project_id }}
 
 runs:
   using: "composite"
   steps:
-    - name: Create Neon Project
-      id: create-neon-project
+    - name: Create SerenDB Project
+      id: create-serendb-project
       # A shell without `set -x` to not to expose password/dsn in logs
       shell: bash -euo pipefail {0}
       run: |
@@ -74,10 +74,10 @@ runs:
           --header "Authorization: Bearer ${API_KEY}" \
           --data "{
             \"project\": {
-              \"name\": \"Created by actions/neon-project-create; GITHUB_RUN_ID=${GITHUB_RUN_ID}\",
+              \"name\": \"Created by actions/serendb-project-create; GITHUB_RUN_ID=${GITHUB_RUN_ID}\",
               \"pg_version\": ${POSTGRES_VERSION},
               \"region_id\": \"${REGION_ID}\",
-              \"provisioner\": \"k8s-neonvm\",
+              \"provisioner\": \"k8s-serendbvm\",
               \"autoscaling_limit_min_cu\": ${MIN_CU},
               \"autoscaling_limit_max_cu\": ${MAX_CU},
               \"settings\": ${PROJECT_SETTINGS}
@@ -107,7 +107,7 @@ runs:
 
         if [ "${SHARD_SPLIT_PROJECT}" = "true" ]; then
           # determine tenant ID
-          TENANT_ID=`${PSQL} ${dsn} -t -A -c "SHOW neon.tenant_id"`
+          TENANT_ID=`${PSQL} ${dsn} -t -A -c "SHOW serendb.tenant_id"`
 
           echo "Splitting project ${project_id} with tenant_id ${TENANT_ID} into $((SHARD_COUNT)) shards with stripe size $((STRIPE_SIZE))"
 
@@ -122,7 +122,7 @@ runs:
         fi
         if [ "${DISABLE_SHARDING}" = "true" ]; then
           # determine tenant ID
-          TENANT_ID=`${PSQL} ${dsn} -t -A -c "SHOW neon.tenant_id"`
+          TENANT_ID=`${PSQL} ${dsn} -t -A -c "SHOW serendb.tenant_id"`
 
           echo "Explicitly disabling shard-splitting for project ${project_id} with tenant_id ${TENANT_ID}"
 

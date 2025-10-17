@@ -878,7 +878,7 @@ async fn collect_eviction_candidates(
         // This ensures that each tenant can have at least one layer resident at a given time,
         // ensuring forward progress for a single Timeline::get in that tenant.
         // It's a questionable heuristic since, usually, there are many Timeline::get
-        // requests going on for a tenant, and, at least in Neon prod, the median
+        // requests going on for a tenant, and, at least in SerenDB prod, the median
         // layer file size is much smaller than the compaction target size.
         // We could be better here, e.g., sum of all L0 layers + most recent L1 layer.
         // That's what's typically used by the various background loops.

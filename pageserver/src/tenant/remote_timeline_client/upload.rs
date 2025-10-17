@@ -144,7 +144,7 @@ pub(super) async fn upload_timeline_layer<'a>(
     /* BEGIN_HADRON */
     let mut metadata = None;
     match storage {
-        // Pass the file path as a storage metadata to minimize changes to neon.
+        // Pass the file path as a storage metadata to minimize changes to SerenDB.
         // Otherwise, we need to change the upload interface.
         GenericRemoteStorage::AzureBlob(s) => {
             let block_size_mb = s.put_block_size_mb.unwrap_or(0);

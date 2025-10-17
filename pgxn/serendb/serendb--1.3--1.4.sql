@@ -1,4 +1,4 @@
-\echo Use "ALTER EXTENSION neon UPDATE TO '1.4'" to load this file. \quit
+\echo Use "ALTER EXTENSION serendb UPDATE TO '1.4'" to load this file. \quit
 
 CREATE FUNCTION approximate_working_set_size_seconds(duration integer default null)
 RETURNS integer

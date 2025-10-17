@@ -32,7 +32,7 @@ wal_level = logical
 hot_standby = on
 autoprewarm = off
 offload_lfc_interval_seconds = 20
-neon.safekeepers = '127.0.0.1:6502,127.0.0.1:6503,127.0.0.1:6501'
+serendb.safekeepers = '127.0.0.1:6502,127.0.0.1:6503,127.0.0.1:6501'
 wal_log_hints = on
 log_connections = on
 shared_buffers = 32768
@@ -45,12 +45,12 @@ password_encryption = md5
 maintenance_work_mem = 65536
 max_parallel_workers = 8
 max_worker_processes = 8
-neon.tenant_id = 'b0554b632bd4d547a63b86c3630317e8'
+serendb.tenant_id = 'b0554b632bd4d547a63b86c3630317e8'
 max_replication_slots = 10
-neon.timeline_id = '2414a61ffc94e428f14b5758fe308e13'
-shared_preload_libraries = 'neon'
+serendb.timeline_id = '2414a61ffc94e428f14b5758fe308e13'
+shared_preload_libraries = 'serendb'
 synchronous_standby_names = 'walproposer'
-neon.pageserver_connstring = 'host=127.0.0.1 port=6400'
+serendb.pageserver_connstring = 'host=127.0.0.1 port=6400'
 test.escaping = 'here''s a backslash \\ and a quote '' and a double-quote " hooray'
 "#
         );

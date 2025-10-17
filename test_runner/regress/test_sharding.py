@@ -12,10 +12,10 @@ import pytest
 import requests
 from fixtures.common_types import Lsn, TenantId, TenantShardId, TimelineArchivalState, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     DEFAULT_AZ_ID,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     StorageControllerApiException,
     last_flush_lsn_upload,
     tenant_get_shards,
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 def test_sharding_smoke(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test the basic lifecycle of a sharded tenant:
@@ -47,7 +47,7 @@ def test_sharding_smoke(
     """
 
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
+    serendb_env_builder.num_pageservers = shard_count
 
     # 1MiB stripes: enable getting some meaningful data distribution without
     # writing large quantities of data in this test.  The stripe size is given
@@ -56,9 +56,9 @@ def test_sharding_smoke(
 
     # Use S3-compatible remote storage so that we can scrub: this test validates
     # that the scrubber doesn't barf when it sees a sharded tenant.
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shard_count, initial_tenant_shard_stripe_size=stripe_size
     )
     tenant_id = env.initial_tenant
@@ -123,7 +123,7 @@ def test_sharding_smoke(
     # Before deleting, stop the client and check we have some objects to delete
     workload.stop()
     assert_prefix_not_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -139,7 +139,7 @@ def test_sharding_smoke(
 
     env.storage_controller.pageserver_api().tenant_delete(tenant_id)
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",
@@ -152,13 +152,13 @@ def test_sharding_smoke(
 
 
 def test_sharding_split_unsharded(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test that shard splitting works on a tenant created as unsharded (i.e. with
     ShardCount(0)).
     """
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -193,7 +193,7 @@ def test_sharding_split_unsharded(
     ],
 )
 def test_sharding_split_compaction(
-    neon_env_builder: NeonEnvBuilder, failpoint: str | None, build_type: str
+    serendb_env_builder: SerenDBEnvBuilder, failpoint: str | None, build_type: str
 ):
     """
     Test that after a split, we clean up parent layer data in the child shards via compaction.
@@ -215,13 +215,13 @@ def test_sharding_split_compaction(
         "lsn_lease_length": "0s",
     }
 
-    neon_env_builder.storage_controller_config = {
-        # Default neon_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
+    serendb_env_builder.storage_controller_config = {
+        # Default serendb_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
         "max_offline": "30s",
         "max_warming_up": "300s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
 
@@ -370,7 +370,7 @@ def test_sharding_split_compaction(
     workload.validate()
 
 
-def test_sharding_split_offloading(neon_env_builder: NeonEnvBuilder):
+def test_sharding_split_offloading(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that during a split, we don't miss archived and offloaded timelines.
     """
@@ -391,13 +391,13 @@ def test_sharding_split_offloading(neon_env_builder: NeonEnvBuilder):
         "lsn_lease_length": "0s",
     }
 
-    neon_env_builder.storage_controller_config = {
-        # Default neon_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
+    serendb_env_builder.storage_controller_config = {
+        # Default serendb_local uses a small timeout: use a longer one to tolerate longer pageserver restarts.
         "max_offline": "30s",
         "max_warming_up": "300s",
     }
 
-    env = neon_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
+    env = serendb_env_builder.init_start(initial_tenant_conf=TENANT_CONF)
     tenant_id = env.initial_tenant
     timeline_id_main = env.initial_timeline
 
@@ -510,7 +510,7 @@ def test_sharding_split_offloading(neon_env_builder: NeonEnvBuilder):
 
 
 def test_sharding_split_smoke(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Test the basics of shard splitting:
@@ -524,7 +524,7 @@ def test_sharding_split_smoke(
     # Shard count we split into
     split_shard_count = 4
     # In preferred AZ & other AZ we will end up with one shard per pageserver
-    neon_env_builder.num_pageservers = split_shard_count * 2
+    serendb_env_builder.num_pageservers = split_shard_count * 2
 
     # Two AZs
     def assign_az(ps_cfg):
@@ -535,7 +535,7 @@ def test_sharding_split_smoke(
         # in case we're on a test node under memory pressure.
         ps_cfg["page_cache_size"] = 128
 
-    neon_env_builder.pageserver_config_override = assign_az
+    serendb_env_builder.pageserver_config_override = assign_az
 
     # 1MiB stripes: enable getting some meaningful data distribution without
     # writing large quantities of data in this test.  The stripe size is given
@@ -544,11 +544,11 @@ def test_sharding_split_smoke(
 
     # Use S3-compatible remote storage so that we can scrub: this test validates
     # that the scrubber doesn't barf when it sees a sharded tenant.
-    neon_env_builder.enable_pageserver_remote_storage(s3_storage())
+    serendb_env_builder.enable_pageserver_remote_storage(s3_storage())
 
     non_default_tenant_config = {"gc_horizon": 77 * 1024 * 1024}
 
-    env = neon_env_builder.init_configs(True)
+    env = serendb_env_builder.init_configs(True)
     env.start()
     tenant_id = TenantId.generate()
     timeline_id = TimelineId.generate()
@@ -711,7 +711,7 @@ def test_sharding_split_smoke(
 
     env.storage_controller.consistency_check()
 
-    def get_node_shard_counts(env: NeonEnv, tenant_ids):
+    def get_node_shard_counts(env: SerenDBEnv, tenant_ids):
         total: defaultdict[int, int] = defaultdict(int)
         attached: defaultdict[int, int] = defaultdict(int)
         for tid in tenant_ids:
@@ -788,7 +788,7 @@ def test_sharding_split_smoke(
 
 @pytest.mark.parametrize("initial_stripe_size", [None, 65536])
 def test_sharding_split_stripe_size(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     httpserver: HTTPServer,
     httpserver_listen_address: ListenAddress,
     initial_stripe_size: int,
@@ -797,8 +797,8 @@ def test_sharding_split_stripe_size(
     Check that modifying stripe size inline with a shard split works as expected
     """
     (host, port) = httpserver_listen_address
-    neon_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.control_plane_hooks_api = f"http://{host}:{port}"
+    serendb_env_builder.num_pageservers = 1
 
     # Set up fake HTTP notify endpoint: we will use this to validate that we receive
     # the correct stripe size after split.
@@ -811,9 +811,9 @@ def test_sharding_split_stripe_size(
 
     httpserver.expect_request("/notify-attach", method="PUT").respond_with_handler(handler)
 
-    neon_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
+    serendb_env_builder.storage_controller_config = {"use_local_compute_notifications": False}
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=1, initial_tenant_shard_stripe_size=initial_stripe_size
     )
     tenant_id = env.initial_tenant
@@ -885,7 +885,7 @@ def test_sharding_split_stripe_size(
 # validating in this test don't benefit much from debug assertions.
 @skip_in_debug_build("Avoid running bulkier ingest tests in debug mode")
 def test_sharding_ingest_layer_sizes(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Check that when ingesting data to a sharded tenant, we properly respect layer size limts.
@@ -903,8 +903,8 @@ def test_sharding_ingest_layer_sizes(
         "gc_period": "0s",
     }
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=TENANT_CONF,
         initial_tenant_shard_count=shard_count,
         # A stripe size the same order of magnitude as layer size: this ensures that
@@ -998,7 +998,7 @@ def test_sharding_ingest_layer_sizes(
 
 
 def test_sharding_ingest_gaps(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Check ingest behavior when the incoming data results in some shards having gaps where
@@ -1020,8 +1020,8 @@ def test_sharding_ingest_gaps(
         "compaction_period": "1s",
     }
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
-    env = neon_env_builder.init_start(
+    serendb_env_builder.num_pageservers = shard_count
+    env = serendb_env_builder.init_start(
         initial_tenant_conf=TENANT_CONF,
         initial_tenant_shard_count=shard_count,
         initial_tenant_shard_stripe_size=128,
@@ -1087,10 +1087,10 @@ def test_sharding_ingest_gaps(
 class Failure:
     pageserver_id: int | None
 
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         raise NotImplementedError()
 
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         """
         Clear the failure, in a way that should enable the system to proceed
         to a totally clean state (all nodes online and reconciled)
@@ -1104,7 +1104,7 @@ class Failure:
         """Whether Self.mitigate is available for use"""
         return False
 
-    def mitigate(self, env: NeonEnv):
+    def mitigate(self, env: SerenDBEnv):
         """
         Mitigate the failure in a way that should allow shard split to
         complete and service to resume, but does not guarantee to leave
@@ -1113,7 +1113,7 @@ class Failure:
         """
         raise NotImplementedError()
 
-    def fails_forward(self, env: NeonEnv):
+    def fails_forward(self, env: SerenDBEnv):
         """
         If true, this failure results in a state that eventualy completes the split.
         """
@@ -1133,7 +1133,7 @@ class PageserverFailpoint(Failure):
         self._mitigate = mitigate
 
     @override
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.allowed_errors.extend(
             [".*failpoint.*", ".*Resetting.*after shard split failure.*"]
@@ -1141,7 +1141,7 @@ class PageserverFailpoint(Failure):
         pageserver.http_client().configure_failpoints((self.failpoint, "return(1)"))
 
     @override
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.http_client().configure_failpoints((self.failpoint, "off"))
         if self._mitigate:
@@ -1156,7 +1156,7 @@ class PageserverFailpoint(Failure):
         return self._mitigate
 
     @override
-    def mitigate(self, env: NeonEnv):
+    def mitigate(self, env: SerenDBEnv):
         env.storage_controller.node_configure(self.pageserver_id, {"availability": "Offline"})
 
 
@@ -1167,11 +1167,11 @@ class StorageControllerFailpoint(Failure):
         self.action = action
 
     @override
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         env.storage_controller.configure_failpoints((self.failpoint, self.action))
 
     @override
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         if "panic" in self.action:
             log.info("Restarting storage controller after panic")
             env.storage_controller.stop()
@@ -1191,7 +1191,7 @@ class StorageControllerFailpoint(Failure):
         return False
 
     @override
-    def fails_forward(self, env: NeonEnv):
+    def fails_forward(self, env: SerenDBEnv):
         # Edge case: the very last failpoint that simulates a DB connection error, where
         # the abort path will fail-forward and result in a complete split.
         fail_forward = self.failpoint == "shard-split-post-complete"
@@ -1219,12 +1219,12 @@ class NodeKill(Failure):
         self._mitigate = mitigate
 
     @override
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.stop(immediate=True)
 
     @override
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         pageserver = env.get_pageserver(self.pageserver_id)
         pageserver.start()
 
@@ -1233,7 +1233,7 @@ class NodeKill(Failure):
         return False
 
     @override
-    def mitigate(self, env: NeonEnv):
+    def mitigate(self, env: SerenDBEnv):
         env.storage_controller.node_configure(self.pageserver_id, {"availability": "Offline"})
 
 
@@ -1253,12 +1253,12 @@ class CompositeFailure(Failure):
                 break
 
     @override
-    def apply(self, env: NeonEnv):
+    def apply(self, env: SerenDBEnv):
         for f in self.failures:
             f.apply(env)
 
     @override
-    def clear(self, env: NeonEnv):
+    def clear(self, env: SerenDBEnv):
         for f in self.failures:
             f.clear(env)
 
@@ -1267,7 +1267,7 @@ class CompositeFailure(Failure):
         return all(f.expect_available() for f in self.failures)
 
     @override
-    def mitigate(self, env: NeonEnv):
+    def mitigate(self, env: SerenDBEnv):
         for f in self.failures:
             f.mitigate(env)
 
@@ -1312,21 +1312,21 @@ class CompositeFailure(Failure):
     ],
 )
 def test_sharding_split_failures(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     compute_reconfigure_listener: ComputeReconfigure,
     failure: Failure,
 ):
-    neon_env_builder.num_pageservers = 4
-    neon_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
+    serendb_env_builder.num_pageservers = 4
+    serendb_env_builder.control_plane_hooks_api = compute_reconfigure_listener.control_plane_hooks_api
     initial_shard_count = 2
     split_shard_count = 4
 
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.storage_controller_config = {
         # Route to `compute_reconfigure_listener` instead
         "use_local_compute_notifications": False,
     }
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -1509,11 +1509,11 @@ def test_sharding_split_failures(
 
 
 # HADRON
-def test_create_tenant_after_split(neon_env_builder: NeonEnvBuilder):
+def test_create_tenant_after_split(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests creating a tenant and a timeline should fail after a tenant split.
     """
-    env = neon_env_builder.init_start(initial_tenant_shard_count=4)
+    env = serendb_env_builder.init_start(initial_tenant_shard_count=4)
 
     env.storage_controller.allowed_errors.extend(
         [
@@ -1542,16 +1542,16 @@ def test_create_tenant_after_split(neon_env_builder: NeonEnvBuilder):
 
 
 # HADRON
-def test_back_pressure_during_split(neon_env_builder: NeonEnvBuilder):
+def test_back_pressure_during_split(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test backpressure works correctly during a shard split, especially after a split is aborted,
     PG will not be stuck forever.
     """
     init_shard_count = 1
-    neon_env_builder.num_pageservers = init_shard_count
+    serendb_env_builder.num_pageservers = init_shard_count
     stripe_size = 32
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=init_shard_count,
         initial_tenant_shard_stripe_size=stripe_size,
         initial_tenant_conf={
@@ -1572,7 +1572,7 @@ def test_back_pressure_during_split(neon_env_builder: NeonEnvBuilder):
         "main",
         config_lines=[
             "max_replication_write_lag = 1MB",
-            "neon.max_cluster_size = 10GB",
+            "serendb.max_cluster_size = 10GB",
             "databricks.max_wal_mb_per_second=100",
         ],
     )
@@ -1590,7 +1590,7 @@ def test_back_pressure_during_split(neon_env_builder: NeonEnvBuilder):
             """
             SELECT
                 pg_wal_lsn_diff(pg_current_wal_flush_lsn(), received_lsn) as received_lsn_lag
-                FROM neon.backpressure_lsns();
+                FROM serendb.backpressure_lsns();
             """,
             log_query=False,
         )
@@ -1643,7 +1643,7 @@ def test_back_pressure_during_split(neon_env_builder: NeonEnvBuilder):
 
 
 # BEGIN_HADRON
-def test_shard_resolve_during_split_abort(neon_env_builder: NeonEnvBuilder):
+def test_shard_resolve_during_split_abort(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests that page service is able to resolve the correct shard during tenant split without causing query errors
     """
@@ -1652,10 +1652,10 @@ def test_shard_resolve_during_split_abort(neon_env_builder: NeonEnvBuilder):
     ROW_COUNT = 10000
 
     init_shard_count = 4
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.num_pageservers = 1
     stripe_size = 16
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=init_shard_count, initial_tenant_shard_stripe_size=stripe_size
     )
 
@@ -1725,15 +1725,15 @@ def test_shard_resolve_during_split_abort(neon_env_builder: NeonEnvBuilder):
 
 
 # HADRON
-def test_back_pressure_per_shard(neon_env_builder: NeonEnvBuilder):
+def test_back_pressure_per_shard(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests back pressure knobs are enforced on the per shard basis instead of at the tenant level.
     """
     init_shard_count = 4
-    neon_env_builder.num_pageservers = init_shard_count
+    serendb_env_builder.num_pageservers = init_shard_count
     stripe_size = 1
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=init_shard_count,
         initial_tenant_shard_stripe_size=stripe_size,
         initial_tenant_conf={
@@ -1750,8 +1750,8 @@ def test_back_pressure_per_shard(neon_env_builder: NeonEnvBuilder):
             "max_replication_write_lag = 0",
             "max_replication_apply_lag = 0",
             "max_replication_flush_lag = 15MB",
-            "neon.max_cluster_size = 10GB",
-            "neon.lakebase_mode = true",
+            "serendb.max_cluster_size = 10GB",
+            "serendb.lakebase_mode = true",
         ],
     )
     endpoint.respec(skip_pg_catalog_updates=False)
@@ -1761,25 +1761,25 @@ def test_back_pressure_per_shard(neon_env_builder: NeonEnvBuilder):
     endpoint.safe_psql(
         "CREATE TABLE usertable AS SELECT s AS KEY, repeat('a', 1000) as VALUE from generate_series(1, 20000) s;"
     )
-    res = endpoint.safe_psql("SELECT neon.backpressure_throttling_time() as throttling_time")[0]
+    res = endpoint.safe_psql("SELECT serendb.backpressure_throttling_time() as throttling_time")[0]
     assert res[0] == 0, f"throttling_time should be 0, but got {res[0]}"
 
 
 # HADRON
-def test_shard_split_page_server_timeout(neon_env_builder: NeonEnvBuilder):
+def test_shard_split_page_server_timeout(serendb_env_builder: SerenDBEnvBuilder):
     """
     Tests that shard split can correctly handle page server timeouts and abort the split
     """
     init_shard_count = 2
-    neon_env_builder.num_pageservers = 1
+    serendb_env_builder.num_pageservers = 1
     stripe_size = 1
 
-    if neon_env_builder.storage_controller_config is None:
-        neon_env_builder.storage_controller_config = {"shard_split_request_timeout": "5s"}
+    if serendb_env_builder.storage_controller_config is None:
+        serendb_env_builder.storage_controller_config = {"shard_split_request_timeout": "5s"}
     else:
-        neon_env_builder.storage_controller_config["shard_split_request_timeout"] = "5s"
+        serendb_env_builder.storage_controller_config["shard_split_request_timeout"] = "5s"
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=init_shard_count,
         initial_tenant_shard_stripe_size=stripe_size,
     )
@@ -1805,7 +1805,7 @@ def test_shard_split_page_server_timeout(neon_env_builder: NeonEnvBuilder):
     endpoint1.stop_and_destroy()
 
 
-def test_sharding_backpressure(neon_env_builder: NeonEnvBuilder):
+def test_sharding_backpressure(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check a scenario when one of the shards is much slower than others.
     Without backpressure, this would lead to the slow shard falling behind
@@ -1813,14 +1813,14 @@ def test_sharding_backpressure(neon_env_builder: NeonEnvBuilder):
     """
 
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
+    serendb_env_builder.num_pageservers = shard_count
 
     # 256KiB stripes: enable getting some meaningful data distribution without
     # writing large quantities of data in this test.  The stripe size is given
     # in number of 8KiB pages.
     stripe_size = 32
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shard_count, initial_tenant_shard_stripe_size=stripe_size
     )
     tenant_id = env.initial_tenant
@@ -1858,9 +1858,9 @@ def test_sharding_backpressure(neon_env_builder: NeonEnvBuilder):
                 # Tip: set to 100MB to make the test fail
                 "max_replication_write_lag=1MB",
                 # Hadron: Need to set max_cluster_size to some value to enable any backpressure at all.
-                "neon.max_cluster_size=1GB",
+                "serendb.max_cluster_size=1GB",
             ],
-            # We need `neon` extension for calling backpressure functions,
+            # We need `serendb` extension for calling backpressure functions,
             # this flag instructs `compute_ctl` to pre-install it.
             "update_catalog": True,
         },
@@ -1892,8 +1892,8 @@ def test_sharding_backpressure(neon_env_builder: NeonEnvBuilder):
                 pg_wal_lsn_diff(pg_current_wal_flush_lsn(), received_lsn) as received_lsn_lag,
                 received_lsn,
                 pg_current_wal_flush_lsn() as flush_lsn,
-                neon.backpressure_throttling_time() as throttling_time
-            FROM neon.backpressure_lsns();
+                serendb.backpressure_throttling_time() as throttling_time
+            FROM serendb.backpressure_lsns();
             """,
             dbname="postgres",
         )[0]
@@ -1937,15 +1937,15 @@ def test_sharding_backpressure(neon_env_builder: NeonEnvBuilder):
         assert diff < 8 * 1024 * 1024, f"LSN diff={diff}, expected diff < 8MB due to backpressure"
 
 
-def test_sharding_unlogged_relation(neon_env_builder: NeonEnvBuilder):
+def test_sharding_unlogged_relation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that an unlogged relation is handled properly on a sharded tenant
 
     Reproducer for https://github.com/neondatabase/neon/issues/7451
     """
 
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenant_id = TenantId.generate()
@@ -1979,12 +1979,12 @@ def test_sharding_unlogged_relation(neon_env_builder: NeonEnvBuilder):
         wait_for_last_flush_lsn(env, ep, tenant_id, timeline_id)
 
 
-def test_top_tenants(neon_env_builder: NeonEnvBuilder):
+def test_top_tenants(serendb_env_builder: SerenDBEnvBuilder):
     """
     The top_tenants API is used in shard auto-splitting to find candidates.
     """
 
-    env = neon_env_builder.init_configs()
+    env = serendb_env_builder.init_configs()
     env.start()
 
     tenants = []
@@ -2022,7 +2022,7 @@ def test_top_tenants(neon_env_builder: NeonEnvBuilder):
 
 
 def test_sharding_gc(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Exercise GC in a sharded tenant: because only shard 0 holds SLRU content, it acts as
@@ -2031,8 +2031,8 @@ def test_sharding_gc(
     """
 
     shard_count = 4
-    neon_env_builder.num_pageservers = shard_count
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.num_pageservers = shard_count
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
 
     TENANT_CONF = {
         # small checkpointing and compaction targets to ensure we generate many upload operations
@@ -2050,7 +2050,7 @@ def test_sharding_gc(
         "image_layer_creation_check_threshold": 0,
         "lsn_lease_length": "0s",
     }
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=shard_count, initial_tenant_conf=TENANT_CONF
     )
 
@@ -2129,7 +2129,7 @@ def test_sharding_gc(
         assert shard_gc_cutoff_lsn == shard_0_gc_cutoff_lsn
 
 
-def test_split_ps_delete_old_shard_after_commit(neon_env_builder: NeonEnvBuilder):
+def test_split_ps_delete_old_shard_after_commit(serendb_env_builder: SerenDBEnvBuilder):
     """
     Check that PageServer only deletes old shards after the split is committed such that it doesn't
     have to download a lot of files during abort.
@@ -2137,10 +2137,10 @@ def test_split_ps_delete_old_shard_after_commit(neon_env_builder: NeonEnvBuilder
     DBNAME = "regression"
 
     init_shard_count = 4
-    neon_env_builder.num_pageservers = init_shard_count
+    serendb_env_builder.num_pageservers = init_shard_count
     stripe_size = 32
 
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_shard_count=init_shard_count, initial_tenant_shard_stripe_size=stripe_size
     )
 

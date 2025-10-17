@@ -16,23 +16,23 @@ from fixtures.remote_storage import RemoteStorageKind, s3_storage
 from fixtures.utils import run_pg_bench_small
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import (
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnvBuilder,
         PgBin,
     )
 
 
 def test_tenant_s3_restore(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     pg_bin: PgBin,
 ):
     remote_storage_kind = s3_storage()
-    neon_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
+    serendb_env_builder.enable_pageserver_remote_storage(remote_storage_kind)
 
     # Mock S3 doesn't have versioning enabled by default, enable it
     # (also do it before there is any writes to the bucket)
     if remote_storage_kind == RemoteStorageKind.MOCK_S3:
-        remote_storage = neon_env_builder.pageserver_remote_storage
+        remote_storage = serendb_env_builder.pageserver_remote_storage
         assert remote_storage, "remote storage not configured"
         enable_remote_storage_versioning(remote_storage)
 
@@ -41,7 +41,7 @@ def test_tenant_s3_restore(
     initial_tenant_conf = many_small_layers_tenant_config()
     del initial_tenant_conf["checkpoint_distance"]
 
-    env = neon_env_builder.init_start(initial_tenant_conf)
+    env = serendb_env_builder.init_start(initial_tenant_conf)
     env.pageserver.allowed_errors.extend(
         [
             # The deletion queue will complain when it encounters simulated S3 errors
@@ -97,7 +97,7 @@ def test_tenant_s3_restore(
     assert not tenant_path.exists()
 
     assert_prefix_empty(
-        neon_env_builder.pageserver_remote_storage,
+        serendb_env_builder.pageserver_remote_storage,
         prefix="/".join(
             (
                 "tenants",

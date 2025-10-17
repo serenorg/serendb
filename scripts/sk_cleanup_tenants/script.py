@@ -24,7 +24,7 @@ parser.add_argument("--safekeeper-host", required=True, type=str)
 args = parser.parse_args()
 
 access_key = os.getenv("CONSOLE_API_TOKEN")
-endpoint: str = "https://console-stage.neon.build/api"
+endpoint: str = "https://console-stage.serendb.build/api"
 
 trash_dir: Path = args.trash_dir
 dry_run: bool = args.dry_run

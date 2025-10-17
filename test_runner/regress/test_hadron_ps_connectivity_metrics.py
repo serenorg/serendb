@@ -4,7 +4,7 @@ import shutil
 from fixtures.common_types import TenantShardId
 from fixtures.log_helper import log
 from fixtures.metrics import parse_metrics
-from fixtures.neon_fixtures import Endpoint, NeonEnvBuilder, NeonPageserver
+from fixtures.serendb_fixtures import Endpoint, SerenDBEnvBuilder, SerenDBPageserver
 from requests.exceptions import ConnectionError
 
 
@@ -18,7 +18,7 @@ def _attempt_reconfiguration(endpoint: Endpoint, new_pageserver_id: int, timeout
         pass
 
 
-def read_misrouted_metric_value(pageserver: NeonPageserver) -> float:
+def read_misrouted_metric_value(pageserver: SerenDBPageserver) -> float:
     return (
         pageserver.http_client()
         .get_metrics()
@@ -36,15 +36,15 @@ def read_request_error_metric_value(endpoint: Endpoint) -> float:
 
 
 def test_misrouted_to_secondary(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Tests that the following metrics are incremented when compute tries to talk to a secondary pageserver:
     - On pageserver receiving the request: pageserver_misrouted_pagestream_requests_total
     - On compute: pg_cctl_pagestream_request_errors_total
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.broker.start()
     env.storage_controller.start()
     for ps in env.pageservers:
@@ -56,7 +56,7 @@ def test_misrouted_to_secondary(
     # the primary and secondary pageservers will be different.
     tenant_id, _ = env.create_tenant(shard_count=1, placement_policy=json.dumps({"Attached": 1}))
     endpoint = env.endpoints.create(
-        "main", tenant_id=tenant_id, config_lines=["neon.lakebase_mode = true"]
+        "main", tenant_id=tenant_id, config_lines=["serendb.lakebase_mode = true"]
     )
     endpoint.respec(skip_pg_catalog_updates=False)
     endpoint.start()
@@ -87,15 +87,15 @@ def test_misrouted_to_secondary(
 
 
 def test_misrouted_to_ps_not_hosting_tenant(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
 ):
     """
     Tests that the following metrics are incremented when compute tries to talk to a pageserver that does not host the tenant:
     - On pageserver receiving the request: pageserver_misrouted_pagestream_requests_total
     - On compute: pg_cctl_pagestream_request_errors_total
     """
-    neon_env_builder.num_pageservers = 2
-    env = neon_env_builder.init_configs()
+    serendb_env_builder.num_pageservers = 2
+    env = serendb_env_builder.init_configs()
     env.broker.start()
     env.storage_controller.start(handle_ps_local_disk_loss=False)
     for ps in env.pageservers:
@@ -105,7 +105,7 @@ def test_misrouted_to_ps_not_hosting_tenant(
 
     tenant_id, _ = env.create_tenant(shard_count=1)
     endpoint = env.endpoints.create(
-        "main", tenant_id=tenant_id, config_lines=["neon.lakebase_mode = true"]
+        "main", tenant_id=tenant_id, config_lines=["serendb.lakebase_mode = true"]
     )
     endpoint.respec(skip_pg_catalog_updates=False)
     endpoint.start()

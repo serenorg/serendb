@@ -2,7 +2,7 @@ commit ec6a491d126882966a696f9ad5d3698935361d55
 Author: Alexey Masterov <alexeymasterov@neon.tech>
 Date:   Tue Dec 17 10:25:00 2024 +0100
 
-    Changes required to run tests on Neon
+    Changes required to run tests on SerenDB
 
 diff --git a/test/expected/permissions_functions.out b/test/expected/permissions_functions.out
 index 1e9fbc2..94cbe25 100644

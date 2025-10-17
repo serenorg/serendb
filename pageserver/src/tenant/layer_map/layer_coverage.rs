@@ -11,7 +11,7 @@ use rpds::RedBlackTreeMapSync;
 /// - insert layers in non-decreasing lsn.start order
 ///
 /// For a detailed explanation and justification of this approach, see:
-/// <https://neon.tech/blog/persistent-structures-in-neons-wal-indexing>
+/// <https://serendb.com/blog/persistent-structures-in-neons-wal-indexing>
 ///
 /// NOTE The struct is parameterized over Value for easier
 ///      testing, but in practice it's some sort of layer.

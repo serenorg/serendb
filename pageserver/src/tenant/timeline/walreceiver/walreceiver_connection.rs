@@ -594,7 +594,7 @@ pub(super) async fn handle_walreceiver_connection(
                     .load(std::sync::atomic::Ordering::Relaxed),
             };
 
-            debug!("neon_status_update {status_update:?}");
+            debug!("serendb_status_update {status_update:?}");
 
             let mut data = BytesMut::new();
             status_update.serialize(&mut data);

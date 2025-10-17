@@ -7,16 +7,16 @@ from typing import TYPE_CHECKING
 from fixtures.log_helper import log
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 
 #
 # Test pageserver recovery after crash
 #
-def test_pageserver_recovery(neon_env_builder: NeonEnvBuilder):
+def test_pageserver_recovery(serendb_env_builder: SerenDBEnvBuilder):
     # Override default checkpointer settings to run it more often.
     # This also creates a bunch more L0 layers, so disable backpressure.
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             "checkpoint_distance": "1048576",
             "l0_flush_delay_threshold": "0",

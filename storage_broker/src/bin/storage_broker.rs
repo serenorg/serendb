@@ -68,7 +68,7 @@ const DEFAULT_SSL_CERT_FILE: &str = "server.crt";
 const DEFAULT_SSL_CERT_RELOAD_PERIOD: &str = "60s";
 
 #[derive(Parser, Debug)]
-#[command(version = GIT_VERSION, about = "Broker for neon storage nodes communication", long_about = None)]
+#[command(version = GIT_VERSION, about = "Broker for SerenDB storage nodes communication", long_about = None)]
 #[clap(group(
     clap::ArgGroup::new("listen-addresses")
         .required(true)
@@ -851,9 +851,9 @@ mod tests {
             backup_lsn: 3,
             remote_consistent_lsn: 4,
             peer_horizon_lsn: 5,
-            safekeeper_connstr: "neon-1-sk-1.local:7676".to_owned(),
-            http_connstr: "neon-1-sk-1.local:7677".to_owned(),
-            https_connstr: Some("neon-1-sk-1.local:7678".to_owned()),
+            safekeeper_connstr: "serendb-1-sk-1.local:7676".to_owned(),
+            http_connstr: "serendb-1-sk-1.local:7677".to_owned(),
+            https_connstr: Some("serendb-1-sk-1.local:7678".to_owned()),
             local_start_lsn: 0,
             availability_zone: None,
             standby_horizon: 0,

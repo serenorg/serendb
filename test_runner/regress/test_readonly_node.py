@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 import pytest
 from fixtures.common_types import Lsn, TenantId, TenantShardId, TimelineId
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import (
+from fixtures.serendb_fixtures import (
     Endpoint,
     LogCursor,
-    NeonEnv,
-    NeonEnvBuilder,
+    SerenDBEnv,
+    SerenDBEnvBuilder,
     last_flush_lsn_upload,
     tenant_get_shards,
 )
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 # This is very similar to the 'test_branch_behind' test, but instead of
 # creating branches, creates read-only nodes.
 #
-def test_readonly_node(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_readonly_node(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     endpoint_main = env.endpoints.create_start("main")
 
     env.pageserver.allowed_errors.extend(
@@ -124,7 +124,7 @@ def test_readonly_node(neon_simple_env: NeonEnv):
         )
 
 
-def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
+def test_readonly_node_gc(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test static endpoint is protected from GC by acquiring and renewing lsn leases.
     """
@@ -133,9 +133,9 @@ def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
         14  # This value needs to be large enough for compute_ctl to send two lease requests.
     )
 
-    neon_env_builder.num_pageservers = 2
+    serendb_env_builder.num_pageservers = 2
     # GC is manual triggered.
-    env = neon_env_builder.init_start(
+    env = serendb_env_builder.init_start(
         initial_tenant_conf={
             # small checkpointing and compaction targets to ensure we generate many upload operations
             "checkpoint_distance": f"{128 * 1024}",
@@ -158,7 +158,7 @@ def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
     ROW_COUNT = 500
 
     def generate_updates_on_main(
-        env: NeonEnv,
+        env: SerenDBEnv,
         ep_main: Endpoint,
         data: int,
         start=1,
@@ -192,7 +192,7 @@ def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
         )
 
     def trigger_gc_and_select(
-        env: NeonEnv,
+        env: SerenDBEnv,
         ep_static: Endpoint,
         lease_lsn: Lsn,
         ctx: str,
@@ -237,7 +237,7 @@ def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
     # lease timeout. Therefore, the test case itself will renew the lease.
     #
     # This is a workaround to make the test case more deterministic.
-    def renew_lease(env: NeonEnv, lease_lsn: Lsn):
+    def renew_lease(env: SerenDBEnv, lease_lsn: Lsn):
         env.storage_controller.pageserver_api().timeline_lsn_lease(
             env.initial_tenant, env.initial_timeline, lease_lsn
         )
@@ -319,8 +319,8 @@ def test_readonly_node_gc(neon_env_builder: NeonEnvBuilder):
 
 
 # Similar test, but with more data, and we force checkpoints
-def test_timetravel(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_timetravel(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     tenant_id = env.initial_tenant
     timeline_id = env.initial_timeline
     client = env.pageserver.http_client()

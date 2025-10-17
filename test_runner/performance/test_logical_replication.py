@@ -10,31 +10,31 @@ import pytest
 from fixtures.benchmark_fixture import MetricReport
 from fixtures.common_types import Lsn
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import logical_replication_sync
+from fixtures.serendb_fixtures import logical_replication_sync
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from subprocess import Popen
     from typing import AnyStr
 
-    from fixtures.benchmark_fixture import NeonBenchmarker
-    from fixtures.neon_api import NeonApiEndpoint
-    from fixtures.neon_fixtures import NeonEnv, PgBin, VanillaPostgres
+    from fixtures.benchmark_fixture import SerenDBBenchmarker
+    from fixtures.serendb_api import SerenDBApiEndpoint
+    from fixtures.serendb_fixtures import SerenDBEnv, PgBin, VanillaPostgres
     from psycopg2.extensions import connection, cursor
 
 
 """
-These benchmarks stress test logical replication within Neon. In order to run
+These benchmarks stress test logical replication within SerenDB. In order to run
 them locally, they require setting up some infrastructure. See
-https://docs.neon.build/compute/logical_replication_benchmarks.html for how to
+https://docs.serendb.build/compute/logical_replication_benchmarks.html for how to
 do that. After setting that up, run the following shell commands.
 
 # These are the project IDs setup for the purposes of running these benchmarks
 export BENCHMARK_PROJECT_ID_PUB=
 export BENCHMARK_PROJECT_ID_SUB=
 
-# See https://neon.tech/docs/manage/api-keys
-export NEON_API_KEY=
+# See https://serendb.com/docs/manage/api-keys
+export SERENDB_API_KEY=
 
 # Fiddling with the --timeout parameter may be required depending on the
 # performance of the benchmark
@@ -43,8 +43,8 @@ pytest -m remote_cluster 'test_runner/performance/test_logical_replication.py'
 
 
 @pytest.mark.timeout(1000)
-def test_logical_replication(neon_simple_env: NeonEnv, pg_bin: PgBin, vanilla_pg: VanillaPostgres):
-    env = neon_simple_env
+def test_logical_replication(serendb_simple_env: SerenDBEnv, pg_bin: PgBin, vanilla_pg: VanillaPostgres):
+    env = serendb_simple_env
 
     endpoint = env.endpoints.create_start("main")
 
@@ -106,9 +106,9 @@ def measure_logical_replication_lag(sub_cur: cursor, pub_cur: cursor, timeout_se
 @pytest.mark.timeout(2 * 60 * 60)
 def test_subscriber_lag(
     pg_bin: PgBin,
-    benchmark_project_pub: NeonApiEndpoint,
-    benchmark_project_sub: NeonApiEndpoint,
-    zenbenchmark: NeonBenchmarker,
+    benchmark_project_pub: SerenDBApiEndpoint,
+    benchmark_project_sub: SerenDBApiEndpoint,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Creates a publisher and subscriber, runs pgbench inserts on publisher and pgbench selects
@@ -206,9 +206,9 @@ def test_subscriber_lag(
 @pytest.mark.timeout(2 * 60 * 60)
 def test_publisher_restart(
     pg_bin: PgBin,
-    benchmark_project_pub: NeonApiEndpoint,
-    benchmark_project_sub: NeonApiEndpoint,
-    zenbenchmark: NeonBenchmarker,
+    benchmark_project_pub: SerenDBApiEndpoint,
+    benchmark_project_sub: SerenDBApiEndpoint,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Creates a publisher and subscriber, runs pgbench inserts on publisher and pgbench selects
@@ -305,8 +305,8 @@ def test_publisher_restart(
 @pytest.mark.timeout(2 * 60 * 60)
 def test_snap_files(
     pg_bin: PgBin,
-    benchmark_project_pub: NeonApiEndpoint,
-    zenbenchmark: NeonBenchmarker,
+    benchmark_project_pub: SerenDBApiEndpoint,
+    zenbenchmark: SerenDBBenchmarker,
 ):
     """
     Creates a node with a replication slot. Generates pgbench into the replication slot,
@@ -366,7 +366,7 @@ def test_snap_files(
     conn.autocommit = True
 
     with conn.cursor() as cur:
-        cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = 'neondb_owner'")
+        cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = 'serendb_owner'")
         is_super = cast("bool", cur.fetchall()[0][0])
         assert is_super, "This benchmark won't work if we don't have superuser"
 

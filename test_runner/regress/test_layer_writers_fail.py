@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import pytest
-from fixtures.neon_fixtures import NeonEnv, NeonPageserver
+from fixtures.serendb_fixtures import SerenDBEnv, SerenDBPageserver
 from fixtures.pageserver.http import PageserverApiException
 
 
 @pytest.mark.skip("See https://github.com/neondatabase/neon/issues/2703")
-def test_image_layer_writer_fail_before_finish(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_image_layer_writer_fail_before_finish(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     pageserver_http = env.pageserver.http_client()
 
     tenant_id, timeline_id = env.create_tenant(
@@ -39,7 +39,7 @@ def test_image_layer_writer_fail_before_finish(neon_simple_env: NeonEnv):
 
     new_temp_layer_files = list(
         filter(
-            lambda file: str(file).endswith(NeonPageserver.TEMP_FILE_SUFFIX),
+            lambda file: str(file).endswith(SerenDBPageserver.TEMP_FILE_SUFFIX),
             [path for path in env.pageserver.timeline_dir(tenant_id, timeline_id).iterdir()],
         )
     )
@@ -50,8 +50,8 @@ def test_image_layer_writer_fail_before_finish(neon_simple_env: NeonEnv):
 
 
 @pytest.mark.skip("See https://github.com/neondatabase/neon/issues/2703")
-def test_delta_layer_writer_fail_before_finish(neon_simple_env: NeonEnv):
-    env = neon_simple_env
+def test_delta_layer_writer_fail_before_finish(serendb_simple_env: SerenDBEnv):
+    env = serendb_simple_env
     pageserver_http = env.pageserver.http_client()
 
     tenant_id, timeline_id = env.create_tenant(
@@ -85,7 +85,7 @@ def test_delta_layer_writer_fail_before_finish(neon_simple_env: NeonEnv):
 
     new_temp_layer_files = list(
         filter(
-            lambda file: str(file).endswith(NeonPageserver.TEMP_FILE_SUFFIX),
+            lambda file: str(file).endswith(SerenDBPageserver.TEMP_FILE_SUFFIX),
             [path for path in env.pageserver.timeline_dir(tenant_id, timeline_id).iterdir()],
         )
     )

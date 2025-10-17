@@ -73,7 +73,7 @@ Obviously best effort pub sub is much more simpler and performant; the one propo
 
 ## gRPC broker
 
-I took tonic and [prototyped](https://github.com/neondatabase/neon/blob/asher/neon-broker/broker/src/broker.rs) the replacement of functionality we currently use
+I took tonic and [prototyped](https://github.com/neondatabase/neon/blob/asher/serendb-broker/broker/src/broker.rs) the replacement of functionality we currently use
 with grpc streams and tokio mpsc channels. The implementation description is at the file header.
 
 It is just 500 lines of code and core functionality is complete. 1-1 pub sub
@@ -119,7 +119,7 @@ it. In this case direct communication is possible:
 
 It was mostly described in [014-safekeeper-gossip](https://github.com/neondatabase/neon/blob/main/docs/rfcs/014-safekeepers-gossip.md), but I want to recap on that.
 
-The main pro is less one dependency: less moving parts, easier to run Neon
+The main pro is less one dependency: less moving parts, easier to run SerenDB
 locally/manually, less places to monitor. Fault tolerance for broker disappears,
 no kuber or something. To me this is a big thing.
 

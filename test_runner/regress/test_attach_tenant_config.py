@@ -12,17 +12,17 @@ from fixtures.utils import wait_until
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from fixtures.neon_fixtures import (
-        NeonEnv,
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnv,
+        SerenDBEnvBuilder,
     )
     from fixtures.pageserver.http import PageserverHttpClient, TenantConfig
 
 
 @pytest.fixture
-def positive_env(neon_env_builder: NeonEnvBuilder) -> NeonEnv:
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+def positive_env(serendb_env_builder: SerenDBEnvBuilder) -> SerenDBEnv:
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     env.pageserver.allowed_errors.extend(
         [
@@ -36,15 +36,15 @@ def positive_env(neon_env_builder: NeonEnvBuilder) -> NeonEnv:
 
 @dataclass
 class NegativeTests:
-    neon_env: NeonEnv
+    serendb_env: SerenDBEnv
     tenant_id: TenantId
     config_pre_detach: TenantConfig
 
 
 @pytest.fixture
-def negative_env(neon_env_builder: NeonEnvBuilder) -> Generator[NegativeTests, None, None]:
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+def negative_env(serendb_env_builder: SerenDBEnvBuilder) -> Generator[NegativeTests, None, None]:
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
     assert isinstance(env.pageserver_remote_storage, LocalFsStorage)
 
     ps_http = env.pageserver.http_client()
@@ -77,7 +77,7 @@ def test_null_body(negative_env: NegativeTests):
     """
     If we send `null` in the body, the request should be rejected with status 400.
     """
-    env = negative_env.neon_env
+    env = negative_env.serendb_env
     tenant_id = negative_env.tenant_id
     ps_http = env.pageserver.http_client()
 
@@ -94,7 +94,7 @@ def test_null_config(negative_env: NegativeTests):
     If the `config` field is `null`, the request should be rejected with status 400.
     """
 
-    env = negative_env.neon_env
+    env = negative_env.serendb_env
     tenant_id = negative_env.tenant_id
     ps_http = env.pageserver.http_client()
 
@@ -107,7 +107,7 @@ def test_null_config(negative_env: NegativeTests):
 
 
 @pytest.mark.parametrize("content_type", [None, "application/json"])
-def test_empty_config(positive_env: NeonEnv, content_type: str | None):
+def test_empty_config(positive_env: SerenDBEnv, content_type: str | None):
     """
     When the 'config' body attribute is omitted, the request should be accepted
     and the tenant should use the default configuration
@@ -135,7 +135,7 @@ def test_empty_config(positive_env: NeonEnv, content_type: str | None):
     assert ps_http.tenant_config(tenant_id).effective_config == config_pre_detach.effective_config
 
 
-def test_fully_custom_config(positive_env: NeonEnv):
+def test_fully_custom_config(positive_env: SerenDBEnv):
     """
     If we send a valid config in the body, the request should be accepted and the config should be applied.
     """

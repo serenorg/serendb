@@ -21,15 +21,15 @@ from fixtures.utils import assert_pageserver_backups_equal, subprocess_capture
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fixtures.neon_fixtures import (
+    from fixtures.serendb_fixtures import (
         Endpoint,
-        NeonEnv,
-        NeonEnvBuilder,
+        SerenDBEnv,
+        SerenDBEnvBuilder,
         PgBin,
     )
 
 
-def test_import_from_vanilla(test_output_dir, pg_bin, vanilla_pg, neon_env_builder):
+def test_import_from_vanilla(test_output_dir, pg_bin, vanilla_pg, serendb_env_builder):
     # Put data in vanilla pg
     vanilla_pg.start()
     vanilla_pg.safe_psql("create user cloud_admin with password 'postgres' superuser")
@@ -86,11 +86,11 @@ def test_import_from_vanilla(test_output_dir, pg_bin, vanilla_pg, neon_env_build
     timeline = TimelineId.generate()
 
     # Set up pageserver for import
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     env.pageserver.tenant_create(tenant)
 
@@ -106,7 +106,7 @@ def test_import_from_vanilla(test_output_dir, pg_bin, vanilla_pg, neon_env_build
     )
 
     def import_tar(base, wal):
-        env.neon_cli.timeline_import(
+        env.serendb_cli.timeline_import(
             tenant_id=tenant,
             timeline_id=timeline,
             new_branch_name=branch_name,
@@ -149,10 +149,10 @@ def test_import_from_vanilla(test_output_dir, pg_bin, vanilla_pg, neon_env_build
 
 
 def test_import_from_pageserver_small(
-    pg_bin: PgBin, neon_env_builder: NeonEnvBuilder, test_output_dir: Path
+    pg_bin: PgBin, serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     timeline = env.create_branch("test_import_from_pageserver_small")
     endpoint = env.endpoints.create_start("test_import_from_pageserver_small")
@@ -168,10 +168,10 @@ def test_import_from_pageserver_small(
 # @pytest.mark.skipif(os.environ.get('BUILD_TYPE') == "debug", reason="only run with release build")
 @pytest.mark.skip("See https://github.com/neondatabase/neon/issues/2255")
 def test_import_from_pageserver_multisegment(
-    pg_bin: PgBin, neon_env_builder: NeonEnvBuilder, test_output_dir: Path
+    pg_bin: PgBin, serendb_env_builder: SerenDBEnvBuilder, test_output_dir: Path
 ):
-    neon_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
-    env = neon_env_builder.init_start()
+    serendb_env_builder.enable_pageserver_remote_storage(RemoteStorageKind.LOCAL_FS)
+    env = serendb_env_builder.init_start()
 
     timeline = env.create_branch("test_import_from_pageserver_multisegment")
     endpoint = env.endpoints.create_start("test_import_from_pageserver_multisegment")
@@ -226,7 +226,7 @@ def _generate_data(num_rows: int, endpoint: Endpoint) -> Lsn:
 def _import(
     expected_num_rows: int,
     lsn: Lsn,
-    env: NeonEnv,
+    env: SerenDBEnv,
     pg_bin: PgBin,
     timeline: TimelineId,
     test_output_dir: Path,
@@ -264,7 +264,7 @@ def _import(
     branch_name = "import_from_pageserver"
     client = env.pageserver.http_client()
     env.pageserver.tenant_create(tenant)
-    env.neon_cli.timeline_import(
+    env.serendb_cli.timeline_import(
         tenant_id=tenant,
         timeline_id=timeline,
         new_branch_name=branch_name,

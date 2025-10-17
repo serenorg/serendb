@@ -2,7 +2,7 @@
 
 Created 2025-01-12 by Erik Grinaker.
 
-See also [internal user guide](https://www.notion.so/neondatabase/Storage-CPU-Memory-Profiling-14bf189e004780228ec7d04442742324?pvs=4).
+See also [internal user guide](https://www.notion.so/serendb/Storage-CPU-Memory-Profiling-14bf189e004780228ec7d04442742324?pvs=4).
 
 ## Summary
 

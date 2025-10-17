@@ -15,13 +15,13 @@ if TYPE_CHECKING:
     from typing import Any
 
     from fixtures.common_types import TenantId, TimelineId
-    from fixtures.neon_fixtures import (
-        NeonEnv,
-        NeonEnvBuilder,
+    from fixtures.serendb_fixtures import (
+        SerenDBEnv,
+        SerenDBEnvBuilder,
     )
 
 
-def ensure_pageserver_ready_for_benchmarking(env: NeonEnv, n_tenants: int):
+def ensure_pageserver_ready_for_benchmarking(env: SerenDBEnv, n_tenants: int):
     """
     Helper function.
     """
@@ -46,20 +46,20 @@ def ensure_pageserver_ready_for_benchmarking(env: NeonEnv, n_tenants: int):
 
 
 def setup_pageserver_with_tenants(
-    neon_env_builder: NeonEnvBuilder,
+    serendb_env_builder: SerenDBEnvBuilder,
     name: str,
     n_tenants: int,
-    setup: Callable[[NeonEnv], tuple[TenantId, TimelineId, dict[str, Any]]],
+    setup: Callable[[SerenDBEnv], tuple[TenantId, TimelineId, dict[str, Any]]],
     timeout_in_seconds: int | None = None,
-) -> NeonEnv:
+) -> SerenDBEnv:
     """
     Utility function to set up a pageserver with a given number of identical tenants.
     """
 
-    def doit(neon_env_builder: NeonEnvBuilder) -> NeonEnv:
-        return many_tenants.single_timeline(neon_env_builder, setup, n_tenants)
+    def doit(serendb_env_builder: SerenDBEnvBuilder) -> SerenDBEnv:
+        return many_tenants.single_timeline(serendb_env_builder, setup, n_tenants)
 
-    env = neon_env_builder.build_and_use_snapshot(name, doit)
+    env = serendb_env_builder.build_and_use_snapshot(name, doit)
     env.start(timeout_in_seconds=timeout_in_seconds)
     ensure_pageserver_ready_for_benchmarking(env, n_tenants)
     return env

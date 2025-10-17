@@ -216,7 +216,7 @@ The WAL is appealing in a local-first world, but, it's much more complex than th
 
 We could have gone to the other extreme and **only** update the layer map whenever we've PUT `index_part.json`.
 I.e., layer map would always be the last-persisted S3 state.
-That's axiomatically beautiful, not least because it fully separates the layer file production and consumption path (=> [layer file spreading proposal](https://www.notion.so/neondatabase/One-Pager-Layer-File-Spreading-Christian-eb6b64182a214e11b3fceceee688d843?pvs=4)).
+That's axiomatically beautiful, not least because it fully separates the layer file production and consumption path (=> [layer file spreading proposal](https://www.notion.so/serendb/One-Pager-Layer-File-Spreading-Christian-eb6b64182a214e11b3fceceee688d843?pvs=4)).
 And it might make hot standbys / read-only pageservers less of a special case in the future.
 
 But, I have some uncertainties with regard to WAL ingestion, because it needs to be able to do some reads for the logical size feedback to safekeepers.
@@ -262,7 +262,7 @@ That way, we avoid a phase where the crash-during-compaction problem is acute.
   - (re)resolutions:
     - https://github.com/neondatabase/neon/pull/4696
     - https://github.com/neondatabase/neon/pull/4094
-      - https://neondb.slack.com/archives/C033QLM5P7D/p1682519017949719
+      - https://serendb.slack.com/archives/C033QLM5P7D/p1682519017949719
 
 Note that the test case introduced in https://github.com/neondatabase/neon/pull/4696/files#diff-13114949d1deb49ae394405d4c49558adad91150ba8a34004133653a8a5aeb76 will produce L1s with the same logical content, but, as outlined in the last paragraph of the _Problem Statement_ section above, we don't want to make that  assumption in order to fix the problem.
 

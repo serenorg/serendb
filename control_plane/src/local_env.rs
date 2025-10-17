@@ -31,10 +31,10 @@ use crate::safekeeper::SafekeeperNode;
 pub const DEFAULT_PG_VERSION: u32 = 17;
 
 //
-// This data structures represents neon_local CLI config
+// This data structures represents serendb_local CLI config
 //
-// It is deserialized from the .neon/config file, or the config file passed
-// to 'neon_local init --config=<path>' option. See control_plane/simple.conf for
+// It is deserialized from the .serendb/config file, or the config file passed
+// to 'serendb_local init --config=<path>' option. See control_plane/simple.conf for
 // an example.
 //
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -43,8 +43,8 @@ pub struct LocalEnv {
     // compute endpoints).
     //
     // This is not stored in the config file. Rather, this is the path where the
-    // config file itself is. It is read from the NEON_REPO_DIR env variable which
-    // must be an absolute path. If the env var is not set, $PWD/.neon is used.
+    // config file itself is. It is read from the SERENDB_REPO_DIR env variable which
+    // must be an absolute path. If the env var is not set, $PWD/.serendb is used.
     pub base_data_dir: PathBuf,
 
     // Path to postgres distribution. It's expected that "bin", "include",
@@ -54,9 +54,9 @@ pub struct LocalEnv {
     pub pg_distrib_dir: PathBuf,
 
     // Path to pageserver binary.
-    pub neon_distrib_dir: PathBuf,
+    pub serendb_distrib_dir: PathBuf,
 
-    // Default tenant ID to use with the 'neon_local' command line utility, when
+    // Default tenant ID to use with the 'serendb_local' command line utility, when
     // --tenant_id is not explicitly specified.
     pub default_tenant_id: Option<TenantId>,
 
@@ -65,14 +65,14 @@ pub struct LocalEnv {
     /// Path to environment's public key
     pub public_key_path: PathBuf,
 
-    pub broker: NeonBroker,
+    pub broker: SerenDBBroker,
 
-    // Configuration for the storage controller (1 per neon_local environment)
-    pub storage_controller: NeonStorageControllerConf,
+    // Configuration for the storage controller (1 per serendb_local environment)
+    pub storage_controller: SerenDBStorageControllerConf,
 
     /// This Vec must always contain at least one pageserver
     /// Populdated by [`Self::load_config`] from the individual `pageserver.toml`s.
-    /// NB: not used anymore except for informing users that they need to change their `.neon/config`.
+    /// NB: not used anymore except for informing users that they need to change their `.serendb/config`.
     pub pageservers: Vec<PageServerConf>,
 
     pub safekeepers: Vec<SafekeeperConf>,
@@ -98,17 +98,17 @@ pub struct LocalEnv {
     pub generate_local_ssl_certs: bool,
 }
 
-/// On-disk state stored in `.neon/config`.
+/// On-disk state stored in `.serendb/config`.
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct OnDiskConfig {
     pub pg_distrib_dir: PathBuf,
-    pub neon_distrib_dir: PathBuf,
+    pub serendb_distrib_dir: PathBuf,
     pub default_tenant_id: Option<TenantId>,
     pub private_key_path: PathBuf,
     pub public_key_path: PathBuf,
-    pub broker: NeonBroker,
-    pub storage_controller: NeonStorageControllerConf,
+    pub broker: SerenDBBroker,
+    pub storage_controller: SerenDBStorageControllerConf,
     #[serde(
         skip_serializing,
         deserialize_with = "fail_if_pageservers_field_specified"
@@ -132,22 +132,22 @@ where
 {
     Err(serde::de::Error::custom(
         "The 'pageservers' field is no longer used; pageserver.toml is now authoritative; \
-         Please remove the `pageservers` from your .neon/config.",
+         Please remove the `pageservers` from your .serendb/config.",
     ))
 }
 
-/// The description of the neon_local env to be initialized by `neon_local init --config`.
+/// The description of the serendb_local env to be initialized by `serendb_local init --config`.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct NeonLocalInitConf {
+pub struct SerenDBLocalInitConf {
     // TODO: do we need this? Seems unused
     pub pg_distrib_dir: Option<PathBuf>,
     // TODO: do we need this? Seems unused
-    pub neon_distrib_dir: Option<PathBuf>,
+    pub serendb_distrib_dir: Option<PathBuf>,
     pub default_tenant_id: TenantId,
-    pub broker: NeonBroker,
-    pub storage_controller: Option<NeonStorageControllerConf>,
-    pub pageservers: Vec<NeonLocalInitPageserverConf>,
+    pub broker: SerenDBBroker,
+    pub storage_controller: Option<SerenDBStorageControllerConf>,
+    pub pageservers: Vec<SerenDBLocalInitPageserverConf>,
     pub safekeepers: Vec<SafekeeperConf>,
     pub endpoint_storage: EndpointStorageConf,
     pub control_plane_api: Option<Url>,
@@ -164,20 +164,20 @@ pub struct EndpointStorageConf {
 /// Broker config for cluster internal communication.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, Default)]
 #[serde(default)]
-pub struct NeonBroker {
+pub struct SerenDBBroker {
     /// Broker listen HTTP address for storage nodes coordination, e.g. '127.0.0.1:50051'.
     /// At least one of listen_addr or listen_https_addr must be set.
     pub listen_addr: Option<SocketAddr>,
     /// Broker listen HTTPS address for storage nodes coordination, e.g. '127.0.0.1:50051'.
     /// At least one of listen_addr or listen_https_addr must be set.
-    /// listen_https_addr is preferred over listen_addr in neon_local.
+    /// listen_https_addr is preferred over listen_addr in serendb_local.
     pub listen_https_addr: Option<SocketAddr>,
 }
 
-/// A part of storage controller's config the neon_local knows about.
+/// A part of storage controller's config the serendb_local knows about.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 #[serde(default)]
-pub struct NeonStorageControllerConf {
+pub struct SerenDBStorageControllerConf {
     /// Heartbeat timeout before marking a node offline
     #[serde(with = "humantime_serde")]
     pub max_offline: Duration,
@@ -222,7 +222,7 @@ pub struct NeonStorageControllerConf {
     pub shard_split_request_timeout: Option<Duration>,
 }
 
-impl NeonStorageControllerConf {
+impl SerenDBStorageControllerConf {
     // Use a shorter pageserver unavailability interval than the default to speed up tests.
     const DEFAULT_MAX_OFFLINE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
 
@@ -232,7 +232,7 @@ impl NeonStorageControllerConf {
     const DEFAULT_HEARTBEAT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(1000);
 }
 
-impl Default for NeonStorageControllerConf {
+impl Default for SerenDBStorageControllerConf {
     fn default() -> Self {
         Self {
             max_offline: Self::DEFAULT_MAX_OFFLINE_INTERVAL,
@@ -266,7 +266,7 @@ impl Default for EndpointStorageConf {
     }
 }
 
-impl NeonBroker {
+impl SerenDBBroker {
     pub fn client_url(&self) -> Url {
         let url = if let Some(addr) = self.listen_https_addr {
             format!("https://{addr}")
@@ -282,10 +282,10 @@ impl NeonBroker {
     }
 }
 
-// neon_local needs to know this subset of pageserver configuration.
-// For legacy reasons, this information is duplicated from `pageserver.toml` into `.neon/config`.
+// serendb_local needs to know this subset of pageserver configuration.
+// For legacy reasons, this information is duplicated from `pageserver.toml` into `.serendb/config`.
 // It can get stale if `pageserver.toml` is changed.
-// TODO(christian): don't store this at all in `.neon/config`, always load it from `pageserver.toml`
+// TODO(christian): don't store this at all in `.serendb/config`, always load it from `pageserver.toml`
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct PageServerConf {
@@ -316,11 +316,11 @@ impl Default for PageServerConf {
     }
 }
 
-/// The toml that can be passed to `neon_local init --config`.
+/// The toml that can be passed to `serendb_local init --config`.
 /// This is a subset of the `pageserver.toml` configuration.
 // TODO(christian): use pageserver_api::config::ConfigToml (PR #7656)
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-pub struct NeonLocalInitPageserverConf {
+pub struct SerenDBLocalInitPageserverConf {
     pub id: NodeId,
     pub listen_pg_addr: String,
     pub listen_http_addr: String,
@@ -335,9 +335,9 @@ pub struct NeonLocalInitPageserverConf {
     pub other: HashMap<String, toml::Value>,
 }
 
-impl From<&NeonLocalInitPageserverConf> for PageServerConf {
-    fn from(conf: &NeonLocalInitPageserverConf) -> Self {
-        let NeonLocalInitPageserverConf {
+impl From<&SerenDBLocalInitPageserverConf> for PageServerConf {
+    fn from(conf: &SerenDBLocalInitPageserverConf) -> Self {
+        let SerenDBLocalInitPageserverConf {
             id,
             listen_pg_addr,
             listen_http_addr,
@@ -452,27 +452,27 @@ impl LocalEnv {
     }
 
     pub fn endpoint_storage_bin(&self) -> PathBuf {
-        self.neon_distrib_dir.join("endpoint_storage")
+        self.serendb_distrib_dir.join("endpoint_storage")
     }
 
     pub fn pageserver_bin(&self) -> PathBuf {
-        self.neon_distrib_dir.join("pageserver")
+        self.serendb_distrib_dir.join("pageserver")
     }
 
     pub fn storage_controller_bin(&self) -> PathBuf {
         // Irrespective of configuration, storage controller binary is always
-        // run from the same location as neon_local.  This means that for compatibility
+        // run from the same location as serendb_local.  This means that for compatibility
         // tests that run old pageserver/safekeeper, they still run latest storage controller.
-        let neon_local_bin_dir = env::current_exe().unwrap().parent().unwrap().to_owned();
-        neon_local_bin_dir.join("storage_controller")
+        let serendb_local_bin_dir = env::current_exe().unwrap().parent().unwrap().to_owned();
+        serendb_local_bin_dir.join("storage_controller")
     }
 
     pub fn safekeeper_bin(&self) -> PathBuf {
-        self.neon_distrib_dir.join("safekeeper")
+        self.serendb_distrib_dir.join("safekeeper")
     }
 
     pub fn storage_broker_bin(&self) -> PathBuf {
-        self.neon_distrib_dir.join("storage_broker")
+        self.serendb_distrib_dir.join("storage_broker")
     }
 
     pub fn endpoints_path(&self) -> PathBuf {
@@ -648,12 +648,12 @@ impl LocalEnv {
     pub fn load_config(repopath: &Path) -> anyhow::Result<Self> {
         if !repopath.exists() {
             bail!(
-                "Neon config is not found in {}. You need to run 'neon_local init' first",
+                "SerenDB config is not found in {}. You need to run 'serendb_local init' first",
                 repopath.to_str().unwrap()
             );
         }
 
-        // TODO: check that it looks like a neon repository
+        // TODO: check that it looks like a SerenDB repository
 
         // load and parse file
         let config_file_contents = fs::read_to_string(repopath.join("config"))?;
@@ -661,7 +661,7 @@ impl LocalEnv {
         let mut env = {
             let OnDiskConfig {
                 pg_distrib_dir,
-                neon_distrib_dir,
+                serendb_distrib_dir,
                 default_tenant_id,
                 private_key_path,
                 public_key_path,
@@ -679,7 +679,7 @@ impl LocalEnv {
             LocalEnv {
                 base_data_dir: repopath.to_owned(),
                 pg_distrib_dir,
-                neon_distrib_dir,
+                serendb_distrib_dir,
                 default_tenant_id,
                 private_key_path,
                 public_key_path,
@@ -794,7 +794,7 @@ impl LocalEnv {
             &self.base_data_dir,
             &OnDiskConfig {
                 pg_distrib_dir: self.pg_distrib_dir.clone(),
-                neon_distrib_dir: self.neon_distrib_dir.clone(),
+                serendb_distrib_dir: self.serendb_distrib_dir.clone(),
                 default_tenant_id: self.default_tenant_id,
                 private_key_path: self.private_key_path.clone(),
                 public_key_path: self.public_key_path.clone(),
@@ -861,8 +861,8 @@ impl LocalEnv {
         Ok(pem)
     }
 
-    /// Materialize the [`NeonLocalInitConf`] to disk. Called during [`neon_local init`].
-    pub fn init(conf: NeonLocalInitConf, force: &InitForceMode) -> anyhow::Result<()> {
+    /// Materialize the [`SerenDBLocalInitConf`] to disk. Called during [`serendb_local init`].
+    pub fn init(conf: SerenDBLocalInitConf, force: &InitForceMode) -> anyhow::Result<()> {
         let base_path = base_path();
         assert_ne!(base_path, Path::new(""));
         let base_path = &base_path;
@@ -886,7 +886,7 @@ impl LocalEnv {
                     println!("removing all contents of '{}'", base_path.display());
                     // instead of directly calling `remove_dir_all`, we keep the original dir but removing
                     // all contents inside. This helps if the developer symbol links another directory (i.e.,
-                    // S3 local SSD) to the `.neon` base directory.
+                    // S3 local SSD) to the `.serendb` base directory.
                     for entry in std::fs::read_dir(base_path)? {
                         let entry = entry?;
                         let path = entry.path();
@@ -903,9 +903,9 @@ impl LocalEnv {
             fs::create_dir(base_path)?;
         }
 
-        let NeonLocalInitConf {
+        let SerenDBLocalInitConf {
             pg_distrib_dir,
-            neon_distrib_dir,
+            serendb_distrib_dir,
             default_tenant_id,
             broker,
             storage_controller,
@@ -930,8 +930,8 @@ impl LocalEnv {
             }
         });
 
-        // Find neon binaries.
-        let neon_distrib_dir = neon_distrib_dir
+        // Find SerenDB binaries.
+        let serendb_distrib_dir = serendb_distrib_dir
             .unwrap_or_else(|| env::current_exe().unwrap().parent().unwrap().to_owned());
 
         // Generate keypair for JWT.
@@ -954,7 +954,7 @@ impl LocalEnv {
         let env = LocalEnv {
             base_data_dir: base_path.clone(),
             pg_distrib_dir,
-            neon_distrib_dir,
+            serendb_distrib_dir,
             default_tenant_id: Some(default_tenant_id),
             private_key_path,
             public_key_path,
@@ -1013,12 +1013,12 @@ impl LocalEnv {
 }
 
 pub fn base_path() -> PathBuf {
-    let path = match std::env::var_os("NEON_REPO_DIR") {
+    let path = match std::env::var_os("SERENDB_REPO_DIR") {
         Some(val) => {
             let path = PathBuf::from(val);
             if !path.is_absolute() {
                 // repeat the env var in the error because our default is always absolute
-                panic!("NEON_REPO_DIR must be an absolute path, got {path:?}");
+                panic!("SERENDB_REPO_DIR must be an absolute path, got {path:?}");
             }
             path
         }
@@ -1027,7 +1027,7 @@ pub fn base_path() -> PathBuf {
                 // technically this can fail but it's quite unlikeley
                 .expect("determine current directory");
             let pwd_abs = pwd.canonicalize().expect("canonicalize current directory");
-            pwd_abs.join(".neon")
+            pwd_abs.join(".serendb")
         }
     };
     assert!(path.is_absolute());
@@ -1074,13 +1074,13 @@ fn generate_auth_keys(private_key_path: &Path, public_key_path: &Path) -> anyhow
 }
 
 fn generate_ssl_ca_cert(cert_path: &Path, key_path: &Path) -> anyhow::Result<()> {
-    // openssl req -x509 -newkey ed25519 -nodes -subj "/CN=Neon Local CA" -days 36500 \
+    // openssl req -x509 -newkey ed25519 -nodes -subj "/CN=SerenDB Local CA" -days 36500 \
     // -out rootCA.crt -keyout rootCA.key
     let keygen_output = Command::new("openssl")
         .args([
             "req", "-x509", "-newkey", "ed25519", "-nodes", "-days", "36500",
         ])
-        .args(["-subj", "/CN=Neon Local CA"])
+        .args(["-subj", "/CN=SerenDB Local CA"])
         .args(["-out", cert_path.to_str().unwrap()])
         .args(["-keyout", key_path.to_str().unwrap()])
         .output()

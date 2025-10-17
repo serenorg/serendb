@@ -30,18 +30,18 @@ ifeq ($(BUILD_TYPE),release)
 	PG_CFLAGS += -O2 -g3 $(CFLAGS)
 	PG_LDFLAGS = $(LDFLAGS)
 	CARGO_PROFILE ?= --profile=release
-	# NEON_CARGO_ARTIFACT_TARGET_DIR is the directory where `cargo build` places
+	# SERENDB_CARGO_ARTIFACT_TARGET_DIR is the directory where `cargo build` places
 	# the final build artifacts. There is unfortunately no easy way of changing
 	# it to a fully predictable path, nor to extract the path with a simple
 	# command. See https://github.com/rust-lang/cargo/issues/9661 and
 	# https://github.com/rust-lang/cargo/issues/6790.
-	NEON_CARGO_ARTIFACT_TARGET_DIR = $(ROOT_PROJECT_DIR)/target/release
+	SERENDB_CARGO_ARTIFACT_TARGET_DIR = $(ROOT_PROJECT_DIR)/target/release
 else ifeq ($(BUILD_TYPE),debug)
 	PG_CONFIGURE_OPTS = --enable-debug --with-openssl --enable-cassert --enable-depend
 	PG_CFLAGS += -O0 -g3 $(CFLAGS)
 	PG_LDFLAGS = $(LDFLAGS)
 	CARGO_PROFILE ?= --profile=dev
-	NEON_CARGO_ARTIFACT_TARGET_DIR = $(ROOT_PROJECT_DIR)/target/debug
+	SERENDB_CARGO_ARTIFACT_TARGET_DIR = $(ROOT_PROJECT_DIR)/target/debug
 else
 	$(error Bad build type '$(BUILD_TYPE)', see Makefile for options)
 endif
@@ -102,17 +102,17 @@ CARGO_CMD_PREFIX += CARGO_TERM_PROGRESS_WHEN=never CI=1
 CACHEDIR_TAG_CONTENTS := "Signature: 8a477f597d28d172789f06886806bc55"
 
 #
-# Top level Makefile to build Neon and PostgreSQL
+# Top level Makefile to build SerenDB and PostgreSQL
 #
 .PHONY: all
-all: neon postgres-install neon-pg-ext
+all: serendb postgres-install serendb-pg-ext
 
-### Neon Rust bits
+### SerenDB Rust bits
 #
 # The 'postgres_ffi' crate depends on the Postgres headers.
-.PHONY: neon
-neon: postgres-headers-install walproposer-lib cargo-target-dir
-	+@echo "Compiling Neon"
+.PHONY: serendb
+serendb: postgres-headers-install walproposer-lib cargo-target-dir
+	+@echo "Compiling SerenDB"
 	$(CARGO_CMD_PREFIX) cargo build $(CARGO_BUILD_FLAGS) $(CARGO_PROFILE)
 
 .PHONY: cargo-target-dir
@@ -121,19 +121,19 @@ cargo-target-dir:
 	mkdir -p target
 	test -e target/CACHEDIR.TAG || echo "$(CACHEDIR_TAG_CONTENTS)" > target/CACHEDIR.TAG
 
-.PHONY: neon-pg-ext-%
-neon-pg-ext-%: postgres-install-% cargo-target-dir
-	+@echo "Compiling neon-specific Postgres extensions for $*"
+.PHONY: serendb-pg-ext-%
+serendb-pg-ext-%: postgres-install-% cargo-target-dir
+	+@echo "Compiling SerenDB-specific Postgres extensions for $*"
 	mkdir -p $(BUILD_DIR)/pgxn-$*
 	$(MAKE) PG_CONFIG="$(POSTGRES_INSTALL_DIR)/$*/bin/pg_config" COPT='$(COPT)' \
-		NEON_CARGO_ARTIFACT_TARGET_DIR="$(NEON_CARGO_ARTIFACT_TARGET_DIR)" \
+		SERENDB_CARGO_ARTIFACT_TARGET_DIR="$(SERENDB_CARGO_ARTIFACT_TARGET_DIR)" \
 		CARGO_BUILD_FLAGS="$(CARGO_BUILD_FLAGS)" \
 		CARGO_PROFILE="$(CARGO_PROFILE)" \
 		-C $(BUILD_DIR)/pgxn-$*\
 		-f $(ROOT_PROJECT_DIR)/pgxn/Makefile  install
 
 # Build walproposer as a static library. walproposer source code is located
-# in the pgxn/neon directory.
+# in the pgxn/serendb directory.
 #
 # We also need to include libpgport.a and libpgcommon.a, because walproposer
 # uses some functions from those libraries.
@@ -142,12 +142,12 @@ neon-pg-ext-%: postgres-install-% cargo-target-dir
 # they depend on openssl and other libraries that are not included in our
 # Rust build.
 .PHONY: walproposer-lib
-walproposer-lib: neon-pg-ext-v17
+walproposer-lib: serendb-pg-ext-v17
 	+@echo "Compiling walproposer-lib"
 	mkdir -p $(BUILD_DIR)/walproposer-lib
 	$(MAKE) PG_CONFIG=$(POSTGRES_INSTALL_DIR)/v17/bin/pg_config COPT='$(COPT)' \
 		-C $(BUILD_DIR)/walproposer-lib \
-		-f $(ROOT_PROJECT_DIR)/pgxn/neon/Makefile walproposer-lib
+		-f $(ROOT_PROJECT_DIR)/pgxn/serendb/Makefile walproposer-lib
 	cp $(POSTGRES_INSTALL_DIR)/v17/lib/libpgport.a $(BUILD_DIR)/walproposer-lib
 	cp $(POSTGRES_INSTALL_DIR)/v17/lib/libpgcommon.a $(BUILD_DIR)/walproposer-lib
 	$(AR) d $(BUILD_DIR)/walproposer-lib/libpgport.a \
@@ -164,9 +164,9 @@ ifeq ($(UNAME_S),Linux)
 		pg_crc32c.o
 endif
 
-# Shorthand to call neon-pg-ext-% target for all Postgres versions
-.PHONY: neon-pg-ext
-neon-pg-ext: $(foreach pg_version,$(POSTGRES_VERSIONS),neon-pg-ext-$(pg_version))
+# Shorthand to call serendb-pg-ext-% target for all Postgres versions
+.PHONY: serendb-pg-ext
+serendb-pg-ext: $(foreach pg_version,$(POSTGRES_VERSIONS),serendb-pg-ext-$(pg_version))
 
 # This removes everything
 .PHONY: distclean
@@ -205,15 +205,15 @@ postgres-%-pgindent: postgres-%-pg-bsd-indent postgres-%-typedefs.list
 		--excludes $(ROOT_PROJECT_DIR)/vendor/postgres-$*/src/tools/pgindent/exclude_file_patterns
 	$(RM) pg*.BAK
 
-# Indent pxgn/neon.
-.PHONY: neon-pgindent
-neon-pgindent: postgres-v17-pg-bsd-indent neon-pg-ext-v17
+# Indent pgxn/serendb.
+.PHONY: serendb-pgindent
+serendb-pgindent: postgres-v17-pg-bsd-indent serendb-pg-ext-v17
 	$(MAKE) PG_CONFIG=$(POSTGRES_INSTALL_DIR)/v17/bin/pg_config COPT='$(COPT)' \
 		FIND_TYPEDEF=$(ROOT_PROJECT_DIR)/vendor/postgres-v17/src/tools/find_typedef \
 		INDENT=$(BUILD_DIR)/v17/src/tools/pg_bsd_indent/pg_bsd_indent \
 		PGINDENT_SCRIPT=$(ROOT_PROJECT_DIR)/vendor/postgres-v17/src/tools/pgindent/pgindent \
-		-C $(BUILD_DIR)/pgxn-v17/neon \
-		-f $(ROOT_PROJECT_DIR)/pgxn/neon/Makefile pgindent
+		-C $(BUILD_DIR)/pgxn-v17/serendb \
+		-f $(ROOT_PROJECT_DIR)/pgxn/serendb/Makefile pgindent
 
 
 .PHONY: setup-pre-commit-hook

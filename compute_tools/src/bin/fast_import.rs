@@ -47,7 +47,7 @@ const PG_WAIT_RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_mi
 
 #[derive(Subcommand, Debug, Clone, serde::Serialize)]
 enum Command {
-    /// Runs local postgres (neon binary), restores into it,
+    /// Runs local postgres (SerenDB binary), restores into it,
     /// uploads pgdata to s3 to be consumed by pageservers
     Pgdata {
         /// Raw connection string to the source database. Used only in tests,
@@ -63,12 +63,12 @@ enum Command {
 
         /// Number of CPUs in the system. This is used to configure # of
         /// parallel worker processes, for index creation.
-        #[clap(long, env = "NEON_IMPORTER_NUM_CPUS")]
+        #[clap(long, env = "SERENDB_IMPORTER_NUM_CPUS")]
         num_cpus: Option<usize>,
 
         /// Amount of RAM in the system. This is used to configure shared_buffers
         /// and maintenance_work_mem.
-        #[clap(long, env = "NEON_IMPORTER_MEMORY_MB")]
+        #[clap(long, env = "SERENDB_IMPORTER_MEMORY_MB")]
         memory_mb: Option<usize>,
     },
 
@@ -96,13 +96,13 @@ impl Command {
 
 #[derive(clap::Parser)]
 struct Args {
-    #[clap(long, env = "NEON_IMPORTER_WORKDIR")]
+    #[clap(long, env = "SERENDB_IMPORTER_WORKDIR")]
     working_directory: Utf8PathBuf,
-    #[clap(long, env = "NEON_IMPORTER_S3_PREFIX")]
+    #[clap(long, env = "SERENDB_IMPORTER_S3_PREFIX")]
     s3_prefix: Option<s3_uri::S3Uri>,
-    #[clap(long, env = "NEON_IMPORTER_PG_BIN_DIR")]
+    #[clap(long, env = "SERENDB_IMPORTER_PG_BIN_DIR")]
     pg_bin_dir: Utf8PathBuf,
-    #[clap(long, env = "NEON_IMPORTER_PG_LIB_DIR")]
+    #[clap(long, env = "SERENDB_IMPORTER_PG_LIB_DIR")]
     pg_lib_dir: Utf8PathBuf,
 
     #[clap(subcommand)]
@@ -186,7 +186,7 @@ impl PostgresProcess {
             locale: DEFAULT_LOCALE, // XXX: this shouldn't be hard-coded,
             pg_version,
             initdb_bin: self.pg_bin_dir.join("initdb").as_ref(),
-            library_search_path: &self.pg_lib_dir, // TODO: is this right? Prob works in compute image, not sure about neon_local.
+            library_search_path: &self.pg_lib_dir, // TODO: is this right? Prob works in compute image, not sure about serendb_local.
             pgdata: &self.pgdata_dir,
         })
         .await
@@ -271,7 +271,7 @@ impl PostgresProcess {
 }
 
 async fn wait_until_ready(connstring: String, create_dbname: String) {
-    // Create neondb database in the running postgres
+    // Create serendb database in the running postgres
     let start_time = std::time::Instant::now();
 
     loop {
@@ -283,7 +283,7 @@ async fn wait_until_ready(connstring: String, create_dbname: String) {
         }
 
         match tokio_postgres::connect(
-            &connstring.replace("dbname=neondb", "dbname=postgres"),
+            &connstring.replace("dbname=serendb", "dbname=postgres"),
             tokio_postgres::NoTls,
         )
         .await
@@ -483,14 +483,14 @@ async fn cmd_pgdata(
 
     let superuser = "cloud_admin";
     let destination_connstring =
-        format!("host=localhost port={pg_port} user={superuser} dbname=neondb");
+        format!("host=localhost port={pg_port} user={superuser} dbname=serendb");
 
     let pgdata_dir = workdir.join("pgdata");
     let mut proc = PostgresProcess::new(pgdata_dir.clone(), pg_bin_dir.clone(), pg_lib_dir.clone());
     let nproc = num_cpus.unwrap_or_else(num_cpus::get);
     let memory_mb = memory_mb.unwrap_or(256);
     proc.start(superuser, pg_port, nproc, memory_mb).await?;
-    wait_until_ready(destination_connstring.clone(), "neondb".to_string()).await;
+    wait_until_ready(destination_connstring.clone(), "serendb".to_string()).await;
 
     run_dump_restore(
         workdir.clone(),

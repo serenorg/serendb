@@ -1,4 +1,4 @@
-# Sub-makefile for compiling PostgreSQL as part of Neon. This is
+# Sub-makefile for compiling PostgreSQL as part of SerenDB. This is
 # included from the main Makefile, and is not meant to be called
 # directly.
 #
@@ -33,7 +33,7 @@
 
 # Compile and install a specific PostgreSQL version
 postgres-install-%: postgres-configure-% \
-		  postgres-headers-install-% # to prevent `make install` conflicts with neon's `postgres-headers`
+		  postgres-headers-install-% # to prevent `make install` conflicts with SerenDB's `postgres-headers`
 
 # Install the PostgreSQL header files into $(POSTGRES_INSTALL_DIR)/<version>/include
 #
@@ -106,7 +106,7 @@ $(foreach pg_version,$(POSTGRES_VERSIONS),postgres-configure-$(pg_version)): pos
 
 # Compile and install PostgreSQL (and a few contrib modules used in tests)
 postgres-install-%: postgres-configure-% \
-		  postgres-headers-install-% # to prevent `make install` conflicts with neon's `postgres-headers-install`
+		  postgres-headers-install-% # to prevent `make install` conflicts with SerenDB's `postgres-headers-install`
 	+@echo "Compiling PostgreSQL $*"
 	$(MAKE) -C $(BUILD_DIR)/$* MAKELEVEL=0 install
 	$(MAKE) -C $(BUILD_DIR)/$*/contrib/pg_prewarm install

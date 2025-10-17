@@ -3,14 +3,14 @@ description: 'Create Branch using API'
 
 inputs:
   api_key:
-    description: 'Neon API key'
+    description: 'SerenDB API key'
     required: true
   project_id:
     description: 'ID of the Project to create Branch in'
     required: true
   api_host:
-    description: 'Neon API host'
-    default: console-stage.neon.build
+    description: 'SerenDB API host'
+    default: console-stage.serendb.build
 outputs:
   dsn:
     description: 'Created Branch DSN (for main database)'
@@ -34,7 +34,7 @@ runs:
             --header "Authorization: Bearer ${API_KEY}" \
             --data "{
               \"branch\": {
-                \"name\": \"Created by actions/neon-branch-create; GITHUB_RUN_ID=${GITHUB_RUN_ID} at $(date +%s)\"
+                \"name\": \"Created by actions/serendb-branch-create; GITHUB_RUN_ID=${GITHUB_RUN_ID} at $(date +%s)\"
               },
               \"endpoints\": [
                 {
@@ -86,8 +86,8 @@ runs:
 
         role_name=$(echo "$roles" | jq --raw-output '
           (.roles | map(select(.protected == false))) as $roles |
-          if any($roles[]; .name == "neondb_owner")
-          then "neondb_owner"
+          if any($roles[]; .name == "serendb_owner")
+          then "serendb_owner"
           else $roles[0].name
           end
         ')
@@ -132,7 +132,7 @@ runs:
           exit 1
         fi
 
-        dsn="postgres://${ROLE_NAME}:${password}@${HOST}/neondb"
+        dsn="postgres://${ROLE_NAME}:${password}@${HOST}/serendb"
         echo "::add-mask::${dsn}"
         echo "dsn=${dsn}" >> $GITHUB_OUTPUT
       env:

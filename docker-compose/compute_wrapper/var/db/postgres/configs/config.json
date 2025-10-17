@@ -97,26 +97,26 @@
                 },
                 {
                     "name": "shared_preload_libraries",
-                    "value": "neon,pg_cron,timescaledb,pg_stat_statements",
+                    "value": "serendb,pg_cron,timescaledb,pg_stat_statements",
                     "vartype": "string"
                 },
                 {
-                    "name": "neon.safekeepers",
+                    "name": "serendb.safekeepers",
                     "value": "safekeeper1:5454,safekeeper2:5454,safekeeper3:5454",
                     "vartype": "string"
                 },
                 {
-                    "name": "neon.timeline_id",
+                    "name": "serendb.timeline_id",
                     "value": "TIMELINE_ID",
                     "vartype": "string"
                 },
                 {
-                    "name": "neon.tenant_id",
+                    "name": "serendb.tenant_id",
                     "value": "TENANT_ID",
                     "vartype": "string"
                 },
                 {
-                    "name": "neon.pageserver_connstring",
+                    "name": "serendb.pageserver_connstring",
                     "value": "host=pageserver port=6400",
                     "vartype": "string"
                 },

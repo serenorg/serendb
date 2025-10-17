@@ -3,11 +3,11 @@ use std::path::Path;
 use anyhow::{Context, anyhow};
 use tracing::{instrument, warn};
 
-pub const RESIZE_SWAP_BIN: &str = "/neonvm/bin/resize-swap";
+pub const RESIZE_SWAP_BIN: &str = "/serendbvm/bin/resize-swap";
 
 #[instrument]
 pub fn resize_swap(size_bytes: u64) -> anyhow::Result<()> {
-    // run `/neonvm/bin/resize-swap --once {size_bytes}`
+    // run `/serendbvm/bin/resize-swap --once {size_bytes}`
     //
     // Passing '--once' causes resize-swap to delete itself after successful completion, which
     // means that if compute_ctl restarts later, we won't end up calling 'swapoff' while

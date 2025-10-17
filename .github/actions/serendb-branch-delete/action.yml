@@ -3,7 +3,7 @@ description: 'Delete Branch using API'
 
 inputs:
   api_key:
-    description: 'Neon API key'
+    description: 'SerenDB API key'
     required: true
   project_id:
     description: 'ID of the Project which should be deleted'
@@ -12,15 +12,15 @@ inputs:
     description: 'ID of the branch to delete'
     required: true
   api_host:
-    description: 'Neon API host'
-    default: console-stage.neon.build
+    description: 'SerenDB API host'
+    default: console-stage.serendb.build
 
 runs:
   using: "composite"
   steps:
     - name: Delete Branch
-      # Do not try to delete a branch if .github/actions/neon-project-create
-      # or .github/actions/neon-branch-create failed before
+      # Do not try to delete a branch if .github/actions/serendb-project-create
+      # or .github/actions/serendb-branch-create failed before
       if: ${{ inputs.project_id != '' && inputs.branch_id != '' }}
       shell: bash -euxo pipefail {0}
       run: |

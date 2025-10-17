@@ -31,7 +31,7 @@ Being frugal with database I/O has two benefits:
 - It reduces cost when using a cloud database service to run the controller's postgres database.
 
 The trade-off is that there is a "bootstrapping" problem: a controller can't be deployed in isolation, one
-must first have some existing database system.  In practice, we expect that Neon is deployed in one of the
+must first have some existing database system.  In practice, we expect that SerenDB is deployed in one of the
 following ways:
 - into a cloud which has a postgres service that can be used to run the controller
 - into a mature on-prem environment that has existing facilities for running databases

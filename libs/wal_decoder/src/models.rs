@@ -21,7 +21,7 @@
 //!           |
 //!           |--> pageserver::walingest::WalIngest::ingest_xact_record
 //!                |
-//!                |--> (NeonWalRecord::ClogSetCommitted)
+//!                |--> (SerenDBWalRecord::ClogSetCommitted)
 //!                     |
 //!                     |--> write to KV store within the pageserver
 
@@ -117,7 +117,7 @@ impl InterpretedWalRecord {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum MetadataRecord {
     Heapam(HeapamRecord),
-    Neonrmgr(NeonrmgrRecord),
+    SerenDBrmgr(SerenDBrmgrRecord),
     Smgr(SmgrRecord),
     Dbase(DbaseRecord),
     Clog(ClogRecord),
@@ -144,7 +144,7 @@ pub struct ClearVmBits {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum NeonrmgrRecord {
+pub enum SerenDBrmgrRecord {
     ClearVmBits(ClearVmBits),
 }
 

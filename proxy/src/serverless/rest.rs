@@ -55,7 +55,7 @@ use super::conn_pool_lib::ConnInfo;
 use super::error::{ConnInfoError, Credentials, HttpCodeError, ReadPayloadError};
 use super::http_conn_pool::{self, LocalProxyClient};
 use super::http_util::{
-    ALLOW_POOL, CONN_STRING, NEON_REQUEST_ID, RAW_TEXT_OUTPUT, TXN_ISOLATION_LEVEL, TXN_READ_ONLY,
+    ALLOW_POOL, CONN_STRING, SERENDB_REQUEST_ID, RAW_TEXT_OUTPUT, TXN_ISOLATION_LEVEL, TXN_READ_ONLY,
     get_conn_info, json_response, uuid_to_header_value,
 };
 use super::json::JsonConversionError;
@@ -256,7 +256,7 @@ impl DbSchemaCache {
         }
 
         let headers = vec![
-            (&NEON_REQUEST_ID, uuid_to_header_value(ctx.session_id())),
+            (&SERENDB_REQUEST_ID, uuid_to_header_value(ctx.session_id())),
             (
                 &CONN_STRING,
                 HeaderValue::from_str(connection_string).expect(
@@ -580,7 +580,7 @@ pub(crate) async fn handle(
 
                         error!("Error response from local_proxy: {status} {msg}");
 
-                        json_map.retain(|key, _| !key.starts_with("neon:")); // remove all the neon-related keys
+                        json_map.retain(|key, _| !key.starts_with("serendb:")); // remove all the serendb-related keys
 
                         let resp_json = serde_json::to_string(&json_map)
                             .unwrap_or("failed to serialize the response message".to_string());
@@ -1051,7 +1051,7 @@ async fn handle_rest_inner(
     )?);
 
     let mut headers = vec![
-        (&NEON_REQUEST_ID, uuid_to_header_value(ctx.session_id())),
+        (&SERENDB_REQUEST_ID, uuid_to_header_value(ctx.session_id())),
         (
             &CONN_STRING,
             HeaderValue::from_str(connection_string).expect("invalid connection string"),

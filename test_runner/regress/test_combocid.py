@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from fixtures.neon_fixtures import NeonEnvBuilder, flush_ep_to_pageserver
+from fixtures.serendb_fixtures import SerenDBEnvBuilder, flush_ep_to_pageserver
 
 
-def do_combocid_op(neon_env_builder: NeonEnvBuilder, op):
-    env = neon_env_builder.init_start()
+def do_combocid_op(serendb_env_builder: SerenDBEnvBuilder, op):
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()
     cur = conn.cursor()
     n_records = 1000
 
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     cur.execute("create table t(id integer, val integer)")
 
@@ -46,27 +46,27 @@ def do_combocid_op(neon_env_builder: NeonEnvBuilder, op):
     )
 
 
-def test_combocid_delete(neon_env_builder: NeonEnvBuilder):
-    do_combocid_op(neon_env_builder, "delete from t")
+def test_combocid_delete(serendb_env_builder: SerenDBEnvBuilder):
+    do_combocid_op(serendb_env_builder, "delete from t")
 
 
-def test_combocid_update(neon_env_builder: NeonEnvBuilder):
-    do_combocid_op(neon_env_builder, "update t set val=val+1")
+def test_combocid_update(serendb_env_builder: SerenDBEnvBuilder):
+    do_combocid_op(serendb_env_builder, "update t set val=val+1")
 
 
-def test_combocid_lock(neon_env_builder: NeonEnvBuilder):
-    do_combocid_op(neon_env_builder, "select * from t for update")
+def test_combocid_lock(serendb_env_builder: SerenDBEnvBuilder):
+    do_combocid_op(serendb_env_builder, "select * from t for update")
 
 
-def test_combocid_multi_insert(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_combocid_multi_insert(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()
     cur = conn.cursor()
     n_records = 1000
 
-    cur.execute("CREATE EXTENSION neon_test_utils")
+    cur.execute("CREATE EXTENSION serendb_test_utils")
 
     cur.execute("create table t(id integer, val integer)")
     file_path = f"{endpoint.pg_data_dir_path()}/t.csv"
@@ -104,8 +104,8 @@ def test_combocid_multi_insert(neon_env_builder: NeonEnvBuilder):
     )
 
 
-def test_combocid(neon_env_builder: NeonEnvBuilder):
-    env = neon_env_builder.init_start()
+def test_combocid(serendb_env_builder: SerenDBEnvBuilder):
+    env = serendb_env_builder.init_start()
     endpoint = env.endpoints.create_start("main")
 
     conn = endpoint.connect()

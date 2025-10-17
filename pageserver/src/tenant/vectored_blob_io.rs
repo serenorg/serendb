@@ -326,7 +326,7 @@ pub struct VectoredReadPlanner {
     //   start offset of the blob in the underlying file,
     //   end offset of the blob in the underlying file,
     //   whether the blob initializes the page image or not
-    //   see [`pageserver_api::record::NeonWalRecord::will_init`]
+    //   see [`pageserver_api::record::SerenDBWalRecord::will_init`]
     // )
     blobs: BTreeMap<Key, Vec<(Lsn, u64, u64, bool)>>,
     // Arguments for previous blob passed into [`VectoredReadPlanner::handle`]

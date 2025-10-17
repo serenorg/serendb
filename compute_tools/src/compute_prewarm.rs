@@ -155,10 +155,10 @@ impl ComputeNode {
 
         let params: Vec<&(dyn postgres_types::ToSql + Sync)> = vec![&uncompressed];
         select! {
-            res = client.query_one("select neon.prewarm_local_cache($1)", &params) => res,
+            res = client.query_one("select serendb.prewarm_local_cache($1)", &params) => res,
             _ = token.cancelled() => {
                 pg_token.cancel_query(postgres::NoTls).await
-                    .context("cancelling neon.prewarm_local_cache()")?;
+                    .context("cancelling serendb.prewarm_local_cache()")?;
                 return Ok(LfcPrewarmState::Cancelled)
             }
         }
@@ -167,7 +167,7 @@ impl ComputeNode {
         let prewarm_time_ms = now.elapsed().as_millis() as u32;
 
         let row = client
-            .query_one("select * from neon.get_prewarm_info()", &[])
+            .query_one("select * from serendb.get_prewarm_info()", &[])
             .await
             .context("querying prewarm info")?;
         let total = row.try_get(0).unwrap_or_default();
@@ -235,7 +235,7 @@ impl ComputeNode {
         let row = ComputeNode::get_maintenance_client(&self.tokio_conn_conf)
             .await
             .context("connecting to postgres")?
-            .query_one("select neon.get_local_cache_state()", &[])
+            .query_one("select serendb.get_local_cache_state()", &[])
             .await
             .context("querying LFC state")?;
         let state = row

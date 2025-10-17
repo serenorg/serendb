@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 import pytest
 import requests
 from fixtures.log_helper import log
-from fixtures.neon_fixtures import StorageControllerApiException
+from fixtures.serendb_fixtures import StorageControllerApiException
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import NeonEnvBuilder
+    from fixtures.serendb_fixtures import SerenDBEnvBuilder
 
 # TODO(diko): pageserver spams with various errors during safekeeper migration.
 # Fix the code so it handles the migration better.
@@ -21,7 +21,7 @@ PAGESERVER_ALLOWED_ERRORS = [
 ]
 
 
-def test_safekeeper_migration_simple(neon_env_builder: NeonEnvBuilder):
+def test_safekeeper_migration_simple(serendb_env_builder: SerenDBEnvBuilder):
     """
     Simple safekeeper migration test.
     Creates 3 safekeepers. The timeline is configuret to use only one safekeeper.
@@ -30,12 +30,12 @@ def test_safekeeper_migration_simple(neon_env_builder: NeonEnvBuilder):
     3. Start the other safekeepers again and go to the next safekeeper.
     4. Validate that the table contains all inserted values.
     """
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 1,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
 
     ep = env.endpoints.create("main", tenant_id=env.initial_tenant)
@@ -48,7 +48,7 @@ def test_safekeeper_migration_simple(neon_env_builder: NeonEnvBuilder):
     current_sk = mconf["sk_set"][0]
 
     ep.start(safekeeper_generation=1, safekeepers=mconf["sk_set"])
-    ep.safe_psql("CREATE EXTENSION neon_test_utils;")
+    ep.safe_psql("CREATE EXTENSION serendb_test_utils;")
     ep.safe_psql("CREATE TABLE t(a int)")
 
     expected_gen = 1
@@ -79,7 +79,7 @@ def test_safekeeper_migration_simple(neon_env_builder: NeonEnvBuilder):
     mconf = env.storage_controller.timeline_locate(env.initial_tenant, env.initial_timeline)
     assert mconf["generation"] == expected_gen
 
-    assert ep.safe_psql("SHOW neon.safekeepers")[0][0].startswith(f"g#{expected_gen}:")
+    assert ep.safe_psql("SHOW serendb.safekeepers")[0][0].startswith(f"g#{expected_gen}:")
 
     # Restart and check again to make sure data is persistent.
     ep.stop()
@@ -88,16 +88,16 @@ def test_safekeeper_migration_simple(neon_env_builder: NeonEnvBuilder):
     assert ep.safe_psql("SELECT * FROM t") == [(i,) for i in range(1, 4)]
 
 
-def test_new_sk_set_validation(neon_env_builder: NeonEnvBuilder):
+def test_new_sk_set_validation(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that safekeeper_migrate validates the new_sk_set before starting the migration.
     """
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 2,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
 
     def expect_fail(sk_set: list[int], match: str):
         with pytest.raises(StorageControllerApiException, match=match):
@@ -123,7 +123,7 @@ def test_new_sk_set_validation(neon_env_builder: NeonEnvBuilder):
     expect_fail([sk_set[0], decom_sk], "decomissioned")
 
 
-def test_safekeeper_migration_common_set_failpoints(neon_env_builder: NeonEnvBuilder):
+def test_safekeeper_migration_common_set_failpoints(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that safekeeper migration handles failures well.
 
@@ -131,12 +131,12 @@ def test_safekeeper_migration_common_set_failpoints(neon_env_builder: NeonEnvBui
     1. safekeeper migration handler can be retried on different failures.
     2. writes do not stuck if sk_set and new_sk_set have a quorum in common.
     """
-    neon_env_builder.num_safekeepers = 4
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 4
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 3,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
 
     mconf = env.storage_controller.timeline_locate(env.initial_tenant, env.initial_timeline)
@@ -145,7 +145,7 @@ def test_safekeeper_migration_common_set_failpoints(neon_env_builder: NeonEnvBui
 
     ep = env.endpoints.create("main", tenant_id=env.initial_tenant)
     ep.start(safekeeper_generation=1, safekeepers=mconf["sk_set"])
-    ep.safe_psql("CREATE EXTENSION neon_test_utils;")
+    ep.safe_psql("CREATE EXTENSION serendb_test_utils;")
     ep.safe_psql("CREATE TABLE t(a int)")
 
     excluded_sk = mconf["sk_set"][-1]
@@ -186,7 +186,7 @@ def test_safekeeper_migration_common_set_failpoints(neon_env_builder: NeonEnvBui
 
     ep.clear_buffers()
     assert ep.safe_psql("SELECT * FROM t") == [(i,) for i in range(len(failpoints))]
-    assert ep.safe_psql("SHOW neon.safekeepers")[0][0].startswith("g#3:")
+    assert ep.safe_psql("SHOW serendb.safekeepers")[0][0].startswith("g#3:")
 
     # Check that we didn't forget to remove the timeline on the excluded safekeeper.
     with pytest.raises(requests.exceptions.HTTPError) as exc:
@@ -199,18 +199,18 @@ def test_safekeeper_migration_common_set_failpoints(neon_env_builder: NeonEnvBui
     )
 
 
-def test_sk_generation_aware_tombstones(neon_env_builder: NeonEnvBuilder):
+def test_sk_generation_aware_tombstones(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that safekeeper respects generations:
     1. Check that migration back and forth between two safekeepers works.
     2. Check that sk refuses to execute requests with stale generation.
     """
-    neon_env_builder.num_safekeepers = 3
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 3
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 1,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
 
     mconf = env.storage_controller.timeline_locate(env.initial_tenant, env.initial_timeline)
@@ -288,7 +288,7 @@ def test_sk_generation_aware_tombstones(neon_env_builder: NeonEnvBuilder):
     expect_deleted(second_sk)
 
 
-def test_safekeeper_migration_stale_timeline(neon_env_builder: NeonEnvBuilder):
+def test_safekeeper_migration_stale_timeline(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that safekeeper migration handles stale timeline correctly by migrating to
     a safekeeper with a stale timeline.
@@ -298,12 +298,12 @@ def test_safekeeper_migration_stale_timeline(neon_env_builder: NeonEnvBuilder):
        sync_position on step 7.
     3. Check that migration succeeds if the compute is running.
     """
-    neon_env_builder.num_safekeepers = 2
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 2
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 1,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
     env.storage_controller.allowed_errors.append(".*not enough successful .* to reach quorum.*")
 
@@ -380,17 +380,17 @@ def test_safekeeper_migration_stale_timeline(neon_env_builder: NeonEnvBuilder):
     assert ep.safe_psql("SELECT * FROM t") == [(0,), (1,)]
 
 
-def test_pull_from_most_advanced_sk(neon_env_builder: NeonEnvBuilder):
+def test_pull_from_most_advanced_sk(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that we pull the timeline from the most advanced safekeeper during the
     migration and do not lose committed WAL.
     """
-    neon_env_builder.num_safekeepers = 4
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 4
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 3,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
 
     mconf = env.storage_controller.timeline_locate(env.initial_tenant, env.initial_timeline)
@@ -462,18 +462,18 @@ def test_pull_from_most_advanced_sk(neon_env_builder: NeonEnvBuilder):
     assert ep.safe_psql("SELECT * FROM t") == [(0,), (1,)]
 
 
-def test_abort_safekeeper_migration(neon_env_builder: NeonEnvBuilder):
+def test_abort_safekeeper_migration(serendb_env_builder: SerenDBEnvBuilder):
     """
     Test that safekeeper migration can be aborted.
     1. Insert failpoints and ensure the abort successfully reverts the timeline state.
     2. Check that endpoint is operational after the abort.
     """
-    neon_env_builder.num_safekeepers = 2
-    neon_env_builder.storage_controller_config = {
+    serendb_env_builder.num_safekeepers = 2
+    serendb_env_builder.storage_controller_config = {
         "timelines_onto_safekeepers": True,
         "timeline_safekeeper_count": 1,
     }
-    env = neon_env_builder.init_start()
+    env = serendb_env_builder.init_start()
     env.pageserver.allowed_errors.extend(PAGESERVER_ALLOWED_ERRORS)
 
     mconf = env.storage_controller.timeline_locate(env.initial_tenant, env.initial_timeline)
@@ -483,7 +483,7 @@ def test_abort_safekeeper_migration(neon_env_builder: NeonEnvBuilder):
 
     ep = env.endpoints.create("main", tenant_id=env.initial_tenant)
     ep.start(safekeeper_generation=1, safekeepers=mconf["sk_set"])
-    ep.safe_psql("CREATE EXTENSION neon_test_utils;")
+    ep.safe_psql("CREATE EXTENSION serendb_test_utils;")
     ep.safe_psql("CREATE TABLE t(a int)")
     ep.safe_psql("INSERT INTO t VALUES (1)")
 
@@ -522,7 +522,7 @@ def test_abort_safekeeper_migration(neon_env_builder: NeonEnvBuilder):
         assert mconf["sk_set"] == [cur_sk]
         assert mconf["new_sk_set"] is None
 
-        assert ep.safe_psql("SHOW neon.safekeepers")[0][0].startswith(f"g#{cur_gen}:")
+        assert ep.safe_psql("SHOW serendb.safekeepers")[0][0].startswith(f"g#{cur_gen}:")
         ep.safe_psql(f"INSERT INTO t VALUES ({cur_gen})")
 
     # After step-8 the final mconf is committed and the migration is not abortable anymore.

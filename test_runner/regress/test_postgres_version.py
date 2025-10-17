@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import PgBin
+    from fixtures.serendb_fixtures import PgBin
     from fixtures.pg_version import PgVersion
 
 

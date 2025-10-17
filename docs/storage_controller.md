@@ -34,7 +34,7 @@ The file `persistence.rs` contains all the code for accessing the database, and 
 
 The `diesel` crate is used for defining models & migrations.
 
-Running a local cluster with `cargo neon` automatically starts a vanilla postgress process to host the storage controller’s database.
+Running a local cluster with `cargo serendb` automatically starts a vanilla postgress process to host the storage controller’s database.
 
 ### Diesel tip: migrations
 
@@ -44,7 +44,7 @@ If you need to modify the database schema, here’s how to create a migration:
 - Use `diesel migration generate <name>` to create a new migration
 - Populate the SQL files in the `migrations/` subdirectory
 - Use `DATABASE_URL=... diesel migration run` to apply the migration you just wrote: this will update the `[schema.rs](http://schema.rs)` file automatically.
-  - This requires a running database: the easiest way to do that is to just run `cargo neon init ; cargo neon start`, which will leave a database available at `postgresql://localhost:1235/storage_controller`
+  - This requires a running database: the easiest way to do that is to just run `cargo serendb init ; cargo serendb start`, which will leave a database available at `postgresql://localhost:1235/storage_controller`
 - Commit the migration files and the changes to schema.rs
 - If you need to iterate, you can rewind migrations with `diesel migration revert -a` and then `diesel migration run` again.
 - The migrations are build into the storage controller binary, and automatically run at startup after it is deployed, so once you’ve committed a migration no further steps are needed.
@@ -58,10 +58,10 @@ only necessary for debug, but may also be used to manage nodes (e.g. marking a n
 
 # Deploying
 
-This section is aimed at engineers deploying the storage controller outside of Neon's cloud platform, as
+This section is aimed at engineers deploying the storage controller outside of SerenDB's cloud platform, as
 part of a self-hosted system.
 
-_General note: since the default `neon_local` environment includes a storage controller, this is a useful
+_General note: since the default `serendb_local` environment includes a storage controller, this is a useful
 reference when figuring out deployment._
 
 ## Database
@@ -79,7 +79,7 @@ when it starts up.
 ## Configure pageservers to use the storage controller
 
 1. The pageserver `control_plane_api` and `control_plane_api_token` should be set in the `pageserver.toml` file. The API setting should
-   point to the "upcall" prefix, for example `http://127.0.0.1:1234/upcall/v1/` is used in neon_local clusters.
+   point to the "upcall" prefix, for example `http://127.0.0.1:1234/upcall/v1/` is used in serendb_local clusters.
 2. Create a `metadata.json` file in the same directory as `pageserver.toml`: this enables the pageserver to automatically register itself
    with the storage controller when it starts up. See the example below for the format of this file.
 
@@ -111,11 +111,11 @@ Currently, there is two hooks, each computed by appending the name to the provid
 If the hooks require JWT auth, the token may be provided with `--control-plane-jwt-token`.
 The hooks will be invoked with a `PUT` request.
 
-In the Neon cloud service, these hooks are implemented by Neon's internal cloud control plane. In `neon_local` systems,
-the storage controller integrates directly with neon_local to reconfigure local postgres processes instead of calling
+In the SerenDB cloud service, these hooks are implemented by SerenDB's internal cloud control plane. In `serendb_local` systems,
+the storage controller integrates directly with serendb_local to reconfigure local postgres processes instead of calling
 the compute hook.
 
-When implementing an on-premise Neon deployment, you must implement a service that handles the compute hooks. This is not complicated.
+When implementing an on-premise SerenDB deployment, you must implement a service that handles the compute hooks. This is not complicated.
 
 ### `notify-attach` body
 
@@ -138,9 +138,9 @@ When a notification is received:
 
 1. Modify postgres configuration for this tenant:
 
-   - set `neon.pageserver_connstring` to a comma-separated list of postgres connection strings to pageservers according to the `shards` list. The
+   - set `serendb.pageserver_connstring` to a comma-separated list of postgres connection strings to pageservers according to the `shards` list. The
      shards identified by `NodeId` must be converted to the address+port of the node.
-   - if stripe_size is not None, set `neon.shard_stripe_size` to this value
+   - if stripe_size is not None, set `serendb.shard_stripe_size` to this value
 
 2. Send SIGHUP to postgres to reload configuration
 3. Respond with 200 to the notification request. Do not return success if postgres was not updated: if an error is returned, the controller
@@ -181,10 +181,10 @@ When a notification is received:
 
 1. Modify postgres configuration for this tenant:
 
-   - set `neon.safekeeper_connstrings` to an array of postgres connection strings to safekeepers according to the `safekeepers` list. The
+   - set `serendb.safekeeper_connstrings` to an array of postgres connection strings to safekeepers according to the `safekeepers` list. The
      safekeepers identified by `NodeId` must be converted to the address+port of the respective safekeeper.
      The hostname is provided for debugging purposes, so we reserve changes to how we pass it.
-   - set `neon.safekeepers_generation` to the provided `generation` value.
+   - set `serendb.safekeepers_generation` to the provided `generation` value.
 
 2. Send SIGHUP to postgres to reload configuration
 3. Respond with 200 to the notification request. Do not return success if postgres was not updated: if an error is returned, the controller

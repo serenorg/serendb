@@ -1,5 +1,5 @@
 {
-  collector_name: 'neon_collector_autoscaling',
+  collector_name: 'serendb_collector_autoscaling',
   metrics: [
     import 'sql_exporter/lfc_approximate_working_set_size_windows.autoscaling.libsonnet',
     import 'sql_exporter/lfc_cache_size_limit.libsonnet',

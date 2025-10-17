@@ -9,7 +9,7 @@ import pytest
 from fixtures.utils import subprocess_capture
 
 if TYPE_CHECKING:
-    from fixtures.neon_fixtures import RemotePostgres
+    from fixtures.serendb_fixtures import RemotePostgres
 
 
 @pytest.mark.remote_cluster
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
         "rust/tokio-postgres",
         "python/asyncpg",
         "python/pg8000",
-        # PostgresClientKitExample does not support SNI or connection options, so it uses workaround D (https://neon.tech/sni)
+        # PostgresClientKitExample does not support SNI or connection options, so it uses workaround D (https://serendb.com/sni)
         # See example itself: test_runner/pg_clients/swift/PostgresClientKitExample/Sources/PostgresClientKitExample/main.swift
         "swift/PostgresClientKitExample",
         "swift/PostgresNIOExample",
@@ -37,10 +37,10 @@ def test_pg_clients(test_output_dir: Path, remote_pg: RemotePostgres, client: st
         env_file = f.name
         f.write(
             f"""
-            NEON_HOST={conn_options["host"]}
-            NEON_DATABASE={conn_options["dbname"]}
-            NEON_USER={conn_options["user"]}
-            NEON_PASSWORD={conn_options["password"]}
+            SERENDB_HOST={conn_options["host"]}
+            SERENDB_DATABASE={conn_options["dbname"]}
+            SERENDB_USER={conn_options["user"]}
+            SERENDB_PASSWORD={conn_options["password"]}
         """
         )
 

@@ -1,6 +1,6 @@
 # Dispatching a connection
 
-For each client connection, Neon service needs to authenticate the
+For each client connection, SerenDB service needs to authenticate the
 connection, and route it to the right PostgreSQL instance.
 
 ## Authentication
@@ -33,14 +33,14 @@ correct PostgreSQL instance. Routing can be done by the proxy, acting
 as a man-in-the-middle, or the connection can be routed at the network
 level based on the hostname or IP address.
 
-Either way, Neon needs to identify which PostgreSQL instance the
+Either way, SerenDB needs to identify which PostgreSQL instance the
 connection should be routed to. If the instance is not already
 running, it needs to be started. Some connections always require a new
 PostgreSQL instance to be created, e.g. if you want to run a one-off
 query against a particular point-in-time.
 
 The PostgreSQL instance is identified by:
-- Neon account (possibly anonymous)
+- SerenDB account (possibly anonymous)
 - cluster (known as tenant in the storage?)
 - branch or snapshot name
 - timestamp (PITR)
@@ -51,7 +51,7 @@ The PostgreSQL instance is identified by:
 When you are using regular PostgreSQL authentication or anonymous
 access, the connection URL needs to contain all the information needed
 for the routing. With github single sign-on, the browser is involved
-and some details - the Neon account in particular - can be deduced
+and some details - the SerenDB account in particular - can be deduced
 from the authentication exchange.
 
 There are three methods for identifying the PostgreSQL instance:
@@ -62,10 +62,10 @@ There are three methods for identifying the PostgreSQL instance:
 
 ### Link Auth
 
-    postgres://<username>@start.neon.tech/<dbname>
+    postgres://<username>@start.serendb.com/<dbname>
 
 This gives you a link that you open in browser. Clicking the link
-performs github authentication, and the Neon account name is
+performs github authentication, and the SerenDB account name is
 provided to the proxy behind the scenes. The proxy routes the
 connection to the primary PostgreSQL instance in cluster called
 "main", branch "main".
@@ -80,7 +80,7 @@ Further ideas:
 
 The connection URL looks like this:
 
-    postgres://<username>@<cluster-id>.db.neon.tech/<dbname>
+    postgres://<username>@<cluster-id>.db.serendb.com/<dbname>
 
 By default, this connects you to the primary PostgreSQL instance
 running on the "main" branch in the named cluster [3]. However, you can
@@ -98,7 +98,7 @@ options are supported:
 For example, to read branch 'testing' as it was on Mar 31, 2022, you could
 specify a timestamp in the connection URL [4]:
 
-    postgres://alice@cluster-1234.db.neon.tech/postgres?options=branch:testing,timestamp:2022-03-31
+    postgres://alice@cluster-1234.db.serendb.com/postgres?options=branch:testing,timestamp:2022-03-31
 
 Connecting with cluster name and options can be disabled in the UI. If
 disabled, you can only connect using a pre-defined endpoint.
@@ -119,7 +119,7 @@ In the UI, click "create endpoint". Fill in the details:
 
 When you click Finish, a named endpoint is created. You can now use the endpoint ID to connect:
 
-    postgres://<username>@<endpoint-id>.endpoint.neon.tech/<dbname>
+    postgres://<username>@<endpoint-id>.endpoint.serendb.com/<dbname>
 
 
 An endpoint can be assigned a static or dynamic IP address, so that
@@ -143,7 +143,7 @@ it correctly.
 [2] Link is a way to both authenticate and to route the connection
 
 [3] This assumes that cluster-ids are globally unique, across all
-Neon accounts.
+SerenDB accounts.
 
 [4] The syntax accepted in the connection URL is limited by libpq. The
 only way to pass arbitrary options to the server (or our proxy) is

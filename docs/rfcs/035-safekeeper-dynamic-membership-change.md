@@ -213,7 +213,7 @@ This requires us to define storcon <-> cplane interface and changes.
 ### storage_controller <-> control plane interface and changes
 
 First of all, control plane should
-[change](https://neondb.slack.com/archives/C03438W3FLZ/p1719226543199829)
+[change](https://serendb.slack.com/archives/C03438W3FLZ/p1719226543199829)
 storing safekeepers per timeline instead of per tenant because we can't migrate
 tenants atomically.
 
@@ -250,7 +250,7 @@ In principle `host` is redundant, but may be useful for observability.
 The request updates list of safekeepers in the db if the provided conf
 generation is higher (the cplane db should also store generations for this).
 Similarly to
-[`/notify-attach`](https://www.notion.so/neondatabase/Storage-Controller-Control-Plane-interface-6de56dd310a043bfa5c2f5564fa98365),
+[`/notify-attach`](https://www.notion.so/serendb/Storage-Controller-Control-Plane-interface-6de56dd310a043bfa5c2f5564fa98365),
 it should update db which makes the call successful, and then try to schedule
 `apply_config` if possible, it is ok if not. storage_controller should rate
 limit calling the endpoint, but likely this won't be needed, as migration
@@ -269,11 +269,11 @@ calls should be retried until they succeed.
 
 When compute receives safekeeper list from control plane it needs to know the
 generation to check whether it should be updated (note that compute may get
-safekeeper list from either cplane or safekeepers). Currently `neon.safekeepers`
+safekeeper list from either cplane or safekeepers). Currently `serendb.safekeepers`
 GUC is just a comma separates list of `host:port`. Let's prefix it with
 `g#<generation>:` to this end, so it will look like
 ```
-g#42:safekeeper-0.eu-central-1.aws.neon.tech:6401,safekeeper-2.eu-central-1.aws.neon.tech:6401,safekeeper-1.eu-central-1.aws.neon.tech:6401
+g#42:safekeeper-0.eu-central-1.aws.serendb.com:6401,safekeeper-2.eu-central-1.aws.serendb.com:6401,safekeeper-1.eu-central-1.aws.serendb.com:6401
 ```
 
 To summarize, list of cplane changes:
@@ -281,7 +281,7 @@ To summarize, list of cplane changes:
 - `/notify-safekeepers` endpoint.
 - Branch creation call may return list of safekeepers and when it is
   present cplane should adopt it instead of choosing on its own like it does currently.
-- `neon.safekeepers` GUC should be prefixed with `g#<generation>:`.
+- `serendb.safekeepers` GUC should be prefixed with `g#<generation>:`.
 
 ### storage_controller implementation
 
@@ -577,7 +577,7 @@ and tries to finish it.
 
 ## Testing
 
-`neon_local` should be switched to use storage_controller, playing role of
+`serendb_local` should be switched to use storage_controller, playing role of
 control plane.
 
 There should be following layers of tests:
@@ -606,7 +606,7 @@ There should be following layers of tests:
 
 Note that
 - Control plane parts and integration with it is fully independent from everything else
-  (tests would use simulation and neon_local).
+  (tests would use simulation and serendb_local).
 - It is reasonable to make compute <-> safekeepers protocol change
   independent of enabling generations.
 - There is a lot of infra work making storage_controller aware of timelines and safekeepers
@@ -617,7 +617,7 @@ Note that
   gradually enable in prod.
 
 Let's have the following implementation bits for gradual rollout:
-- compute gets `neon.safekeepers_proto_version` flag.
+- compute gets `serendb.safekeepers_proto_version` flag.
   Initially both compute and safekeepers will be able to talk both
   versions so that we can delay force restart of them and for
   simplicity of rollback in case it is needed.
@@ -626,7 +626,7 @@ Let's have the following implementation bits for gradual rollout:
   (and returns them in response to cplane) only when it is set to
   true.
 - control_plane [see above](storage_controller-<->-control-plane interface-and-changes)
-  prefixes `neon.safekeepers` GUC with generation number. When it is 0
+  prefixes `serendb.safekeepers` GUC with generation number. When it is 0
   (or prefix not present at all), walproposer behaves as currently, committing on
   the provided safekeeper list -- generations are disabled.
   If it is non 0 it follows this RFC rules.
@@ -654,7 +654,7 @@ Very rough implementation order:
 - Add concept of configurations to safekeepers (including control file),
   implement v3 protocol.
 - Implement walproposer changes, including protocol.
-- Implement storconn part. Use it in neon_local (and pytest).
+- Implement storconn part. Use it in serendb_local (and pytest).
 - Make cplane store safekeepers per timeline instead of per tenant.
 - Implement cplane/storcon integration. Route branch creation/deletion
   through storcon. Then we can test migration of new branches.

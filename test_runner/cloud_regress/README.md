@@ -1,6 +1,6 @@
-# How to run the `pg_regress` tests on a cloud Neon instance.
+# How to run the `pg_regress` tests on a cloud SerenDB instance.
 
-* Create a Neon project on staging.
+* Create a SerenDB project on staging.
 * Grant the superuser privileges to the DB user.
 * (Optional) create a branch for testing
 * Add the following settings to the `pg_settings` section of the default endpoint configuration for the project using the admin interface:
@@ -14,7 +14,7 @@
     "enabled_libraries": []
   }
 ```
-* Checkout the actual `Neon` sources
+* Checkout the actual `SerenDB` sources
 * Patch the sql and expected files for the specific PostgreSQL version, e.g. for v17:
 ```bash
 $ cd vendor/postgres-v17
@@ -25,7 +25,7 @@ $ patch -p1 <../../compute/patches/cloud_regress_pg17.patch
 $ export DEFAULT_PG_VERSION=17
 $ export BUILD_TYPE=release
 ```
-* Build the Neon binaries see [README.md](../../README.md)
+* Build the SerenDB binaries see [README.md](../../README.md)
 * Set the environment variable `BENCHMARK_CONNSTR` to the connection URI of your project.
 * Update poetry, run
 ```bash

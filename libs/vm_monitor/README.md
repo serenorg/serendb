@@ -8,12 +8,12 @@ out upscaling and downscaling decisions.
 
 ## More on scaling
 
-We scale CPU and memory using NeonVM, our in-house QEMU tool for use with Kubernetes.
+We scale CPU and memory using SerenDBVM, our in-house QEMU tool for use with Kubernetes.
 To control thresholds for receiving memory usage notifications, we start Postgres
-in the `neon-postgres` cgroup and set its `memory.{max,high}`.
+in the `serendb-postgres` cgroup and set its `memory.{max,high}`.
 
-* See also: [`neondatabase/autoscaling`](https://github.com/neondatabase/autoscaling/)
-* See also: [`neondatabase/vm-monitor`](https://github.com/neondatabase/vm-monitor/),
+* See also: [`serendb/autoscaling`](https://github.com/neondatabase/autoscaling/)
+* See also: [`serendb/vm-monitor`](https://github.com/neondatabase/vm-monitor/),
 where initial development of the monitor happened. The repository is no longer
 maintained but the commit history may be useful for debugging.
 
@@ -27,7 +27,7 @@ and old one if it exists.
 * the filecache: a struct that allows communication with the Postgres file cache.
 On startup, we connect to the filecache and hold on to the connection for the
 entire monitor lifetime.
-* the cgroup watcher: the `CgroupWatcher` polls the `neon-postgres` cgroup's memory
+* the cgroup watcher: the `CgroupWatcher` polls the `serendb-postgres` cgroup's memory
 usage and sends rolling aggregates to the runner.
 * the runner: the runner marries the filecache and cgroup watcher together,
 communicating with the agent throught the `Dispatcher`, and then calling filecache

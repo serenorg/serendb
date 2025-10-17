@@ -5,5 +5,5 @@
   values: [
     'pageserver_send_flushes_total',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }

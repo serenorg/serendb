@@ -56,7 +56,7 @@ jobs:
   cleanup:
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -65,7 +65,7 @@ jobs:
       ORG_ID: org-solitary-dew-09443886
       LIMIT: 100
       SEARCH: "GITHUB_RUN_ID="
-      BASE_URL: https://console-stage.neon.build/api/v2
+      BASE_URL: https://console-stage.serendb.build/api/v2
       DRY_RUN: "false"  # Set to "true" to just test out the workflow
 
     steps:
@@ -76,9 +76,9 @@ jobs:
 
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-    - name: Cleanup inactive Neon projects left over from prior runs
+    - name: Cleanup inactive SerenDB projects left over from prior runs
       env:
-        API_KEY: ${{ secrets.NEON_STAGING_API_KEY }}
+        API_KEY: ${{ secrets.SERENDB_STAGING_API_KEY }}
       run: |
         set -euo pipefail
 
@@ -135,11 +135,11 @@ jobs:
       matrix:
         include:
           - PG_VERSION: 16
-            PLATFORM: "neon-staging"
+            PLATFORM: "serendb-staging"
             region_id: ${{ github.event.inputs.region_id || 'aws-us-east-2' }}
             RUNNER: [ self-hosted, us-east-2, x64 ]
           - PG_VERSION: 17
-            PLATFORM: "neon-staging"
+            PLATFORM: "serendb-staging"
             region_id: ${{ github.event.inputs.region_id || 'aws-us-east-2' }}
             RUNNER: [ self-hosted, us-east-2, x64 ]
           - PG_VERSION: 16
@@ -149,7 +149,7 @@ jobs:
     env:
       TEST_PG_BENCH_DURATIONS_MATRIX: "300"
       TEST_PG_BENCH_SCALES_MATRIX: "10,100"
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.PG_VERSION }}
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
@@ -158,7 +158,7 @@ jobs:
 
     runs-on: ${{ matrix.RUNNER }}
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -179,21 +179,21 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
-    - name: Create Neon Project
-      id: create-neon-project
-      uses: ./.github/actions/neon-project-create
+    - name: Create SerenDB Project
+      id: create-serendb-project
+      uses: ./.github/actions/serendb-project-create
       with:
         region_id: ${{ matrix.region_id }}
         postgres_version: ${{ env.PG_VERSION }}
-        api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+        api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
     - name: Run benchmark
       uses: ./.github/actions/run-python-test-set
@@ -221,16 +221,16 @@ jobs:
           --ignore test_runner/performance/test_perf_oltp_large_tenant.py
           --ignore test_runner/performance/test_lfc_prewarm.py
       env:
-        BENCHMARK_CONNSTR: ${{ steps.create-neon-project.outputs.dsn }}
+        BENCHMARK_CONNSTR: ${{ steps.create-serendb-project.outputs.dsn }}
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
 
-    - name: Delete Neon Project
+    - name: Delete SerenDB Project
       if: ${{ always() }}
-      uses: ./.github/actions/neon-project-delete
+      uses: ./.github/actions/serendb-project-delete
       with:
-        project_id: ${{ steps.create-neon-project.outputs.project_id }}
-        api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+        project_id: ${{ steps.create-serendb-project.outputs.project_id }}
+        api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
     - name: Create Allure report
       id: create-allure-report
@@ -258,16 +258,16 @@ jobs:
       statuses: write
       id-token: write # aws-actions/configure-aws-credentials
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       DEFAULT_PG_VERSION: 17
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
       SAVE_PERF_REPORT: ${{ github.event.inputs.save_perf_report || ( github.ref_name == 'main' ) }}
-      PLATFORM: "neon-staging"
+      PLATFORM: "serendb-staging"
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -288,11 +288,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -309,7 +309,7 @@ jobs:
       env:
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
-        NEON_API_KEY: ${{ secrets.NEON_STAGING_API_KEY }}
+        SERENDB_API_KEY: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
   replication-tests:
     if: ${{ github.event.inputs.run_only_pgvector_tests == 'false' || github.event.inputs.run_only_pgvector_tests == null }}
@@ -318,16 +318,16 @@ jobs:
       statuses: write
       id-token: write # aws-actions/configure-aws-credentials
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       DEFAULT_PG_VERSION: 16
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
       SAVE_PERF_REPORT: ${{ github.event.inputs.save_perf_report || ( github.ref_name == 'main' ) }}
-      PLATFORM: "neon-staging"
+      PLATFORM: "serendb-staging"
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -348,11 +348,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -369,7 +369,7 @@ jobs:
       env:
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
-        NEON_API_KEY: ${{ secrets.NEON_STAGING_API_KEY }}
+        SERENDB_API_KEY: ${{ secrets.SERENDB_STAGING_API_KEY }}
         BENCHMARK_PROJECT_ID_PUB: ${{ vars.BENCHMARK_PROJECT_ID_PUB }}
         BENCHMARK_PROJECT_ID_SUB: ${{ vars.BENCHMARK_PROJECT_ID_SUB }}
 
@@ -386,7 +386,7 @@ jobs:
       env:
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
-        NEON_API_KEY: ${{ secrets.NEON_STAGING_API_KEY }}
+        SERENDB_API_KEY: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
     - name: Create Allure report
       id: create-allure-report
@@ -419,16 +419,16 @@ jobs:
       id-token: write # aws-actions/configure-aws-credentials
     env:
       PROJECT_ID: ${{ vars.PREWARM_PROJECT_ID }}
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       DEFAULT_PG_VERSION: 17
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
       SAVE_PERF_REPORT: ${{ github.event.inputs.save_perf_report || ( github.ref_name == 'main' ) }}
-      PLATFORM: "neon-staging"
+      PLATFORM: "serendb-staging"
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -449,11 +449,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -470,7 +470,7 @@ jobs:
       env:
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
-        NEON_API_KEY: ${{ secrets.NEON_STAGING_API_KEY }}
+        SERENDB_API_KEY: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
     - name: Create Allure report
       id: create-allure-report
@@ -487,11 +487,11 @@ jobs:
     # Create matrices for the benchmarking jobs, so we run benchmarks on rds only once a week (on Saturday)
     #
     # Available platforms:
-    # - neonvm-captest-new: Freshly created project (1 CU)
-    # - neonvm-captest-freetier: Use freetier-sized compute (0.25 CU)
-    # - neonvm-captest-azure-new: Freshly created project (1 CU) in azure region
-    # - neonvm-captest-azure-freetier: Use freetier-sized compute (0.25 CU) in azure region
-    # - neonvm-captest-reuse: Reusing existing project
+    # - serendbvm-captest-new: Freshly created project (1 CU)
+    # - serendbvm-captest-freetier: Use freetier-sized compute (0.25 CU)
+    # - serendbvm-captest-azure-new: Freshly created project (1 CU) in azure region
+    # - serendbvm-captest-azure-freetier: Use freetier-sized compute (0.25 CU) in azure region
+    # - serendbvm-captest-reuse: Reusing existing project
     # - rds-aurora: Aurora Postgres Serverless v2 with autoscaling from 0.5 to 2 ACUs
     # - rds-postgres: RDS Postgres db.m5.large instance (2 vCPU, 8 GiB) with gp3 EBS storage
     env:
@@ -515,7 +515,7 @@ jobs:
         region_id_default=${{ env.DEFAULT_REGION_ID }}
         runner_default='["self-hosted", "us-east-2", "x64"]'
         runner_azure='["self-hosted", "eastus2", "x64"]'
-        image_default="ghcr.io/neondatabase/build-tools:pinned-bookworm"
+        image_default="ghcr.io/serenorg/build-tools:pinned-bookworm"
         matrix='{
           "pg_version" : [
             16
@@ -524,25 +524,25 @@ jobs:
             "'"$region_id_default"'"
             ],
           "platform": [
-            "neonvm-captest-new",
-            "neonvm-captest-reuse",
-            "neonvm-captest-new"
+            "serendbvm-captest-new",
+            "serendbvm-captest-reuse",
+            "serendbvm-captest-new"
           ],
           "db_size": [ "10gb" ],
           "runner": ['"$runner_default"'],
           "image": [ "'"$image_default"'" ],
-          "include": [{ "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-freetier",       "db_size": "3gb" ,"runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new",            "db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new-many-tables","db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new",            "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "neonvm-azure-captest-freetier", "db_size": "3gb" ,"runner": '"$runner_azure"',   "image": "ghcr.io/neondatabase/build-tools:pinned-bookworm" },
-                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "neonvm-azure-captest-new",      "db_size": "10gb","runner": '"$runner_azure"',   "image": "ghcr.io/neondatabase/build-tools:pinned-bookworm" },
-                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "neonvm-azure-captest-new",      "db_size": "50gb","runner": '"$runner_azure"',   "image": "ghcr.io/neondatabase/build-tools:pinned-bookworm" },
-                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-sharding-reuse", "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-freetier",       "db_size": "3gb" ,"runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new",            "db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new-many-tables","db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
-                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "neonvm-captest-new",            "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               }]
+          "include": [{ "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-freetier",       "db_size": "3gb" ,"runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new",            "db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new-many-tables","db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new",            "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "serendbvm-azure-captest-freetier", "db_size": "3gb" ,"runner": '"$runner_azure"',   "image": "ghcr.io/serenorg/build-tools:pinned-bookworm" },
+                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "serendbvm-azure-captest-new",      "db_size": "10gb","runner": '"$runner_azure"',   "image": "ghcr.io/serenorg/build-tools:pinned-bookworm" },
+                      { "pg_version": 16, "region_id": "azure-eastus2",          "platform": "serendbvm-azure-captest-new",      "db_size": "50gb","runner": '"$runner_azure"',   "image": "ghcr.io/serenorg/build-tools:pinned-bookworm" },
+                      { "pg_version": 16, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-sharding-reuse", "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-freetier",       "db_size": "3gb" ,"runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new",            "db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new-many-tables","db_size": "10gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               },
+                      { "pg_version": 17, "region_id": "'"$region_id_default"'", "platform": "serendbvm-captest-new",            "db_size": "50gb","runner": '"$runner_default"', "image": "'"$image_default"'"                               }]
         }'
 
         if [ "$(date +%A)" = "Saturday" ] || [ ${RUN_AWS_RDS_AND_AURORA} = "true" ]; then
@@ -557,7 +557,7 @@ jobs:
       run: |
         matrix='{
           "platform": [
-            "neonvm-captest-reuse"
+            "serendbvm-captest-reuse"
           ],
           "pg_version" : [
             16,17
@@ -576,7 +576,7 @@ jobs:
       run: |
         matrix='{
           "platform": [
-            "neonvm-captest-reuse"
+            "serendbvm-captest-reuse"
           ],
           "pg_version" : [
             16,17
@@ -609,7 +609,7 @@ jobs:
     env:
       TEST_PG_BENCH_DURATIONS_MATRIX: "60m"
       TEST_PG_BENCH_SCALES_MATRIX: ${{ matrix.db_size }}
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.pg_version }}
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
@@ -642,36 +642,36 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
-    - name: Create Neon Project
-      if: contains(fromJSON('["neonvm-captest-new", "neonvm-captest-new-many-tables", "neonvm-captest-freetier", "neonvm-azure-captest-freetier", "neonvm-azure-captest-new"]'), matrix.platform)
-      id: create-neon-project
-      uses: ./.github/actions/neon-project-create
+    - name: Create SerenDB Project
+      if: contains(fromJSON('["serendbvm-captest-new", "serendbvm-captest-new-many-tables", "serendbvm-captest-freetier", "serendbvm-azure-captest-freetier", "serendbvm-azure-captest-new"]'), matrix.platform)
+      id: create-serendb-project
+      uses: ./.github/actions/serendb-project-create
       with:
         region_id: ${{ matrix.region_id }}
         postgres_version: ${{ env.PG_VERSION }}
-        api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+        api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
         compute_units: ${{ (contains(matrix.platform, 'captest-freetier') && '[0.25, 0.25]') || '[1, 1]' }}
 
     - name: Set up Connection String
       id: set-up-connstr
       run: |
         case "${PLATFORM}" in
-          neonvm-captest-reuse)
+          serendbvm-captest-reuse)
             CONNSTR=${{ secrets.BENCHMARK_CAPTEST_CONNSTR }}
             ;;
-          neonvm-captest-sharding-reuse)
+          serendbvm-captest-sharding-reuse)
             CONNSTR=${{ secrets.BENCHMARK_CAPTEST_SHARDING_CONNSTR }}
             ;;
-          neonvm-captest-new | neonvm-captest-new-many-tables | neonvm-captest-freetier | neonvm-azure-captest-new | neonvm-azure-captest-freetier)
-            CONNSTR=${{ steps.create-neon-project.outputs.dsn }}
+          serendbvm-captest-new | serendbvm-captest-new-many-tables | serendbvm-captest-freetier | serendbvm-azure-captest-new | serendbvm-azure-captest-freetier)
+            CONNSTR=${{ steps.create-serendb-project.outputs.dsn }}
             ;;
           rds-aurora)
             CONNSTR=${{ secrets.BENCHMARK_RDS_AURORA_CONNSTR }}
@@ -687,11 +687,11 @@ jobs:
 
         echo "connstr=${CONNSTR}" >> $GITHUB_OUTPUT
 
-    # we want to compare Neon project OLTP throughput and latency at scale factor 10 GB
-    # without (neonvm-captest-new)
-    # and with (neonvm-captest-new-many-tables) many relations in the database
+    # we want to compare SerenDB project OLTP throughput and latency at scale factor 10 GB
+    # without (serendbvm-captest-new)
+    # and with (serendbvm-captest-new-many-tables) many relations in the database
     - name: Create many relations before the run
-      if: contains(fromJSON('["neonvm-captest-new-many-tables"]'), matrix.platform)
+      if: contains(fromJSON('["serendbvm-captest-new-many-tables"]'), matrix.platform)
       uses: ./.github/actions/run-python-test-set
       with:
         build_type: ${{ env.BUILD_TYPE }}
@@ -752,12 +752,12 @@ jobs:
         VIP_VAP_ACCESS_TOKEN: "${{ secrets.VIP_VAP_ACCESS_TOKEN }}"
         PERF_TEST_RESULT_CONNSTR: "${{ secrets.PERF_TEST_RESULT_CONNSTR }}"
 
-    - name: Delete Neon Project
-      if: ${{ steps.create-neon-project.outputs.project_id && always() }}
-      uses: ./.github/actions/neon-project-delete
+    - name: Delete SerenDB Project
+      if: ${{ steps.create-serendb-project.outputs.project_id && always() }}
+      uses: ./.github/actions/serendb-project-delete
       with:
-        project_id: ${{ steps.create-neon-project.outputs.project_id }}
-        api_key: ${{ secrets.NEON_STAGING_API_KEY }}
+        project_id: ${{ steps.create-serendb-project.outputs.project_id }}
+        api_key: ${{ secrets.SERENDB_STAGING_API_KEY }}
 
     - name: Create Allure report
       id: create-allure-report
@@ -787,10 +787,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - PLATFORM: "neonvm-captest-pgvector"
+          - PLATFORM: "serendbvm-captest-pgvector"
             RUNNER: [ self-hosted, us-east-2, x64 ]
             postgres_version: 16
-          - PLATFORM: "neonvm-captest-pgvector-pg17"
+          - PLATFORM: "serendbvm-captest-pgvector-pg17"
             RUNNER: [ self-hosted, us-east-2, x64 ]
             postgres_version: 17
           - PLATFORM: "azure-captest-pgvector"
@@ -800,7 +800,7 @@ jobs:
     env:
       TEST_PG_BENCH_DURATIONS_MATRIX: "15m"
       TEST_PG_BENCH_SCALES_MATRIX: "1"
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.postgres_version }}
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
@@ -810,7 +810,7 @@ jobs:
 
     runs-on: ${{ matrix.RUNNER }}
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -831,11 +831,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -843,10 +843,10 @@ jobs:
       id: set-up-connstr
       run: |
         case "${PLATFORM}" in
-          neonvm-captest-pgvector)
+          serendbvm-captest-pgvector)
             CONNSTR=${{ secrets.BENCHMARK_PGVECTOR_CONNSTR }}
             ;;
-          neonvm-captest-pgvector-pg17)
+          serendbvm-captest-pgvector-pg17)
             CONNSTR=${{ secrets.BENCHMARK_PGVECTOR_CONNSTR_PG17 }}
             ;;
           azure-captest-pgvector)
@@ -929,7 +929,7 @@ jobs:
       matrix: ${{ fromJSON(needs.generate-matrices.outputs.olap-compare-matrix) }}
 
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.pg_version }}
       TEST_OUTPUT: /tmp/test_output
       TEST_OLAP_COLLECT_EXPLAIN: ${{ github.event.inputs.collect_olap_explain }}
@@ -940,7 +940,7 @@ jobs:
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -965,11 +965,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -977,7 +977,7 @@ jobs:
       id: set-up-connstr
       run: |
         case "${PLATFORM}" in
-          neonvm-captest-reuse)
+          serendbvm-captest-reuse)
             case "${PG_VERSION}" in
               16)
                 CONNSTR=${{ secrets.BENCHMARK_CAPTEST_CLICKBENCH_10M_CONNSTR }}
@@ -998,7 +998,7 @@ jobs:
             CONNSTR=${{ secrets.BENCHMARK_RDS_POSTGRES_CLICKBENCH_10M_CONNSTR }}
             ;;
           *)
-            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'neonvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
+            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'serendbvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
             exit 1
             ;;
         esac
@@ -1061,7 +1061,7 @@ jobs:
       matrix: ${{ fromJSON(needs.generate-matrices.outputs.tpch-compare-matrix) }}
 
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.pg_version }}
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
@@ -1070,7 +1070,7 @@ jobs:
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -1091,18 +1091,18 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
     - name: Get Connstring Secret Name
       run: |
         case "${PLATFORM}" in
-          neonvm-captest-reuse)
+          serendbvm-captest-reuse)
             case "${PG_VERSION}" in
               16)
                 CONNSTR_SECRET_NAME="BENCHMARK_CAPTEST_TPCH_S10_CONNSTR"
@@ -1123,7 +1123,7 @@ jobs:
             CONNSTR_SECRET_NAME="BENCHMARK_RDS_POSTGRES_TPCH_S10_CONNSTR"
             ;;
           *)
-            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'neonvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
+            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'serendbvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
             exit 1
             ;;
         esac
@@ -1185,7 +1185,7 @@ jobs:
       matrix: ${{ fromJSON(needs.generate-matrices.outputs.olap-compare-matrix) }}
 
     env:
-      POSTGRES_DISTRIB_DIR: /tmp/neon/pg_install
+      POSTGRES_DISTRIB_DIR: /tmp/serendb/pg_install
       PG_VERSION: ${{ matrix.pg_version }}
       TEST_OUTPUT: /tmp/test_output
       BUILD_TYPE: remote
@@ -1194,7 +1194,7 @@ jobs:
 
     runs-on: [ self-hosted, us-east-2, x64 ]
     container:
-      image: ghcr.io/neondatabase/build-tools:pinned-bookworm
+      image: ghcr.io/serenorg/build-tools:pinned-bookworm
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -1215,11 +1215,11 @@ jobs:
         role-to-assume: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
         role-duration-seconds: 18000 # 5 hours
 
-    - name: Download Neon artifact
+    - name: Download SerenDB artifact
       uses: ./.github/actions/download
       with:
-        name: neon-${{ runner.os }}-${{ runner.arch }}-release-artifact
-        path: /tmp/neon/
+        name: serendb-${{ runner.os }}-${{ runner.arch }}-release-artifact
+        path: /tmp/serendb/
         prefix: latest
         aws-oidc-role-arn: ${{ vars.DEV_AWS_OIDC_ROLE_ARN }}
 
@@ -1227,7 +1227,7 @@ jobs:
       id: set-up-connstr
       run: |
         case "${PLATFORM}" in
-          neonvm-captest-reuse)
+          serendbvm-captest-reuse)
             case "${PG_VERSION}" in
               16)
                 CONNSTR=${{ secrets.BENCHMARK_USER_EXAMPLE_CAPTEST_CONNSTR }}
@@ -1248,7 +1248,7 @@ jobs:
             CONNSTR=${{ secrets.BENCHMARK_USER_EXAMPLE_RDS_POSTGRES_CONNSTR }}
             ;;
           *)
-            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'neonvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
+            echo >&2 "Unknown PLATFORM=${PLATFORM}. Allowed only 'serendbvm-captest-reuse', 'rds-aurora', or 'rds-postgres'"
             exit 1
             ;;
         esac

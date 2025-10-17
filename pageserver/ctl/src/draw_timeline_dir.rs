@@ -19,7 +19,7 @@
 //! ```bash
 //!
 //! # local timeline dir
-//! ls test_output/test_pgbench\[neon-45-684\]/repo/tenants/$TENANT/timelines/$TIMELINE | \
+//! ls test_output/test_pgbench\[serendb-45-684\]/repo/tenants/$TENANT/timelines/$TIMELINE | \
 //!     grep "__" | cargo run --release --bin pagectl draw-timeline > out.svg
 //!
 //! # Layer map dump from `/v1/tenant/$TENANT/timeline/$TIMELINE/layer`

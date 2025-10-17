@@ -5,5 +5,5 @@
   values: [
     'compute_getpage_max_inflight_stuck_time_ms',
   ],
-  query_ref: 'neon_perf_counters',
+  query_ref: 'serendb_perf_counters',
 }
