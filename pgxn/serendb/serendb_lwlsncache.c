@@ -75,9 +75,6 @@ static XLogRecPtr SetLastWrittenLSNForBlockRangeInternal(XLogRecPtr lsn,
 
 
 /* These hold the set_lwlsn_* hooks which were installed before ours, if any */
-static set_lwlsn_block_range_hook_type prev_set_lwlsn_block_range_hook = NULL;
-static set_lwlsn_block_v_hook_type prev_set_lwlsn_block_v_hook = NULL;
-static set_lwlsn_block_hook_type prev_set_lwlsn_block_hook = NULL;
 static set_max_lwlsn_hook_type prev_set_max_lwlsn_hook = NULL;
 static set_lwlsn_relation_hook_type prev_set_lwlsn_relation_hook = NULL;
 static set_lwlsn_db_hook_type prev_set_lwlsn_db_hook = NULL;
@@ -92,12 +89,6 @@ init_lwlsncache(void)
 	
 	lwlc_register_gucs();
 
-	prev_set_lwlsn_block_range_hook = set_lwlsn_block_range_hook;
-	set_lwlsn_block_range_hook = serendb_set_lwlsn_block_range;
-	prev_set_lwlsn_block_v_hook = set_lwlsn_block_v_hook;
-	set_lwlsn_block_v_hook = serendb_set_lwlsn_block_v;
-	prev_set_lwlsn_block_hook = set_lwlsn_block_hook;
-	set_lwlsn_block_hook = serendb_set_lwlsn_block;
 	prev_set_max_lwlsn_hook = set_max_lwlsn_hook;
 	set_max_lwlsn_hook = serendb_set_max_lwlsn;
 	prev_set_lwlsn_relation_hook = set_lwlsn_relation_hook;

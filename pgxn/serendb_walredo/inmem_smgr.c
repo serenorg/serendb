@@ -395,7 +395,6 @@ static const struct f_smgr inmem_smgr =
 	.smgr_start_unlogged_build = NULL,
 	.smgr_finish_unlogged_build_phase_1 = NULL,
 	.smgr_end_unlogged_build = NULL,
-	.smgr_read_slru_segment = NULL,
 };
 
 const f_smgr *

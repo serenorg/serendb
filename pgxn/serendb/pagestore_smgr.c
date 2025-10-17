@@ -41,6 +41,8 @@
  */
 #include "postgres.h"
 
+#include <unistd.h>
+
 #include "access/parallel.h"
 #include "access/xact.h"
 #include "access/xlog.h"
@@ -56,6 +58,7 @@
 #include "replication/walsender.h"
 #include "storage/bufmgr.h"
 #include "storage/buf_internals.h"
+#include "storage/fd.h"
 #include "storage/fsm_internals.h"
 #include "storage/md.h"
 #include "storage/smgr.h"
@@ -2127,14 +2130,36 @@ serendb_end_unlogged_build(SMgrRelation reln)
 
 #define STRPREFIX(str, prefix) (strncmp(str, prefix, strlen(prefix)) == 0)
 
-static int
-serendb_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* buffer)
+/*
+ * serendb_read_slru_segment - Hook implementation for on-demand SLRU download
+ *
+ * This hook is called by PostgreSQL when an SLRU segment is not found locally.
+ * It downloads the segment from the pageserver and writes it to the specified path.
+ *
+ * Returns true on success, false on failure.
+ *
+ * Note: This replaces the old smgr-based API (removed in postgres commit
+ * 3628a0b4 "Refactor SLRU download interface", August 2025) where SLRU download
+ * was part of the f_smgr struct. The new API uses a separate hook that's
+ * responsible for both downloading and writing the file.
+ */
+static bool
+serendb_read_slru_segment(const char *path, int segno)
 {
 	XLogRecPtr	request_lsn,
 				not_modified_since;
 	SlruKind	kind;
 	int			n_blocks;
 	serendb_request_lsns request_lsns;
+	char	   *buffer;
+	int			fd = -1;
+	bool		success = false;
+
+	/*
+	 * Allocate buffer for SLRU segment data.
+	 * SLRU segments are always SLRU_PAGES_PER_SEGMENT (32) pages.
+	 */
+	buffer = palloc(SLRU_PAGES_PER_SEGMENT * BLCKSZ);
 
 	/*
 	 * Compute a request LSN to use, similar to serendb_get_request_lsns() but the
@@ -2164,6 +2189,7 @@ serendb_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* 
 	 */
 	not_modified_since = nm_adjust_lsn(GetRedoStartLsn());
 
+	/* Determine SLRU kind from path */
 	if (STRPREFIX(path, "pg_xact"))
 		kind = SLRU_CLOG;
 	else if (STRPREFIX(path, "pg_multixact/members"))
@@ -2171,15 +2197,57 @@ serendb_read_slru_segment(SMgrRelation reln, const char* path, int segno, void* 
 	else if (STRPREFIX(path, "pg_multixact/offsets"))
 		kind = SLRU_MULTIXACT_OFFSETS;
 	else
-		return -1;
+	{
+		pfree(buffer);
+		return false;	/* Unknown SLRU kind */
+	}
 
+	/* Download SLRU segment from pageserver */
 	request_lsns.request_lsn = request_lsn;
 	request_lsns.not_modified_since = not_modified_since;
 	request_lsns.effective_request_lsn = request_lsn;
 
-	n_blocks = communicator_read_slru_segment(kind, segno, &request_lsns, buffer);
+	PG_TRY();
+	{
+		n_blocks = communicator_read_slru_segment(kind, segno, &request_lsns, buffer);
 
-	return n_blocks;
+		/*
+		 * Write the downloaded data to disk.
+		 * Use OpenTransientFile similar to SlruPhysicalWritePage.
+		 */
+		fd = OpenTransientFile(path, O_RDWR | O_CREAT | PG_BINARY);
+		if (fd < 0)
+		{
+			elog(WARNING, SERENDB_TAG "failed to create SLRU segment file \"%s\": %m", path);
+			success = false;
+		}
+		else
+		{
+			ssize_t written = pg_pwrite(fd, buffer, n_blocks * BLCKSZ, 0);
+			if (written != n_blocks * BLCKSZ)
+			{
+				elog(WARNING, SERENDB_TAG "failed to write SLRU segment file \"%s\": %m", path);
+				success = false;
+			}
+			else
+			{
+				success = true;
+			}
+
+			CloseTransientFile(fd);
+		}
+	}
+	PG_CATCH();
+	{
+		if (fd >= 0)
+			CloseTransientFile(fd);
+		pfree(buffer);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	pfree(buffer);
+	return success;
 }
 
 static void
@@ -2250,8 +2318,6 @@ static const struct f_smgr serendb_smgr =
 	.smgr_start_unlogged_build = serendb_start_unlogged_build,
 	.smgr_finish_unlogged_build_phase_1 = serendb_finish_unlogged_build_phase_1,
 	.smgr_end_unlogged_build = serendb_end_unlogged_build,
-
-	.smgr_read_slru_segment = serendb_read_slru_segment,
 };
 
 const f_smgr *
@@ -2273,6 +2339,9 @@ smgr_init_serendb(void)
 	smgr_init_standard();
 	serendb_init();
 	communicator_init();
+
+	/* Register hook for on-demand SLRU download */
+	read_slru_segment_hook = serendb_read_slru_segment;
 }
 
 
