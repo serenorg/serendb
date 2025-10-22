@@ -1,6 +1,6 @@
 # SerenDB
 
-SerenDB is a serverless open-source alternative to AWS Aurora Postgres. It is a friendly fork of Neon's database server with a vision to reduce schema and database branching time from current 500ms down to 100ms. SerenDB separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
+SerenDB is a serverless open-source alternative to AWS Aurora Postgres. It is a friendly fork of Neon's database server with a vision to reduce schema and database branching time from current 500ms down to 100ms. SerenDB also includes new security features for AI-Agent context storage, including `context finger-printing`. Like Neon, SerenDB separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
 
 # Run Locally with Claude Code
 
