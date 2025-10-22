@@ -1,11 +1,10 @@
 # SerenDB
 
-SerenDB is a serverless open-source alternative to AWS Aurora Postgres. It separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
+SerenDB is a serverless open-source alternative to AWS Aurora Postgres. It is a friendly fork of Neon's database server with a vision to reduce schema and database branching time from current 500ms down to 100ms. SerenDB separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.
 
-## Quick start
-Try the [SerenDB Free Tier](https://serendb.com/github) to create a serverless Postgres instance. Then connect to it with your preferred Postgres client (psql, dbeaver, etc) or use the online [SQL Editor](https://serendb.com/docs/get-started-with-serendb/query-with-sql-editor/). See [Connect from any application](https://serendb.com/docs/connect/connect-from-any-app/) for connection instructions.
+# Run Locally with Claude Code
 
-Alternatively, compile and run the project [locally](#running-local-installation).
+Compile and run the project [locally](#running-local-installation) with Claude Code.
 
 ## Architecture overview
 
